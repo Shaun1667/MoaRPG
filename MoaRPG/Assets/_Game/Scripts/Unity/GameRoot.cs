@@ -2,7 +2,9 @@ using System.Text;
 using Moa.Core.Ids;
 using Moa.Core.Localization;
 using Moa.Core.Rng;
+using Moa.Unity.Cameras;
 using Moa.Unity.Data;
+using Moa.Unity.Player;
 using Moa.Unity.UI;
 using UnityEngine;
 
@@ -20,6 +22,16 @@ namespace Moa.Unity
         [Tooltip("Phase 0 temporary label (text table check)")]
         [SerializeField] LocalizedLabel bootLabel;
 
+        [Header("Player (1-1, empty in scenes without a player)")]
+        [Tooltip("Component implementing IPlayerInput (PlayerInputReader)")]
+        [SerializeField] MonoBehaviour playerInput;
+        [SerializeField] PlayerMotor playerMotor;
+        [SerializeField] OrbitCamera orbitCamera;
+        [Tooltip("Debug window teleport targets")]
+        [SerializeField] Transform[] debugTeleportPoints;
+
+        IPlayerInput _input;
+
         int _seed;
         RandomStreams _random;
         IdGenerator _ids;
@@ -32,6 +44,16 @@ namespace Moa.Unity
             Text.Load(TextTable.ParseCsv(config.TextTable.text), config.DefaultLanguage);
             UiFont.ApplyTo(transform, config);
             StartRun(config.DefaultSeed);
+            BindPlayer();
+        }
+
+        void BindPlayer()
+        {
+            if (playerMotor == null) return;
+            _input = playerInput as IPlayerInput;
+            if (_input == null) { Debug.LogError("GameRoot: playerInput does not implement IPlayerInput"); return; }
+            playerMotor.Bind(_input, orbitCamera);
+            if (orbitCamera != null) orbitCamera.Bind(_input, playerMotor);
         }
 
         void StartRun(int seed)
@@ -55,6 +77,45 @@ namespace Moa.Unity
 
         /// <summary>[보기] 화면 언어 바꾸기.</summary>
         public void DebugSetLanguage(string language) => Text.SetLanguage(language);
+
+        // ---- 플레이어 · 카메라 (1-1) ----
+
+        public bool DebugHasPlayer => playerMotor != null && _input != null;
+        public Vector3 DebugPlayerPosition => playerMotor != null ? playerMotor.transform.position : Vector3.zero;
+        public Vector3 DebugPlayerVelocity => playerMotor != null ? playerMotor.Velocity : Vector3.zero;
+        public bool DebugPlayerGrounded => playerMotor != null && playerMotor.Grounded;
+        public bool DebugPlayerOnSteepSlope => playerMotor != null && playerMotor.OnSteepSlope;
+        public bool DebugPlayerWalking => playerMotor != null && playerMotor.Walking;
+        public float DebugPlayerYaw => playerMotor != null ? playerMotor.Yaw : 0f;
+        public Transform[] DebugTeleportPoints => debugTeleportPoints;
+
+        /// <summary>[상태 변경] 플레이어 순간이동 (속도 0, 카메라도 바로 따라감).</summary>
+        public void DebugTeleportPlayer(Vector3 position)
+        {
+            if (playerMotor == null) return;
+            playerMotor.Teleport(position);
+            if (orbitCamera != null) orbitCamera.SnapToTarget();
+        }
+
+        public bool DebugHasCamera => orbitCamera != null;
+        public float DebugCameraDistance => orbitCamera != null ? orbitCamera.Distance : 0f;
+        public float DebugCameraDesiredDistance => orbitCamera != null ? orbitCamera.DesiredDistance : 0f;
+        public float DebugCameraYaw => orbitCamera != null ? orbitCamera.Yaw : 0f;
+        public float DebugCameraPitch => orbitCamera != null ? orbitCamera.Pitch : 0f;
+        public bool DebugCameraBlocked => orbitCamera != null && orbitCamera.Blocked;
+        public Camera DebugCamera => orbitCamera != null ? orbitCamera.GetComponent<Camera>() : null;
+
+        /// <summary>[보기] 카메라 각도.</summary>
+        public void DebugSetCameraAngles(float yaw, float pitch) { if (orbitCamera != null) orbitCamera.SetAngles(yaw, pitch); }
+
+        // 입력 주입 (에디터 포커스 없이 확인할 때) — DebugInputClear까지 실제 장치 입력 대신 쓴다
+        public void DebugInputMove(Vector2 move) => _input?.DebugSetMove(move);
+        public void DebugInputLook(Vector2 mousePixels) => _input?.DebugAddLook(mousePixels);
+        public void DebugInputJump() => _input?.DebugPressJump();
+        public void DebugInputZoom(float scroll) => _input?.DebugZoom(scroll);
+        public void DebugInputWalk(bool walk) => _input?.DebugSetWalk(walk);
+        public void DebugInputClear() => _input?.DebugClear();
+        public bool DebugInputOverriding => _input != null && _input.DebugOverriding;
 
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()

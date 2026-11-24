@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f7688ba3bb2b5e4893af08e307a2e5e, type: 3}
+  m_Name: MovementTuning
+  m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.MovementTuning
+  walkSpeed: 2
+  runSpeed: 5.5
+  groundAcceleration: 30
+  groundDeceleration: 40
+  airAcceleration: 10
+  airDeceleration: 4
+  turnSpeed: 720
+  jumpHeight: 1.2
+  gravity: 25
+  maxFallSpeed: 40
+  groundStickSpeed: 8
+  slopeLimit: 45
+  stepOffset: 0.35
+  capsuleHeight: 1.8
+  capsuleRadius: 0.35
+  skinWidth: 0.05

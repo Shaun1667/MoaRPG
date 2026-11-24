@@ -1,0 +1,22 @@
+{
+    "name": "Moa.Editor.Setup",
+    "rootNamespace": "Moa.Editor.Setup",
+    "references": [
+        "Moa.Core",
+        "Moa.Unity",
+        "Moa.Unity.Input",
+        "Moa.Editor",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

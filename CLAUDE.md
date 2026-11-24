@@ -12,7 +12,7 @@
 |---|---|---|
 | GDD.md | 기획 요약 (상세는 Notion) | 초안 (2026-11-24) |
 | TASKS.md | 진행 요약 · 작업 순서 · 일지 | 사용 중 |
-| BALANCE.md | 수치 | 첫 수치 때 만든다 |
+| BALANCE.md | 수치 (0번 = 데이터 에셋 위치 표) | 사용 중 (1-1부터) |
 | MY_DEV_GUIDE.md | 협업 · 개발 방식 원본 | 고치지 않음 |
 | MoaRPG/ClaudeHand/NOTES.md | Claude Hand 하위 세션 메모 | 사용 중 |
 
@@ -48,9 +48,12 @@ MoaRPG/Assets/_Game/
   Scripts/Core/      규칙 코드 — 엔진 참조 없음 (Moa.Core.asmdef, noEngineReferences)
                      전투 수치 · 스킬 쿨타임 · 에너지 · 경직 · 가챠 · 성장 · 인벤토리 · 저장 상태
   Scripts/Unity/     엔진 어댑터 — 이동 · 물리 · 카메라 · 애니메이션 · 히트 판정 · UI (Moa.Unity.asmdef)
+  Scripts/Unity/Input/  입력 한 곳 (Moa.Unity.Input.asmdef — Input System 참조는 여기만)
   Scripts/Editor/    에디터 도구 · Setup 메뉴 · 디버그 창 (Moa.Editor.asmdef)
+  Scripts/Editor/Setup/  Setup 메뉴 (Moa.Editor.Setup.asmdef — Moa.Unity.Input이 필요한 에디터 코드)
   Data/              ScriptableObject 데이터 (캐릭터 · 무기 · 스킬 · 적 · 배너 · 수치)
   Text/              텍스트 표 (키 → 한국어 · 영어)
+  Input/             입력 액션 에셋 (MoaControls.inputactions)
   Art/               모델 · 애니메이션 · 셰이더 · 텍스처
   Scenes/
   Tests/EditMode/    단위 테스트 (Moa.Tests.asmdef)
@@ -67,6 +70,7 @@ MoaRPG/Assets/_Game/
 - 난수는 `RandomStreams` 한 곳 — 용도 `RandomStream`(Gacha · Drop · Combat · Presentation)별 `SeededRandom`, `System.Random` · `UnityEngine.Random` 직접 사용 금지, 새 용도 = enum 끝에 한 줄 (0-3).
 - 엔티티 ID는 `IdGenerator.Next()` → `EntityId` 한 곳 (0 = 없음), 저장할 값은 `NextValue` (0-3).
 - 데이터 에셋은 `Assets/_Game/Data/<분류>/`(Characters · Weapons · Skills · Enemies · Banners …)에 ScriptableObject, 클래스는 `Scripts/Unity/Data/`. 전역 설정은 `Data/GameConfig.asset` 하나(시드 기본값 · 기본 언어 · 텍스트 표 · UI 글꼴 후보). 코드에는 수치 기본값을 두지 않는다 (0-4).
+- 이동 · 카메라는 `Moa.Unity.Player.PlayerMotor`(CharacterController, FixedUpdate, 비주얼은 자식 `Visual`) · `Moa.Unity.Cameras.OrbitCamera`(직접 작성, Cinemachine 등 패키지 없음) 한 곳, 순수 계산은 Core `Moa.Core.Motion.MoveMath` · `OrbitMath`, 수치 `Data/Player/MovementTuning.asset` · `CameraTuning.asset`(BALANCE 1 · 2번). 입력은 `Moa.Unity.Input.PlayerInputReader` 한 곳(에셋 `Assets/_Game/Input/MoaControls.inputactions`), 나머지 코드는 `IPlayerInput`만 본다 — 새 액션 = `PlayerControls` 상수 + 에셋에 액션 한 줄. 확인용 입력 주입은 `GameRoot.DebugInputXxx`. 시험 지형은 메뉴 `MoaRPG/Setup/Test Field`(멱등, 배치 표 한 줄) → `Scenes/TestField.unity` (1-1).
 - (시스템이 생길 때마다 한 줄씩: "○○는 `클래스` 한 곳, 데이터 `에셋`, 새 항목 = 표 한 줄")
 
 ## 핵심 설계 규칙 (변경 금지)

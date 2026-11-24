@@ -15,6 +15,8 @@ namespace Moa.Editor.Debugging
         static readonly IDebugSection[] Sections =
         {
             new GeneralSection(),
+            new PlayerSection(),
+            new CameraSection(),
         };
 
         bool[] _open;
@@ -41,7 +43,7 @@ namespace Moa.Editor.Debugging
 
             GameRoot root = Application.isPlaying ? Object.FindFirstObjectByType<GameRoot>() : null;
             if (!Application.isPlaying)
-                EditorGUILayout.HelpBox("플레이 모드에서 동작합니다 (Assets/_Game/Scenes/Main.unity).", MessageType.Info);
+                EditorGUILayout.HelpBox("플레이 모드에서 동작합니다 (Assets/_Game/Scenes/Main.unity · TestField.unity).", MessageType.Info);
             else if (root == null)
                 EditorGUILayout.HelpBox("씬에 GameRoot가 없습니다.", MessageType.Warning);
 
