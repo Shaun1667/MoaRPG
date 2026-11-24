@@ -61,6 +61,12 @@ MoaRPG/Assets/_Game/
 - 화면에 보이는 모든 글은 텍스트 표 한곳 — 코드 · 프리팹 · 데이터에 문장 금지, 코드는 `Text.Get(키)`, `{0}` 자리표시자 (MY_DEV_GUIDE 1번). 캐릭터 · 무기 · 스킬 이름과 설명도 키로.
 - 개발자 디버그 기능은 에디터 디버그 창(메뉴 `MoaRPG/Debug/Debug Window`)에 섹션으로, 게임 쪽 진입점은 `GameRoot.DebugXxx`, 상태를 바꾸면 [상태 변경] (MY_DEV_GUIDE 2번).
 - 입력은 한 곳에서만 읽는다.
+- 텍스트 표는 `Moa.Core.Localization.Text`(Get · SetLanguage) 한 곳, 표 `Assets/_Game/Text/strings.csv`(머리줄 `key,ko,en` — 첫 언어 열 = 기본 언어), 새 문장 = 줄 하나 · 새 언어 = 열 하나. 씬 · 프리팹 라벨은 `LocalizedLabel`(키만 저장). 텍스트 키를 담는 직렬화 필드는 소문자로 시작하고 `Key`로 끝나는 이름(textKey · nameKey — 테스트가 이 이름으로 찾는다). UI 글꼴은 `UiFont`가 OS 글꼴(맑은 고딕 등)을 동적 글꼴로, 후보 이름은 GameConfig (0-1).
+- 디버그 창은 `Moa.Editor.Debugging.DebugWindow` 한 곳, 새 섹션 = `IDebugSection` 클래스 하나 + `DebugWindow.Sections`에 한 줄, 게임 쪽 진입점은 `GameRoot.DebugXxx` (0-2).
+- 씬 연결은 `GameRoot`(컴포지션 루트) 한 곳, 새 판과 디버그 재시작은 같은 `StartRun(시드)` (0-3).
+- 난수는 `RandomStreams` 한 곳 — 용도 `RandomStream`(Gacha · Drop · Combat · Presentation)별 `SeededRandom`, `System.Random` · `UnityEngine.Random` 직접 사용 금지, 새 용도 = enum 끝에 한 줄 (0-3).
+- 엔티티 ID는 `IdGenerator.Next()` → `EntityId` 한 곳 (0 = 없음), 저장할 값은 `NextValue` (0-3).
+- 데이터 에셋은 `Assets/_Game/Data/<분류>/`(Characters · Weapons · Skills · Enemies · Banners …)에 ScriptableObject, 클래스는 `Scripts/Unity/Data/`. 전역 설정은 `Data/GameConfig.asset` 하나(시드 기본값 · 기본 언어 · 텍스트 표 · UI 글꼴 후보). 코드에는 수치 기본값을 두지 않는다 (0-4).
 - (시스템이 생길 때마다 한 줄씩: "○○는 `클래스` 한 곳, 데이터 `에셋`, 새 항목 = 표 한 줄")
 
 ## 핵심 설계 규칙 (변경 금지)

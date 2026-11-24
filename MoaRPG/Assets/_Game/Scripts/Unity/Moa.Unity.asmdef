@@ -1,0 +1,17 @@
+{
+    "name": "Moa.Unity",
+    "rootNamespace": "Moa.Unity",
+    "references": [
+        "Moa.Core",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
