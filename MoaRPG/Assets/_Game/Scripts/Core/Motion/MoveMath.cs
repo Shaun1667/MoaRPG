@@ -60,6 +60,15 @@ namespace Moa.Core.Motion
             return (walking ? walkSpeed : runSpeed) * m;
         }
 
+        /// <summary>목표 속력 (1-2): 질주 중이면 질주 속력, 아니면 걷기 · 뛰기. 입력 크기(0~1)를 곱한다. 질주는 걷기 모드보다 앞선다.</summary>
+        public static float TargetSpeed(bool sprinting, bool walking, float walkSpeed, float runSpeed, float sprintSpeed, float inputMagnitude)
+        {
+            if (!sprinting) return TargetSpeed(walking, walkSpeed, runSpeed, inputMagnitude);
+            float m = inputMagnitude < 0f ? 0f : (inputMagnitude > 1f ? 1f : inputMagnitude);
+            return sprintSpeed * m;
+        }
+
+
         /// <summary>
         /// 현재 수평 속도를 목표 속도로 일정 비율(m/s²)만큼 옮긴다. 목표가 현재보다 빠르거나 같으면 가속, 느리면 감속 비율.
         /// </summary>

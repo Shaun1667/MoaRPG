@@ -17,6 +17,7 @@ namespace Moa.Editor.Debugging
             new GeneralSection(),
             new PlayerSection(),
             new CameraSection(),
+            new StaminaSection(),
         };
 
         bool[] _open;

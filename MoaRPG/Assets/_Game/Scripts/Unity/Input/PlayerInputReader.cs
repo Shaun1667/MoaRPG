@@ -15,10 +15,11 @@ namespace Moa.Unity.Input
         [SerializeField] InputActionAsset actions;
 
         InputActionMap _map;
-        InputAction _move, _look, _lookStick, _zoom, _jump, _walkToggle, _releaseCursor, _captureCursor;
+        InputAction _move, _look, _lookStick, _zoom, _jump, _walkToggle, _releaseCursor, _captureCursor, _sprint, _dodge;
 
         bool _walkMode;
         bool _jumpLatched;
+        bool _dodgeLatched;
         Vector2 _lookMouse;
         Vector2 _lookStickValue;
         float _zoomValue;
@@ -27,6 +28,7 @@ namespace Moa.Unity.Input
         Vector2 _ovMove;
         Vector2 _ovLookPending;
         float _ovZoomPending;
+        bool _ovSprint;
 
         public Vector2 Move => _override ? Vector2.ClampMagnitude(_ovMove, 1f) : (_move != null ? Vector2.ClampMagnitude(_move.ReadValue<Vector2>(), 1f) : Vector2.zero);
         public bool WalkMode => _walkMode;
@@ -35,6 +37,7 @@ namespace Moa.Unity.Input
         public float ZoomScroll => _zoomValue;
         public bool CursorCaptured => Cursor.lockState == CursorLockMode.Locked;
         public bool DebugOverriding => _override;
+        public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.IsPressed());
 
         void Awake()
         {
@@ -48,6 +51,10 @@ namespace Moa.Unity.Input
             _walkToggle = _map.FindAction(PlayerControls.WalkToggle, true);
             _releaseCursor = _map.FindAction(PlayerControls.ReleaseCursor, true);
             _captureCursor = _map.FindAction(PlayerControls.CaptureCursor, true);
+            _sprint = _map.FindAction(PlayerControls.Sprint, false);
+            _dodge = _map.FindAction(PlayerControls.Dodge, false);
+            if (_sprint == null || _dodge == null)
+                Debug.LogWarning("PlayerInputReader: action '" + (_sprint == null ? PlayerControls.Sprint : PlayerControls.Dodge) + "' is missing in " + actions.name + " - add Sprint/Dodge (see PlayerControls.BuildDefaultJson). Debug injection still works.");
         }
 
         void OnEnable()
@@ -72,6 +79,7 @@ namespace Moa.Unity.Input
 
             // 버튼은 프레임 단위로 받아 둔다 (점프는 FixedUpdate가 꺼낼 때까지 유지)
             if (_jump.WasPressedThisFrame()) _jumpLatched = true;
+            if (_dodge != null && _dodge.WasPressedThisFrame() && !_override) _dodgeLatched = true;
             if (_walkToggle.WasPressedThisFrame()) _walkMode = !_walkMode;
 
             if (_override)
@@ -97,6 +105,13 @@ namespace Moa.Unity.Input
             return j;
         }
 
+        public bool ConsumeDodge()
+        {
+            bool d = _dodgeLatched;
+            _dodgeLatched = false;
+            return d;
+        }
+
         static void SetCursorCaptured(bool captured)
         {
             Cursor.lockState = captured ? CursorLockMode.Locked : CursorLockMode.None;
@@ -110,6 +125,8 @@ namespace Moa.Unity.Input
         public void DebugPressJump() { _jumpLatched = true; }
         public void DebugZoom(float scroll) { _override = true; _ovZoomPending += scroll; }
         public void DebugSetWalk(bool walk) { _walkMode = walk; }
+        public void DebugSetSprint(bool sprint) { _override = true; _ovSprint = sprint; }
+        public void DebugPressDodge() { _dodgeLatched = true; }
 
         public void DebugClear()
         {
@@ -117,6 +134,7 @@ namespace Moa.Unity.Input
             _ovMove = Vector2.zero;
             _ovLookPending = Vector2.zero;
             _ovZoomPending = 0f;
+            _ovSprint = false;
         }
     }
 }

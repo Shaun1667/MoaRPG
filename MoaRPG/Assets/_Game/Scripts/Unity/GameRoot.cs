@@ -27,6 +27,8 @@ namespace Moa.Unity
         [SerializeField] MonoBehaviour playerInput;
         [SerializeField] PlayerMotor playerMotor;
         [SerializeField] OrbitCamera orbitCamera;
+        [Tooltip("Stamina ring on the HUD canvas (1-2)")]
+        [SerializeField] StaminaGauge staminaGauge;
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
 
@@ -54,6 +56,7 @@ namespace Moa.Unity
             if (_input == null) { Debug.LogError("GameRoot: playerInput does not implement IPlayerInput"); return; }
             playerMotor.Bind(_input, orbitCamera);
             if (orbitCamera != null) orbitCamera.Bind(_input, playerMotor);
+            if (staminaGauge != null) staminaGauge.Bind(playerMotor, orbitCamera != null ? orbitCamera.GetComponent<Camera>() : Camera.main);
         }
 
         void StartRun(int seed)
@@ -116,6 +119,36 @@ namespace Moa.Unity
         public void DebugInputWalk(bool walk) => _input?.DebugSetWalk(walk);
         public void DebugInputClear() => _input?.DebugClear();
         public bool DebugInputOverriding => _input != null && _input.DebugOverriding;
+        public void DebugInputSprint(bool sprint) => _input?.DebugSetSprint(sprint);
+        public void DebugInputDodge() => _input?.DebugPressDodge();
+
+        // ---- 스태미나 · 질주 · 회피 (1-2) ----
+
+        public bool DebugHasStamina => playerMotor != null && playerMotor.Stamina != null;
+        public float DebugStaminaCurrent => DebugHasStamina ? playerMotor.Stamina.Current : 0f;
+        public float DebugStaminaMax => DebugHasStamina ? playerMotor.Stamina.Max : 0f;
+        public bool DebugStaminaExhausted => DebugHasStamina && playerMotor.Stamina.Exhausted;
+        public bool DebugStaminaRegenerating => DebugHasStamina && playerMotor.Stamina.Regenerating;
+        /// <summary>회복 시작까지 남은 초.</summary>
+        public float DebugStaminaRegenWait => DebugHasStamina ? playerMotor.Stamina.RegenWait : 0f;
+        public bool DebugStaminaInfinite => DebugHasStamina && playerMotor.Stamina.Infinite;
+        public float DebugStaminaGaugeAlpha => staminaGauge != null ? staminaGauge.Alpha : 0f;
+        public bool DebugPlayerSprinting => playerMotor != null && playerMotor.Sprinting;
+        public bool DebugPlayerDodging => playerMotor != null && playerMotor.Dodging;
+        public bool DebugPlayerInvulnerable => playerMotor != null && playerMotor.Invulnerable;
+        public float DebugDodgeCooldown => playerMotor != null && playerMotor.Dodge != null ? playerMotor.Dodge.CooldownLeft : 0f;
+        public int DebugDodgeCount => playerMotor != null && playerMotor.Dodge != null ? playerMotor.Dodge.Count : 0;
+        /// <summary>마지막 회피 입력이 막힌 까닭 (None · Busy · Cooldown · Airborne · NoStamina).</summary>
+        public string DebugDodgeLastBlock => playerMotor != null && playerMotor.Dodge != null ? playerMotor.Dodge.LastBlock.ToString() : "-";
+
+        /// <summary>[상태 변경] 스태미나 가득 채우기 (지침 풀림).</summary>
+        public void DebugStaminaFill() { if (DebugHasStamina) playerMotor.Stamina.Fill(); }
+
+        /// <summary>[상태 변경] 스태미나 값 정하기 (0 = 바닥 · 지침).</summary>
+        public void DebugStaminaSet(float value) { if (DebugHasStamina) playerMotor.Stamina.Set(value); }
+
+        /// <summary>[상태 변경] 무한 스태미나.</summary>
+        public void DebugStaminaSetInfinite(bool infinite) { if (DebugHasStamina) playerMotor.Stamina.Infinite = infinite; }
 
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()

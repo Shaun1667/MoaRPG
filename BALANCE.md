@@ -7,6 +7,7 @@
 |---|---|---|---|
 | 1 | `Assets/_Game/Data/Player/MovementTuning.asset` | `Moa.Unity.Data.MovementTuning` | `Moa.Tests.PlayerTuningAssetTests` |
 | 2 | `Assets/_Game/Data/Player/CameraTuning.asset` | `Moa.Unity.Data.CameraTuning` | `Moa.Tests.PlayerTuningAssetTests` |
+| 3 | `Assets/_Game/Data/Player/StaminaTuning.asset` | `Moa.Unity.Data.StaminaTuning` | `Moa.Tests.StaminaTuningAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -50,12 +51,39 @@
 | fieldOfView | 60 | ° | |
 | nearClip | 0.1 | m | |
 
+## 3. 스태미나 · 질주 · 회피 (TASKS 1-2) — 시작 값: 기획서 13장(최대 · 회복 · 지연 · 질주 소모 · 회피 비용), 나머지는 정한 것 (Claude, 2026-11-25, 확인 필요)
+| 항목 | 값 | 단위 | 근거 |
+|---|---|---|---|
+| maxStamina | 240 | | 기획서 13장. 가득에서 질주 240 ÷ 18 = 13.3초(약 107m) |
+| regenPerSecond | 25 | /s | 기획서 13장. 바닥에서 가득까지 1 + 9.6 = 10.6초 |
+| regenDelay | 1.0 | s | 기획서 13장 "소모 멈춘 뒤 약 1초". 쓴 스텝마다 처음부터 |
+| exhaustRecover | 60 | | 바닥나면(지침) 60까지 차야 다시 질주 — 바닥에서 1 + 2.4 = 3.4초. 회피(20)는 지침 중에도 양만 있으면 된다 |
+| sprintSpeed | 8.0 | m/s | 뛰기(5.5)의 약 1.45배, 원신 질주 체감 |
+| sprintDrainPerSecond | 18 | /s | 기획서 13장. 땅 위에서 움직일 때만 (공중 · 제자리 · 회피 중에는 안 줄어듦) |
+| dodgeCost | 20 | | 기획서 13장. 모자라면 회피가 안 나가고 스태미나도 그대로 |
+| dodgeDistance | 3.5 | m | 짧은 대시. 속력 3.5 ÷ 0.3 = 11.7 m/s |
+| dodgeDuration | 0.3 | s | 고정 스텝 15번 |
+| dodgeInvulnerableTime | 0.2 | s | 시작부터. 지금은 상태 플래그만 (피해 없음) |
+| dodgeCooldown | 0.2 | s | 회피가 끝난 뒤. 연타하면 0.5초마다 한 번 (2초에 4번) |
+| dodgeGroundOnly | true | | 원신처럼 땅 위에서만 (공중에서 누르면 무시) |
+| gaugeAnchorHeight | 1.2 | m | 게이지가 따라가는 점 (발에서 위로) |
+| gaugeScreenOffset | (90, 0) | px (1920×1080 기준) | 캐릭터 오른쪽 |
+| gaugeSize | 64 | px (1920×1080 기준) | 원형 게이지 지름 |
+| gaugeHideDelay | 0.6 | s | 가득 찬 뒤 보이는 시간 |
+| gaugeFadeTime | 0.3 | s | 사라지는 시간 |
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
 - 1 · 2번 표의 값 그대로 → `PlayerTuningAssetTests.Movement_MatchesBalance1` · `Camera_MatchesBalance2`
+- 질주 소모 18/s × 2초 = 36 → `StaminaTests.Sprint_Drains18PerSecond`, 가득에서 질주 13.3초 → `FullSprint_LastsAbout13Seconds`
+- 회복 지연 1초 동안 그대로 → 그 뒤 25/s → `NoRegen_DuringDelay_ThenRegen25PerSecond`, 바닥에서 가득 10.6초 → `FromEmpty_FullAfter10Point6Seconds`
+- 지침: 바닥난 뒤 60 미만이면 질주 불가 → `Exhausted_BlocksSprint_Until60`
+- 회피 3.5m ÷ 0.3초, 고정 스텝 15번, 무적 0.2초, 쿨 0.2초, 비용 20, 모자라면 안 나감 · 공중 불가 → `DodgeTests`
+- 3번 표의 값 그대로 → `StaminaTuningAssetTests.Stamina_MatchesBalance3`
 
 ## 실험 기록
 | 날짜 | 무엇 | 결과 |
 |---|---|---|
 | 2026-11-24 | TestField 코드 주입 플레이 (1-1) | 뛰기 5.5 · 걷기 2.0 m/s, 점프 정점 +1.28m, 35° 오름 · 50° 막힘, 계단 3m 오름, 벽 앞 카메라 6 → 0.92m |
+| 2026-11-25 | TestField 코드 주입 플레이 (1-2) | 질주 8.000 m/s · 소모 18.000/s, 10에서 0.56초에 바닥 → 지침 · 뛰기 5.5 m/s, 회복 지연 1.0초 · 회복 25.000/s, 60.5에서 지침 풀림 → 질주 다시, 바닥에서 가득 10.62초, 게이지 가득 뒤 0.9초에 숨김, 회피 3.500m · 15스텝(0.3초) · 무적 10스텝(0.2초) · 비용 20, 19에서 안 나감(NoStamina), 공중 안 나감(Airborne), 연타 2초에 4번 |

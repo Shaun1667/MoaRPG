@@ -4,6 +4,7 @@ using Moa.Unity.Cameras;
 using Moa.Unity.Data;
 using Moa.Unity.Input;
 using Moa.Unity.Player;
+using Moa.Unity.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -26,12 +27,24 @@ namespace Moa.Editor.Setup
         public const string InputPath = "Assets/_Game/Input/MoaControls.inputactions";
         public const string MovementTuningPath = "Assets/_Game/Data/Player/MovementTuning.asset";
         public const string CameraTuningPath = "Assets/_Game/Data/Player/CameraTuning.asset";
+        public const string StaminaTuningPath = "Assets/_Game/Data/Player/StaminaTuning.asset";
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
         const string CheckerPath = GrayboxFolder + "/Checker.png";
+        const string RingPath = GrayboxFolder + "/Ring.png";
         const string LitShader = "Universal Render Pipeline/Lit";
 
-        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints" };
+        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD" };
+
+        // ---- 표현 표 (1-2, 게임 수치 아님) ----
+        static readonly Color SprintColor = new Color(1.00f, 0.86f, 0.20f);      // 질주 중: 노랑
+        static readonly Color DodgeColor = new Color(0.30f, 0.80f, 1.00f);       // 회피 중(무적 끝난 뒤): 하늘
+        static readonly Color InvulnerableColor = new Color(1.00f, 1.00f, 1.00f); // 무적 중: 흰색
+        static readonly Color ExhaustedColor = new Color(0.50f, 0.36f, 0.62f);   // 지침: 보라
+        static readonly Color GaugeColor = new Color(0.60f, 0.95f, 0.35f);       // 게이지 채움
+        static readonly Color GaugeExhaustedColor = new Color(1.00f, 0.35f, 0.30f);
+        static readonly Color GaugeBackColor = new Color(0f, 0f, 0f, 0.45f);
+        static readonly Vector2 HudReference = new Vector2(1920f, 1080f);
 
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
@@ -89,6 +102,7 @@ namespace Moa.Editor.Setup
             var inputAsset = EnsureInputAsset();
             var move = LoadOrCreate<MovementTuning>(MovementTuningPath);
             var cam = LoadOrCreate<CameraTuning>(CameraTuningPath);
+            var stamina = LoadOrCreate<StaminaTuning>(StaminaTuningPath);
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
             if (inputAsset == null) Debug.LogError("TestFieldSetup: input actions missing at " + InputPath);
@@ -104,9 +118,10 @@ namespace Moa.Editor.Setup
             BuildLight();
             BuildEnvironment(mats);
             var points = BuildDebugPoints();
-            var player = BuildPlayer(move, inputAsset, mats);
+            var player = BuildPlayer(move, stamina, inputAsset, mats);
             var camera = BuildCamera(cam, player.transform);
-            BuildGameRoot(config, player, camera, points);
+            var gauge = BuildHud();
+            BuildGameRoot(config, player, camera, points, gauge);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -265,7 +280,7 @@ namespace Moa.Editor.Setup
             return result;
         }
 
-        static PlayerMotor BuildPlayer(MovementTuning tuning, Object inputAsset, Materials mats)
+        static PlayerMotor BuildPlayer(MovementTuning tuning, StaminaTuning stamina, Object inputAsset, Materials mats)
         {
             float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
             if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: MovementTuning capsule size is empty - fill it and run again");
@@ -288,13 +303,20 @@ namespace Moa.Editor.Setup
             float nose = radius * 0.5f;
             Primitive(PrimitiveType.Cube, visual, "Nose", new Vector3(0f, height * 0.78f, radius + nose * 0.4f), Quaternion.identity,
                 new Vector3(nose, nose, nose * 1.6f), mats.Nose);
-            _ = body;
 
             var reader = go.AddComponent<PlayerInputReader>();
             Set(reader, "actions", inputAsset);
             var motor = go.AddComponent<PlayerMotor>();
             Set(motor, "tuning", tuning);
             Set(motor, "visual", visual);
+            Set(motor, "staminaTuning", stamina);
+
+            var feedback = go.AddComponent<PlayerGrayboxFeedback>();
+            Set(feedback, "body", body.GetComponent<MeshRenderer>());
+            SetColor(feedback, "sprintColor", SprintColor);
+            SetColor(feedback, "dodgeColor", DodgeColor);
+            SetColor(feedback, "invulnerableColor", InvulnerableColor);
+            SetColor(feedback, "exhaustedColor", ExhaustedColor);
             return motor;
         }
 
@@ -310,7 +332,46 @@ namespace Moa.Editor.Setup
             return orbit;
         }
 
-        static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points)
+        /// <summary>화면 HUD (1-2): Overlay 캔버스 + 스태미나 원형 게이지. 만드는 코드는 StaminaGauge.CreateHud (uGUI 참조가 Moa.Unity에 있어서). 글 없음.</summary>
+        static StaminaGauge BuildHud()
+        {
+            return StaminaGauge.CreateHud("HUD", EnsureRing(), HudReference, GaugeBackColor, GaugeColor, GaugeExhaustedColor);
+        }
+
+
+
+        /// <summary>원형 게이지용 링 스프라이트 (없을 때만 만든다, 흰색 — 색은 Image가 입힌다).</summary>
+        static Sprite EnsureRing()
+        {
+            if (!File.Exists(RingPath))
+            {
+                const int size = 128;
+                const float outer = 63f, inner = 47f;
+                var t = new Texture2D(size, size, TextureFormat.RGBA32, false);
+                float c = (size - 1) * 0.5f;
+                for (int y = 0; y < size; y++)
+                    for (int x = 0; x < size; x++)
+                    {
+                        float d = Mathf.Sqrt((x - c) * (x - c) + (y - c) * (y - c));
+                        float a = Mathf.Clamp01(outer - d + 0.5f) * Mathf.Clamp01(d - inner + 0.5f);
+                        t.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+                    }
+                t.Apply();
+                File.WriteAllBytes(RingPath, t.EncodeToPNG());
+                Object.DestroyImmediate(t);
+                AssetDatabase.ImportAsset(RingPath);
+                var imp = (TextureImporter)AssetImporter.GetAtPath(RingPath);
+                imp.textureType = TextureImporterType.Sprite;
+                imp.spriteImportMode = SpriteImportMode.Single;
+                imp.alphaIsTransparency = true;
+                imp.mipmapEnabled = false;
+                imp.wrapMode = TextureWrapMode.Clamp;
+                imp.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Sprite>(RingPath);
+        }
+
+        static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge)
         {
             var go = new GameObject("GameRoot");
             var root = go.AddComponent<GameRoot>();
@@ -319,6 +380,7 @@ namespace Moa.Editor.Setup
             so.FindProperty("playerInput").objectReferenceValue = motor.GetComponent<PlayerInputReader>();
             so.FindProperty("playerMotor").objectReferenceValue = motor;
             so.FindProperty("orbitCamera").objectReferenceValue = camera;
+            so.FindProperty("staminaGauge").objectReferenceValue = gauge;
             var arr = so.FindProperty("debugTeleportPoints");
             arr.arraySize = points.Length;
             for (int i = 0; i < points.Length; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = points[i];
@@ -350,6 +412,15 @@ namespace Moa.Editor.Setup
             go.transform.localScale = scale;
             go.GetComponent<MeshRenderer>().sharedMaterial = mat;
             return go;
+        }
+
+        static void SetColor(Object target, string property, Color value)
+        {
+            var so = new SerializedObject(target);
+            var p = so.FindProperty(property);
+            if (p == null) { Debug.LogError("TestFieldSetup: no field '" + property + "' on " + target.GetType().Name); return; }
+            p.colorValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         static void Set(Object target, string property, Object value)

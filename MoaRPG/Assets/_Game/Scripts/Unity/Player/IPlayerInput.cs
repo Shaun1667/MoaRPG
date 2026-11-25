@@ -29,6 +29,12 @@ namespace Moa.Unity.Player
         /// <summary>눌린 점프를 한 번 꺼낸다 (FixedUpdate에서 소비).</summary>
         bool ConsumeJump();
 
+        /// <summary>질주 키를 누르고 있는지 (1-2).</summary>
+        bool SprintHeld { get; }
+
+        /// <summary>눌린 회피를 한 번 꺼낸다 (FixedUpdate에서 소비, 1-2).</summary>
+        bool ConsumeDodge();
+
         // ---- 디버그 주입 ----
         bool DebugOverriding { get; }
         void DebugSetMove(Vector2 move);
@@ -36,6 +42,8 @@ namespace Moa.Unity.Player
         void DebugPressJump();
         void DebugZoom(float scroll);
         void DebugSetWalk(bool walk);
+        void DebugSetSprint(bool sprint);
+        void DebugPressDodge();
         void DebugClear();
     }
 }

@@ -71,6 +71,7 @@ MoaRPG/Assets/_Game/
 - 엔티티 ID는 `IdGenerator.Next()` → `EntityId` 한 곳 (0 = 없음), 저장할 값은 `NextValue` (0-3).
 - 데이터 에셋은 `Assets/_Game/Data/<분류>/`(Characters · Weapons · Skills · Enemies · Banners …)에 ScriptableObject, 클래스는 `Scripts/Unity/Data/`. 전역 설정은 `Data/GameConfig.asset` 하나(시드 기본값 · 기본 언어 · 텍스트 표 · UI 글꼴 후보). 코드에는 수치 기본값을 두지 않는다 (0-4).
 - 이동 · 카메라는 `Moa.Unity.Player.PlayerMotor`(CharacterController, FixedUpdate, 비주얼은 자식 `Visual`) · `Moa.Unity.Cameras.OrbitCamera`(직접 작성, Cinemachine 등 패키지 없음) 한 곳, 순수 계산은 Core `Moa.Core.Motion.MoveMath` · `OrbitMath`, 수치 `Data/Player/MovementTuning.asset` · `CameraTuning.asset`(BALANCE 1 · 2번). 입력은 `Moa.Unity.Input.PlayerInputReader` 한 곳(에셋 `Assets/_Game/Input/MoaControls.inputactions`), 나머지 코드는 `IPlayerInput`만 본다 — 새 액션 = `PlayerControls` 상수 + 에셋에 액션 한 줄. 확인용 입력 주입은 `GameRoot.DebugInputXxx`. 시험 지형은 메뉴 `MoaRPG/Setup/Test Field`(멱등, 배치 표 한 줄) → `Scenes/TestField.unity` (1-1).
+- 스태미나 · 질주 · 회피 규칙은 Core `Moa.Core.Motion.Stamina`(Drain · TrySpend · Tick · Fill, 지침) · `Dodge`(TryStart · Advance · 무적 · 쿨) 한 곳 — 이동과 회피가 스태미나 하나를 같이 쓴다(1-3 등반 · 활공도 이것을 쓴다). 실행은 `PlayerMotor`가 고정 스텝에서(쓸 것을 쓰고 마지막에 `Stamina.Tick`), 수치 `Data/Player/StaminaTuning.asset`(BALANCE 3번). 화면 게이지는 `Moa.Unity.UI.StaminaGauge`(HUD 캔버스, 가득이면 숨김), 그레이박스 상태 색은 `PlayerGrayboxFeedback`(색은 Setup 표). 입력 `Sprint` · `Dodge`(왼쪽 Shift · RT / 오른쪽 클릭 · B), 주입 `GameRoot.DebugInputSprint/Dodge`, 디버그 창 `StaminaSection` (1-2).
 - (시스템이 생길 때마다 한 줄씩: "○○는 `클래스` 한 곳, 데이터 `에셋`, 새 항목 = 표 한 줄")
 
 ## 핵심 설계 규칙 (변경 금지)

@@ -20,8 +20,10 @@ namespace Moa.Unity.Input
         public const string WalkToggle = "WalkToggle";
         public const string ReleaseCursor = "ReleaseCursor";
         public const string CaptureCursor = "CaptureCursor";
+        public const string Sprint = "Sprint";
+        public const string Dodge = "Dodge";
 
-        /// <summary>기본 키: WASD · 방향키 / 왼쪽 스틱 이동, 마우스 · 오른쪽 스틱 시점, 휠 줌, Space · A(South) 점프, 왼쪽 Ctrl · 왼쪽 스틱 누르기 걷기 전환, ESC 커서 풀기, 왼쪽 클릭 커서 잠그기.</summary>
+        /// <summary>기본 키: WASD · 방향키 / 왼쪽 스틱 이동, 마우스 · 오른쪽 스틱 시점, 휠 줌, Space · A(South) 점프, 왼쪽 Ctrl · 왼쪽 스틱 누르기 걷기 전환, ESC 커서 풀기, 왼쪽 클릭 커서 잠그기, 왼쪽 Shift · RT 누르는 동안 질주, 오른쪽 클릭 · B(East) 회피 (1-2).</summary>
         public static string BuildDefaultJson()
         {
             var asset = ScriptableObject.CreateInstance<InputActionAsset>();
@@ -49,6 +51,12 @@ namespace Moa.Unity.Input
 
             map.AddAction(ReleaseCursor, InputActionType.Button, "<Keyboard>/escape");
             map.AddAction(CaptureCursor, InputActionType.Button, "<Mouse>/leftButton");
+
+            var sprint = map.AddAction(Sprint, InputActionType.Button, "<Keyboard>/leftShift");
+            sprint.AddBinding("<Gamepad>/rightTrigger");
+
+            var dodge = map.AddAction(Dodge, InputActionType.Button, "<Mouse>/rightButton");
+            dodge.AddBinding("<Gamepad>/buttonEast");
 
             string json = asset.ToJson();
             Object.DestroyImmediate(asset);
