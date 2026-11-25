@@ -82,6 +82,16 @@ namespace Moa.Editor.Setup
         const float DummyHeight = 1.8f, DummyRadius = 0.35f;                     // 허수아비 몸 (m, 표현 · 충돌 크기)
         static readonly Vector3 DummyArmsSize = new Vector3(1.4f, 0.12f, 0.12f);
 
+        // ---- 표현 표 (2-2 강공격 · 낙하, 게임 수치 아님) ----
+        static readonly Color ChargedColor = new Color(0.62f, 0.06f, 0.20f);     // 강공격 중: 진홍 (무적 > 회피 > 낙하 > 강공격 > 공격 …)
+        static readonly Color PlungeColor = new Color(0.10f, 0.20f, 0.62f);      // 낙하 중(착지 경직 포함): 진파랑
+        static readonly Color ChargedTrailColor = new Color(1.00f, 0.25f, 0.40f, 0.85f); // 강공격 궤적
+        static readonly Vector3 SwordChargedStart = new Vector3(5f, 115f, 0f);   // 강공격: 더 크게 오른쪽 → 왼쪽 (2베기는 반대)
+        static readonly Vector3 SwordChargedEnd = new Vector3(5f, -115f, 0f);
+        static readonly Vector3 SwordPlunge = new Vector3(90f, 0f, 0f);          // 낙하: 칼날을 아래로
+        static readonly Color LandRingColor = new Color(0.35f, 0.60f, 1.00f, 0.90f); // 착지 범위 원
+        const float LandRingWidth = 0.12f, LandRingTime = 0.4f;                  // 원 선 두께(m) · 보이는 시간(초)
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -115,6 +125,7 @@ namespace Moa.Editor.Setup
             ("PillarTop", new Vector3(16f, 20.05f, 0f)),   // 1-3: 기둥 꼭대기 (활공 시작)
             ("PillarAir", new Vector3(16f, 12f, -9f)),     // 1-3: 기둥 앞 공중 (+Z로 활공해 벽에 붙기)
             ("Dummies", new Vector3(-15.4f, 0.05f, -3.6f)), // 2-1: 허수아비 둘 앞 (+Z를 보면 둘이 부채꼴 안)
+            ("DummiesAir", new Vector3(-15.4f, 10.05f, -3.6f)), // 2-2: 허수아비 위 10m (높은 낙하)
         };
 
         // 2-1: 허수아비 배치 (발 위치, 바라보는 방향 도) — 새 허수아비 = 줄 하나
@@ -401,6 +412,8 @@ namespace Moa.Editor.Setup
             SetColor(feedback, "glideColor", GlideColor);
             Set(feedback, "wings", wings);
             SetColor(feedback, "attackColor", AttackColor);
+            SetColor(feedback, "chargedColor", ChargedColor);
+            SetColor(feedback, "plungeColor", PlungeColor);
 
             // 2-1: 일반 공격 + 그레이박스 칼 (회전 중심 → 칼날 상자 · 손잡이 · 끝에 궤적)
             var combat = go.AddComponent<PlayerCombat>();
@@ -435,6 +448,25 @@ namespace Moa.Editor.Setup
             SetVector(swing, "sweepEndEuler", SwordSweepEnd);
             SetVector(swing, "finisherStartEuler", SwordFinisherStart);
             SetVector(swing, "finisherEndEuler", SwordFinisherEnd);
+            SetVector(swing, "chargedStartEuler", SwordChargedStart);
+            SetVector(swing, "chargedEndEuler", SwordChargedEnd);
+            SetColor(swing, "chargedTrailColor", ChargedTrailColor);
+            SetVector(swing, "plungeEuler", SwordPlunge);
+            // 2-2: 낙하 착지 원 (월드 좌표 고리, 착지할 때만 보인다)
+            var ringGo = new GameObject("LandRing");
+            ringGo.transform.SetParent(go.transform, false);
+            var ring = ringGo.AddComponent<LineRenderer>();
+            ring.sharedMaterial = mats.SwordTrail;
+            ring.useWorldSpace = true;
+            ring.loop = true;
+            ring.widthMultiplier = LandRingWidth;
+            ring.startColor = LandRingColor;
+            ring.endColor = LandRingColor;
+            ring.shadowCastingMode = ShadowCastingMode.Off;
+            ring.positionCount = 0;
+            ring.enabled = false;
+            Set(swing, "landRing", ring);
+            SetFloat(swing, "landRingTime", LandRingTime);
             return motor;
         }
 
@@ -578,6 +610,15 @@ namespace Moa.Editor.Setup
             var p = so.FindProperty(property);
             if (p == null) { Debug.LogError("TestFieldSetup: no field '" + property + "' on " + target.GetType().Name); return; }
             p.vector3Value = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static void SetFloat(Object target, string property, float value)
+        {
+            var so = new SerializedObject(target);
+            var p = so.FindProperty(property);
+            if (p == null) { Debug.LogError("TestFieldSetup: no field '" + property + "' on " + target.GetType().Name); return; }
+            p.floatValue = value;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

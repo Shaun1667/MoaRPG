@@ -59,12 +59,22 @@ namespace Moa.Core.Combat
         public readonly bool Climbing;
         public readonly bool Gliding;
 
+        /// <summary>발 아래 땅까지 높이 (m, 낙하 공격 조건, 2-2).</summary>
+        public readonly float HeightAboveGround;
+        /// <summary>지금 발 높이 (월드 y, 낙하 높이 계산, 2-2).</summary>
+        public readonly float FeetY;
+
         public AttackContext(bool grounded, bool dodging, bool climbing, bool gliding)
+            : this(grounded, dodging, climbing, gliding, 0f, 0f) { }
+
+        public AttackContext(bool grounded, bool dodging, bool climbing, bool gliding, float heightAboveGround, float feetY)
         {
             Grounded = grounded;
             Dodging = dodging;
             Climbing = climbing;
             Gliding = gliding;
+            HeightAboveGround = heightAboveGround;
+            FeetY = feetY;
         }
     }
 
@@ -80,6 +90,10 @@ namespace Moa.Core.Combat
         LastStep,
         AlreadyQueued,
         NoSteps,
+        /// <summary>공중이지만 낙하 공격을 하기에는 낮다 (2-2).</summary>
+        TooLow,
+        /// <summary>강공격 · 낙하 공격 중 (2-2).</summary>
+        Busy,
     }
 
     /// <summary>공격(한 단계)이 끝난 까닭 (끝에만 추가).</summary>
@@ -91,6 +105,8 @@ namespace Moa.Core.Combat
         Jump,
         Airborne,
         Cancelled,
+        /// <summary>길게 눌러 강공격으로 넘어갔다 (2-2).</summary>
+        Charged,
     }
 
     public enum ComboPhase

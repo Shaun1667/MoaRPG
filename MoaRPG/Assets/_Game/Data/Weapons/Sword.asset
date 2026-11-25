@@ -49,3 +49,22 @@ MonoBehaviour:
   hitRange: 2.2
   hitAngle: 120
   hitHeight: 1
+  chargedStaminaCost: 20
+  chargedSlashes:
+  - multiplier: 0.56
+    windup: 0.16
+    active: 0.08
+    recovery: 0.06
+    inputOpen: 0
+    lunge: 0.3
+  - multiplier: 0.72
+    windup: 0.08
+    active: 0.1
+    recovery: 0.36
+    inputOpen: 0
+    lunge: 0.3
+  chargedHitRange: 2.6
+  chargedHitAngle: 180
+  plungeLowMultiplier: 1.28
+  plungeHighMultiplier: 1.6
+  plungeRange: 2.5

@@ -46,6 +46,24 @@ namespace Moa.Unity.Data
         [Tooltip("Fan center height above the feet (m)")]
         [SerializeField] float hitHeight;
 
+        [Header("Charged attack (2-2, hold Attack)")]
+        [Tooltip("Stamina spent at once; not enough = no charged attack")]
+        [SerializeField] float chargedStaminaCost;
+        [Tooltip("Charged attack slashes, one row per slash (inputOpen is not used)")]
+        [SerializeField] Step[] chargedSlashes;
+        [Tooltip("m from the body center to the target surface")]
+        [SerializeField] float chargedHitRange;
+        [Tooltip("Full fan angle, degrees")]
+        [SerializeField] float chargedHitAngle;
+
+        [Header("Plunge attack (2-2, Attack in the air)")]
+        [Tooltip("Damage multiplier when the fall is lower than CombatTuning plungeHighHeight")]
+        [SerializeField] float plungeLowMultiplier;
+        [Tooltip("Damage multiplier when the fall is at least CombatTuning plungeHighHeight")]
+        [SerializeField] float plungeHighMultiplier;
+        [Tooltip("Landing hit radius (m) around feet + hitHeight, all directions")]
+        [SerializeField] float plungeRange;
+
         public float BaseAttack => baseAttack;
         public int StepCount => steps != null ? steps.Length : 0;
         public Step GetStep(int i) => steps[i];
@@ -54,6 +72,14 @@ namespace Moa.Unity.Data
         public float HitRange => hitRange;
         public float HitAngle => hitAngle;
         public float HitHeight => hitHeight;
+        public float ChargedStaminaCost => chargedStaminaCost;
+        public int ChargedSlashCount => chargedSlashes != null ? chargedSlashes.Length : 0;
+        public Step GetChargedSlash(int i) => chargedSlashes[i];
+        public float ChargedHitRange => chargedHitRange;
+        public float ChargedHitAngle => chargedHitAngle;
+        public float PlungeLowMultiplier => plungeLowMultiplier;
+        public float PlungeHighMultiplier => plungeHighMultiplier;
+        public float PlungeRange => plungeRange;
 
         public ComboRules ToRules()
         {
@@ -64,6 +90,18 @@ namespace Moa.Unity.Data
                 list[i] = new ComboStepRules(s.multiplier, s.windup, s.active, s.recovery, s.inputOpen, s.lunge);
             }
             return new ComboRules(list, comboResetTime);
+        }
+
+        /// <summary>강공격 규칙 (2-2).</summary>
+        public ChargedRules ToChargedRules()
+        {
+            var list = new ComboStepRules[ChargedSlashCount];
+            for (int i = 0; i < list.Length; i++)
+            {
+                Step s = chargedSlashes[i];
+                list[i] = new ComboStepRules(s.multiplier, s.windup, s.active, s.recovery, s.inputOpen, s.lunge);
+            }
+            return new ChargedRules(list, chargedStaminaCost);
         }
     }
 }

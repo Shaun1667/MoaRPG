@@ -14,6 +14,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.CombatTuning
   defenseConstant: 400
   autoAimRange: 5
+  chargeHoldTime: 0.36
+  plungeMinHeight: 1
+  plungeHighHeight: 5
+  plungeFallSpeed: 20
+  plungeLandRecovery: 0.4
   damageFontSize: 36
   damageLifetime: 0.8
   damageRise: 0.8

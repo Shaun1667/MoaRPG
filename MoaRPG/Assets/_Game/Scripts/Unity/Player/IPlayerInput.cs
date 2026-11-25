@@ -38,6 +38,9 @@ namespace Moa.Unity.Player
         /// <summary>눌린 일반 공격을 한 번 꺼낸다 (FixedUpdate에서 소비, 2-1). 마우스 왼쪽은 커서가 잠겨 있을 때만 공격 — 풀려 있으면 그 클릭은 커서 잠금.</summary>
         bool ConsumeAttack();
 
+        /// <summary>공격 버튼을 누르고 있는지 (길게 누르면 강공격, 2-2). 마우스 왼쪽은 커서가 잠겨 있을 때만.</summary>
+        bool AttackHeld { get; }
+
         // ---- 디버그 주입 ----
         bool DebugOverriding { get; }
         void DebugSetMove(Vector2 move);
@@ -48,6 +51,8 @@ namespace Moa.Unity.Player
         void DebugSetSprint(bool sprint);
         void DebugPressDodge();
         void DebugPressAttack();
+        /// <summary>공격을 누르고, 누른 스텝 뒤로 seconds 동안 누른 채로 둔다 (고정 스텝 시간 기준, 2-2).</summary>
+        void DebugHoldAttack(float seconds);
         void DebugClear();
     }
 }

@@ -265,6 +265,60 @@ namespace Moa.Unity
             foreach (var d in trainingDummies) if (d != null) d.SetInvulnerable(on);
         }
 
+        // ---- 강공격 · 낙하 공격 (2-2) ----
+
+        /// <summary>[상태 변경] 공격을 누르고 누른 스텝 뒤로 seconds 동안 누른 채로 (길게 누르기 주입, 고정 스텝 시간 기준).</summary>
+        public void DebugInputAttackHold(float seconds) => _input?.DebugHoldAttack(seconds);
+        /// <summary>지금 공격 (None · Combo · Charged · Plunge).</summary>
+        public string DebugAttackMode => DebugHasCombat ? playerCombat.Mode.ToString() : "-";
+        public bool DebugAttackHolding => DebugHasCombat && playerCombat.Attacks.Holding;
+        public float DebugAttackHoldElapsed => DebugHasCombat ? playerCombat.Attacks.HoldElapsed : 0f;
+        public float DebugChargeHoldTime => DebugHasCombat ? playerCombat.Attacks.HoldTime : 0f;
+        /// <summary>마지막 누름이 막힌 까닭 (콤보 · 낙하 · Busy).</summary>
+        public string DebugAttackLastBlock => DebugHasCombat ? playerCombat.Attacks.LastBlock.ToString() : "-";
+        /// <summary>마지막 길게 누르기가 강공격이 되지 못한 까닭 (None = 나감 · NoStamina …).</summary>
+        public string DebugChargeLastBlock => DebugHasCombat ? playerCombat.Attacks.LastChargeBlock.ToString() : "-";
+        public int DebugAttackBusyCount => DebugHasCombat ? playerCombat.Attacks.BusyCount : 0;
+        public bool DebugCharging => DebugHasCombat && playerCombat.Charged.Active;
+        /// <summary>지금(또는 마지막) 강공격 베기, 1부터 (0 = 아직 없음).</summary>
+        public int DebugChargedSlash => DebugHasCombat ? playerCombat.Charged.SlashIndex + 1 : 0;
+        public int DebugChargedSlashCount => DebugHasCombat ? playerCombat.Charged.Rules.SlashCount : 0;
+        public string DebugChargedPhase => DebugHasCombat ? playerCombat.Charged.Phase.ToString() : "-";
+        public float DebugChargedElapsed => DebugHasCombat ? playerCombat.Charged.Elapsed : 0f;
+        public int DebugChargedCount => DebugHasCombat ? playerCombat.Charged.Count : 0;
+        public string DebugChargedLastEnd => DebugHasCombat ? playerCombat.Charged.LastEnd.ToString() : "-";
+        public float DebugChargedStaminaCost => DebugHasCombat ? playerCombat.Charged.Rules.StaminaCost : 0f;
+        public bool DebugPlunging => DebugHasCombat && playerCombat.Plunging;
+        /// <summary>낙하 단계 (None · Falling · Landing).</summary>
+        public string DebugPlungePhase => DebugHasCombat ? playerCombat.Plunge.Phase.ToString() : "-";
+        public float DebugPlungeStartY => DebugHasCombat ? playerCombat.Plunge.StartY : 0f;
+        public float DebugPlungeFallHeight => DebugHasCombat ? playerCombat.Plunge.FallHeight : 0f;
+        public bool DebugPlungeHigh => DebugHasCombat && playerCombat.Plunge.High;
+        public float DebugPlungeMultiplier => DebugHasCombat ? playerCombat.Plunge.Multiplier : 0f;
+        public float DebugPlungeRecoveryLeft => DebugHasCombat ? playerCombat.Plunge.RecoveryLeft : 0f;
+        public int DebugPlungeCount => DebugHasCombat ? playerCombat.Plunge.Count : 0;
+        public int DebugPlungeLandCount => DebugHasCombat ? playerCombat.Plunge.LandCount : 0;
+        public string DebugPlungeLastBlock => DebugHasCombat ? playerCombat.Plunge.LastBlock.ToString() : "-";
+        public string DebugPlungeLastEnd => DebugHasCombat ? playerCombat.Plunge.LastEnd.ToString() : "-";
+        public float DebugPlungeMinHeight => DebugHasCombat ? playerCombat.Plunge.Rules.MinHeight : 0f;
+        public Vector3 DebugPlungeLastLand => playerCombat != null ? playerCombat.LastLandPosition : Vector3.zero;
+        public int DebugPlungeLastLandHits => playerCombat != null ? playerCombat.LastLandHits : 0;
+
+        /// <summary>[상태 변경] 순간이동 지점 Dummies의 meters 위 공중으로 (낙하 공격 확인용). 지점이 없으면 false.</summary>
+        public bool DebugTeleportAboveDummies(float meters)
+        {
+            if (debugTeleportPoints == null) return false;
+            foreach (var p in debugTeleportPoints)
+            {
+                if (p == null || p.name != DummiesPointName) continue;
+                DebugTeleportPlayer(p.position + Vector3.up * meters);
+                return true;
+            }
+            return false;
+        }
+
+        const string DummiesPointName = "Dummies"; // 시험 지형 순간이동 지점 이름 (Setup 배치 표)
+
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()
         {

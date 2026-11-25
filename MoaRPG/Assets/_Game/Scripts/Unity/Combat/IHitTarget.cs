@@ -1,3 +1,4 @@
+using Moa.Core.Combat;
 using Moa.Core.Ids;
 using UnityEngine;
 using EntityId = Moa.Core.Ids.EntityId; // UnityEngine.EntityId와 같은 이름
@@ -31,13 +32,18 @@ namespace Moa.Unity.Combat
         public readonly int Damage;
         /// <summary>실제로 줄어든 체력 (무적이면 0).</summary>
         public readonly int Applied;
-        /// <summary>콤보 단계 (1부터).</summary>
+        /// <summary>콤보 단계 · 강공격 베기 (1부터), 낙하면 1 = 낮은 · 2 = 높은.</summary>
         public readonly int Step;
-        /// <summary>휘두르기 번호 (ComboAttack.SwingCount).</summary>
+        /// <summary>휘두르기 번호 (콤보 SwingCount · 강공격 Count · 낙하 Count).</summary>
         public readonly int Swing;
         public readonly Vector3 NumberPosition;
+        /// <summary>어느 공격의 피해인지 (2-2).</summary>
+        public readonly AttackMode Kind;
 
         public HitReport(EntityId target, string targetName, int damage, int applied, int step, int swing, Vector3 numberPosition)
+            : this(target, targetName, damage, applied, step, swing, numberPosition, AttackMode.Combo) { }
+
+        public HitReport(EntityId target, string targetName, int damage, int applied, int step, int swing, Vector3 numberPosition, AttackMode kind)
         {
             Target = target;
             TargetName = targetName;
@@ -46,6 +52,7 @@ namespace Moa.Unity.Combat
             Step = step;
             Swing = swing;
             NumberPosition = numberPosition;
+            Kind = kind;
         }
     }
 }

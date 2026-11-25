@@ -10,10 +10,13 @@ using EntityId = Moa.Core.Ids.EntityId; // UnityEngine.EntityId와 같은 이름
 namespace Moa.Unity.Combat
 {
     /// <summary>
-    /// 플레이어 일반 공격 (2-1). 규칙은 Core ComboAttack · DamageMath, 수치는 WeaponTuning(무기 하나 = 에셋 하나) · CombatTuning.
-    /// PlayerMotor가 고정 스텝마다 <see cref="Step"/>(입력 → 콤보 진행)을 부르고, 이동이 끝난 뒤 판정 구간이면 <see cref="CheckHits"/>.
-    /// 판정 = 몸 앞 부채꼴 겹침 검사(OverlapSphere + 각도), 레이어 추가 없이 자기 콜라이더는 뺀다. 같은 휘두르기에 같은 대상은 한 번만(ID 기준).
-    /// 몸 방향: 단계가 시작될 때 이동 입력이 있으면 그쪽, 없으면 autoAimRange 안의 가장 가까운 적, 그것도 없으면 지금 방향.
+    /// 플레이어 공격 (2-1 일반 공격 · 2-2 강공격 · 낙하 공격). 규칙은 Core PlayerAttack(ComboAttack · ChargedAttack · PlungeAttack) · DamageMath,
+    /// 수치는 WeaponTuning(무기 하나 = 에셋 하나) · CombatTuning.
+    /// PlayerMotor가 고정 스텝마다 <see cref="Step"/>(입력 → 공격 고르기 → 진행)을 부르고, 이동이 끝난 뒤 판정 구간이면 <see cref="CheckHits"/>,
+    /// 낙하 중 땅에 닿으면 <see cref="Land"/>(범위 판정 한 번).
+    /// 휘두르기 판정 = 몸 앞 부채꼴 겹침 검사(OverlapSphere + 각도, 강공격은 그 범위 · 각도), 낙하 착지 = 발 + hitHeight에서 반지름 plungeRange 구.
+    /// 레이어 추가 없이 자기 콜라이더는 뺀다. 같은 휘두르기 · 같은 낙하에 같은 대상은 한 번만(ID 기준).
+    /// 몸 방향: 단계(베기)가 시작될 때 이동 입력이 있으면 그쪽, 없으면 autoAimRange 안의 가장 가까운 적, 그것도 없으면 지금 방향.
     /// GameRoot가 Bind · SetId로 연결한다.
     /// </summary>
     [RequireComponent(typeof(PlayerMotor))]
@@ -26,24 +29,39 @@ namespace Moa.Unity.Combat
 
         readonly Collider[] _overlap = new Collider[MaxOverlap];
         IPlayerInput _input;
-        ComboAttack _combo;
+        PlayerAttack _attack;
         EntityId _id;
         float _attackScale = 1f; // 디버그 공격력 배수 (1 = 그대로)
 
         public WeaponTuning Weapon => weapon;
         public CombatTuning Tuning => tuning;
-        public ComboAttack Combo => _combo;
-        public bool Bound => _combo != null && _input != null;
-        public bool Attacking => _combo != null && _combo.Attacking;
+        /// <summary>공격 조정 (Core, Bind 전에는 null).</summary>
+        public PlayerAttack Attacks => _attack;
+        public ComboAttack Combo => _attack?.Combo;
+        public ChargedAttack Charged => _attack?.Charged;
+        public PlungeAttack Plunge => _attack?.Plunge;
+        public bool Bound => _attack != null && _input != null;
+        /// <summary>땅 위에서 휘두르는 중 (콤보 · 강공격).</summary>
+        public bool Attacking => _attack != null && _attack.Swinging;
+        public bool ChargedActive => _attack != null && _attack.Charged.Active;
+        /// <summary>낙하 공격 중 (떨어지는 중 + 착지 경직).</summary>
+        public bool Plunging => _attack != null && _attack.Plunge.Active;
+        public bool PlungeFalling => _attack != null && _attack.Plunge.Falling;
+        public AttackMode Mode => _attack != null ? _attack.Mode : AttackMode.None;
         public EntityId Id => _id;
         /// <summary>지금 공격력 = 무기 공격력 × 디버그 배수.</summary>
         public float Attack => weapon != null ? weapon.BaseAttack * _attackScale : 0f;
         public float AttackScale { get => _attackScale; set => _attackScale = value > 0f ? value : 0f; }
         public HitReport LastHit { get; private set; }
         public int HitCount { get; private set; }
+        /// <summary>마지막 낙하 착지 자리 (발) · 그때 맞힌 수.</summary>
+        public Vector3 LastLandPosition { get; private set; }
+        public int LastLandHits { get; private set; }
 
         /// <summary>한 대상을 맞힐 때마다 (피해 숫자 · 디버그 기록).</summary>
         public event Action<HitReport> HitLanded;
+        /// <summary>낙하 공격이 착지했을 때 (발 위치, 판정 반지름) — 바닥 원 표현용.</summary>
+        public event Action<Vector3, float> PlungeLanded;
 
         public void Bind(IPlayerInput input)
         {
@@ -51,23 +69,30 @@ namespace Moa.Unity.Combat
             if (weapon == null) { Debug.LogError("PlayerCombat: WeaponTuning is not assigned"); enabled = false; return; }
             if (tuning == null) { Debug.LogError("PlayerCombat: CombatTuning is not assigned"); enabled = false; return; }
             if (weapon.StepCount == 0) Debug.LogError("PlayerCombat: weapon " + weapon.name + " has no combo steps");
-            _combo = new ComboAttack(weapon.ToRules());
+            if (weapon.ChargedSlashCount == 0) Debug.LogWarning("PlayerCombat: weapon " + weapon.name + " has no charged attack slashes");
+            var plunge = new PlungeRules(tuning.PlungeMinHeight, tuning.PlungeHighHeight, weapon.PlungeLowMultiplier, weapon.PlungeHighMultiplier,
+                tuning.PlungeFallSpeed, tuning.PlungeLandRecovery);
+            _attack = new PlayerAttack(weapon.ToRules(), weapon.ToChargedRules(), plunge, tuning.ChargeHoldTime);
         }
 
         public void SetId(EntityId id) => _id = id;
 
-        /// <summary>입력을 꺼내 콤보에 넣고 한 스텝 진행 (PlayerMotor가 부른다). 막힌 입력은 버린다.</summary>
-        public ComboTick Step(AttackContext ctx, float dt)
+        /// <summary>입력을 꺼내 공격을 고르고 한 스텝 진행 (PlayerMotor가 부른다). 막힌 입력은 버린다. stamina = 강공격 비용.</summary>
+        public AttackTick Step(AttackContext ctx, Stamina stamina, float dt)
         {
             if (!Bound) return default;
-            if (_input.ConsumeAttack()) _combo.Press(ctx);
-            return _combo.Advance(dt);
+            bool pressed = _input.ConsumeAttack();
+            return _attack.Step(pressed, _input.AttackHeld, ctx, stamina, dt);
         }
 
-        public void Interrupt(AttackEnd reason) => _combo?.Interrupt(reason);
+        /// <summary>공격을 모두 끊는다 (회피 · 점프).</summary>
+        public void Interrupt(AttackEnd reason) => _attack?.Interrupt(reason);
 
-        /// <summary>[상태 변경] 콤보를 처음으로 (순간이동 등).</summary>
-        public void Cancel() => _combo?.Cancel();
+        /// <summary>땅 위 휘두르기만 끊는다 (발밑이 사라짐) — 낙하는 그대로.</summary>
+        public void InterruptSwing(AttackEnd reason) => _attack?.InterruptSwing(reason);
+
+        /// <summary>[상태 변경] 공격을 처음으로 (순간이동 등).</summary>
+        public void Cancel() => _attack?.Cancel();
 
         /// <summary>새 단계의 몸 방향: 이동 입력 → 가장 가까운 적 → 그대로(false).</summary>
         public bool PickFacing(Vector3 feet, Planar wish, out float yaw)
@@ -94,15 +119,17 @@ namespace Moa.Unity.Combat
             return found;
         }
 
-        /// <summary>판정 구간인 스텝에 부른다: 몸 앞 부채꼴 안의 대상을 이번 휘두르기에 한 번씩 맞힌다. 이번에 맞힌 수.</summary>
+        /// <summary>판정 구간인 스텝에 부른다: 몸 앞 부채꼴 안의 대상을 이번 휘두르기(콤보 단계 또는 강공격 베기)에 한 번씩 맞힌다. 이번에 맞힌 수.</summary>
         public int CheckHits(Vector3 feet, float yawDegrees)
         {
-            if (!Bound || !_combo.Attacking) return 0;
+            if (!Bound || !_attack.Swinging) return 0;
+            bool charged = _attack.Charged.Active;
             Vector3 center = feet + Vector3.up * weapon.HitHeight;
             float r = yawDegrees * Mathf.Deg2Rad;
             Vector3 forward = new Vector3(Mathf.Sin(r), 0f, Mathf.Cos(r));
-            float halfAngle = weapon.HitAngle * 0.5f;
-            int n = Physics.OverlapSphereNonAlloc(center, weapon.HitRange, _overlap, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            float halfAngle = (charged ? weapon.ChargedHitAngle : weapon.HitAngle) * 0.5f;
+            float range = charged ? weapon.ChargedHitRange : weapon.HitRange;
+            int n = Physics.OverlapSphereNonAlloc(center, range, _overlap, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
             int hits = 0;
             for (int i = 0; i < n; i++)
             {
@@ -112,18 +139,48 @@ namespace Moa.Unity.Combat
                 Vector3 to = c.bounds.center - center;
                 to.y = 0f;
                 if (to.sqrMagnitude > 1e-6f && Vector3.Angle(forward, to) > halfAngle) continue;
-                if (!_combo.TryHit(t.Id)) continue; // 이번 휘두르기에 이미 맞음
-                ComboStepRules step = _combo.CurrentStep;
-                int damage = DamageMath.Compute(Attack, step.Multiplier, t.Defense, tuning.DefenseConstant);
-                int applied = t.ReceiveHit(damage, feet);
-                var report = new HitReport(t.Id, (t as Component) != null ? ((Component)t).name : "-", damage, applied,
-                    _combo.StepIndex + 1, _combo.SwingCount, t.NumberPosition);
-                LastHit = report;
-                HitCount++;
+                if (!_attack.TryHitSwing(t.Id)) continue; // 이번 휘두르기에 이미 맞음
+                float multiplier = _attack.CurrentSwing.Multiplier;
+                if (charged) Report(t, multiplier, feet, AttackMode.Charged, _attack.Charged.SlashIndex + 1, _attack.Charged.Count);
+                else Report(t, multiplier, feet, AttackMode.Combo, _attack.Combo.StepIndex + 1, _attack.Combo.SwingCount);
                 hits++;
-                HitLanded?.Invoke(report);
             }
             return hits;
+        }
+
+        /// <summary>
+        /// 떨어지던 낙하 공격이 땅에 닿았다 (PlayerMotor가 이동 뒤에 부른다): 떨어진 높이로 배율을 정하고 원형 범위 판정을 한 번.
+        /// 낙하 중이 아니면 아무것도 하지 않고 −1, 착지했으면 맞힌 수.
+        /// </summary>
+        public int Land(Vector3 feet)
+        {
+            if (!Bound || !_attack.Land(feet.y)) return -1;
+            Vector3 center = feet + Vector3.up * weapon.HitHeight;
+            int n = Physics.OverlapSphereNonAlloc(center, weapon.PlungeRange, _overlap, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            int hits = 0;
+            PlungeAttack p = _attack.Plunge;
+            for (int i = 0; i < n; i++)
+            {
+                IHitTarget t = TargetOf(_overlap[i]);
+                if (t == null || !t.Alive) continue;
+                if (!p.TryHit(t.Id)) continue; // 낙하 한 번에 대상마다 한 번 (콜라이더가 여럿이어도)
+                Report(t, p.Multiplier, feet, AttackMode.Plunge, p.High ? 2 : 1, p.Count);
+                hits++;
+            }
+            LastLandPosition = feet;
+            LastLandHits = hits;
+            PlungeLanded?.Invoke(feet, weapon.PlungeRange);
+            return hits;
+        }
+
+        void Report(IHitTarget t, float multiplier, Vector3 feet, AttackMode kind, int step, int swing)
+        {
+            int damage = DamageMath.Compute(Attack, multiplier, t.Defense, tuning.DefenseConstant);
+            int applied = t.ReceiveHit(damage, feet);
+            var report = new HitReport(t.Id, (t as Component) != null ? ((Component)t).name : "-", damage, applied, step, swing, t.NumberPosition, kind);
+            LastHit = report;
+            HitCount++;
+            HitLanded?.Invoke(report);
         }
 
         IHitTarget TargetOf(Collider c)

@@ -83,8 +83,13 @@ namespace Moa.Unity.Player
         public bool Exhausted => _stamina != null && _stamina.Exhausted;
         public bool Climbing => _climb != null && _climb.Active;
         public bool Gliding => _glide != null && _glide.Active;
-        /// <summary>일반 공격 중인지 (2-1, PlayerCombat이 없으면 항상 false).</summary>
+        /// <summary>땅 위에서 휘두르는 중인지 (2-1 콤보 · 2-2 강공격, PlayerCombat이 없으면 항상 false).</summary>
         public bool Attacking => _combat != null && _combat.Attacking;
+        /// <summary>강공격 중인지 (2-2).</summary>
+        public bool ChargedAttacking => _combat != null && _combat.ChargedActive;
+        /// <summary>낙하 공격 중인지 (떨어지는 중 + 착지 경직, 2-2).</summary>
+        public bool Plunging => _combat != null && _combat.Plunging;
+        public bool PlungeFalling => _combat != null && _combat.PlungeFalling;
         public PlayerCombat Combat => _combat;
         /// <summary>붙어 있는 벽의 법선 (등반 중일 때만 의미 있음).</summary>
         public Vector3 WallNormal => _wallNormal;
@@ -146,7 +151,7 @@ namespace Moa.Unity.Player
         /// <summary>[상태 변경] 활공을 펼친다 (공중 · 높이 · 스태미나 조건은 그대로). 펼쳤으면 true.</summary>
         public bool OpenGlide()
         {
-            if (_glide == null || _climb.Active) return false;
+            if (_glide == null || _climb.Active || Plunging) return false;
             _heightAboveGround = MeasureHeight();
             return _glide.TryOpen(_stamina, _grounded, _heightAboveGround);
         }
@@ -184,7 +189,7 @@ namespace Moa.Unity.Player
             Planar wish = MoveMath.CameraRelative(move.x, move.y, camYaw);
 
             _heightAboveGround = MeasureHeight();
-            if (!_climb.Active && !_dodge.Active && !Attacking) TryAttachWall(wish);
+            if (!_climb.Active && !_dodge.Active && !Attacking && !Plunging) TryAttachWall(wish); // 공격 · 낙하 중에는 벽에 안 붙는다
 
             // 등반 중에는 회복하지 않는다 (움직이지 않고 매달려 있어도, 1-3)
             bool climbStep = _climb.Active;
@@ -222,26 +227,35 @@ namespace Moa.Unity.Player
             bool dodging = _dodge.Active;
             float dashTime = _dodge.Advance(dt);
 
-            // 점프: 땅 위면 점프, 공중이면 활공 펴기 · 접기 (1-3)
-            bool jumpPressed = _input.ConsumeJump() && !dodging;
-            if (jumpPressed && grounded && Attacking) _combat.Interrupt(AttackEnd.Jump); // 점프도 공격을 끊는다 (2-1)
+            // 점프: 땅 위면 점프, 공중이면 활공 펴기 · 접기 (1-3). 낙하 중에는 버린다 (2-2)
+            bool jumpPressed = _input.ConsumeJump() && !dodging && !PlungeFalling;
+            if (jumpPressed && grounded && (Attacking || Plunging)) _combat.Interrupt(AttackEnd.Jump); // 점프도 공격 · 착지 경직을 끊는다 (2-1 · 2-2)
             if (jumpPressed && !grounded)
             {
                 if (_glide.Active) _glide.Close(GlideEnd.Toggled);
                 else _glide.TryOpen(_stamina, false, _heightAboveGround);
             }
-            bool gliding = _glide.Active && _glide.Hold(_stamina, dt);
 
-            // 일반 공격 (2-1): 입력 → 콤보 진행. 새 단계가 시작되면 몸 방향(이동 입력 → 가장 가까운 적 → 그대로)
-            ComboTick attack = CombatStep(new AttackContext(grounded && !jumpPressed, dodging, false, _glide.Active), dt);
+            // 공격 (2-1 · 2-2): 입력 → 콤보 · 강공격(길게 누르기) · 낙하(공중) 고르기 → 진행.
+            // 새 단계(베기)가 시작되면 몸 방향(이동 입력 → 가장 가까운 적 → 그대로). 낙하가 시작되면 활공을 접는다
+            AttackTick attackTick = CombatStep(new AttackContext(grounded && !jumpPressed, dodging, false, _glide.Active, _heightAboveGround, transform.position.y), dt);
+            if (attackTick.PlungeStarted)
+            {
+                if (_glide.Active) _glide.Close(GlideEnd.Plunge);
+                _airSprint = false;
+            }
+            bool gliding = _glide.Active && _glide.Hold(_stamina, dt);
+            ComboTick attack = attackTick.Swing;
             if (attack.StepStarted && _combat.PickFacing(transform.position, wish, out float attackYaw)) _yaw = attackYaw;
             bool attacking = Attacking || attack.Lunge > 0f;
+            bool plungeFalling = PlungeFalling;
+            bool plunging = Plunging;
             _hitPending = attack.HitOpen;
 
             // 질주 (1-2): 누르는 동안 · 땅 위 · 움직일 때만 소모. 공중에서는 뛰어오를 때의 질주 속력을 소모 없이 유지
             bool wantSprint = _input.SprintHeld && wishLen > 0f;
             _sprinting = false;
-            if (grounded && !dodging && !attacking && wantSprint && _stamina.CanDrain) // 공격 중에는 질주 없음 (2-1)
+            if (grounded && !dodging && !attacking && !plunging && wantSprint && _stamina.CanDrain) // 공격 · 낙하 중에는 질주 없음 (2-1 · 2-2)
             {
                 _stamina.Drain(staminaTuning.SprintDrainPerSecond, dt);
                 _sprinting = true;
@@ -254,6 +268,11 @@ namespace Moa.Unity.Player
             if (dodging)
             {
                 _planar = _dodgeDir * (_dodge.Rules.Speed * (dashTime / dt));
+            }
+            else if (plunging)
+            {
+                // 낙하 공격 (2-2): 떨어지는 동안 · 착지 경직 동안 수평 이동 없음, 몸도 안 돈다
+                _planar = Planar.Zero;
             }
             else if (attacking)
             {
@@ -289,6 +308,11 @@ namespace Moa.Unity.Player
                 if (jumpPressed) { _vertical = MoveMath.JumpVelocity(tuning.JumpHeight, tuning.Gravity); jumped = true; }
                 else _vertical = -tuning.GroundStickSpeed;
             }
+            else if (plungeFalling)
+            {
+                // 낙하 속력으로 곧장 아래로 (이미 더 빠르게 떨어지고 있으면 그 속력)
+                _vertical = Mathf.Min(_vertical, -_combat.Plunge.Rules.FallSpeed);
+            }
             else if (gliding)
             {
                 _vertical = _glide.Vertical(_vertical, dt);
@@ -312,8 +336,11 @@ namespace Moa.Unity.Player
             _grounded = walkable && !jumped;
             if (below && _glide.Active) _glide.Close(GlideEnd.Landed);
 
-            // 공격 중 발밑이 사라지면(내딛다 가장자리를 넘음) 공격을 끊는다 (2-1)
-            if (Attacking && !_grounded && !jumped) { _combat.Interrupt(AttackEnd.Airborne); _hitPending = false; }
+            // 낙하 공격 (2-2): 떨어지다 무언가에 닿으면(가파른 면 포함) 착지 — 배율을 정하고 그 자리에서 범위 판정 한 번
+            if (plungeFalling && below) { _combat.Land(transform.position); _planar = Planar.Zero; }
+
+            // 휘두르는 중 발밑이 사라지면(내딛다 가장자리를 넘음) 공격을 끊는다 (2-1)
+            if (Attacking && !_grounded && !jumped) { _combat.InterruptSwing(AttackEnd.Airborne); _hitPending = false; }
             if (attacking && !Attacking) _planar = Planar.Zero; // 내딛기 속도를 다음 스텝으로 넘기지 않는다
 
             // 회피가 이번 스텝에 끝났으면 지금 입력이 바라는 속력보다 빠른 부분을 버린다 (거리가 정확히 dodgeDistance)
@@ -326,10 +353,10 @@ namespace Moa.Unity.Player
         }
 
         /// <summary>공격 입력을 꺼내 콤보를 한 스텝 진행 (PlayerCombat이 없거나 연결 전이면 입력만 버린다, 2-1).</summary>
-        ComboTick CombatStep(AttackContext ctx, float dt)
+        AttackTick CombatStep(AttackContext ctx, float dt)
         {
             if (_combat == null || !_combat.Bound) { _input.ConsumeAttack(); return default; }
-            return _combat.Step(ctx, dt);
+            return _combat.Step(ctx, _stamina, dt);
         }
 
         // ---- 등반 (1-3) ----

@@ -32,6 +32,7 @@ namespace Moa.Unity.Input
         Vector2 _ovLookPending;
         float _ovZoomPending;
         bool _ovSprint;
+        float _debugHoldEnd = float.NegativeInfinity; // 주입한 길게 누르기가 끝나는 고정 스텝 시각 (2-2)
 
         public Vector2 Move => _override ? Vector2.ClampMagnitude(_ovMove, 1f) : (_move != null ? Vector2.ClampMagnitude(_move.ReadValue<Vector2>(), 1f) : Vector2.zero);
         public bool WalkMode => _walkMode;
@@ -41,6 +42,22 @@ namespace Moa.Unity.Input
         public bool CursorCaptured => Cursor.lockState == CursorLockMode.Locked;
         public bool DebugOverriding => _override;
         public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.IsPressed());
+
+        /// <summary>공격 버튼을 누르고 있는지 (2-2). 마우스는 커서가 잠겨 있을 때만, 주입 중에는 DebugHoldAttack만.</summary>
+        public bool AttackHeld
+        {
+            get
+            {
+                if (Time.fixedTime <= _debugHoldEnd) return true;
+                if (_override || _map == null) return false;
+                if (_attack != null)
+                {
+                    if (!_attack.IsPressed()) return false;
+                    return !(_attack.activeControl != null && _attack.activeControl.device is Mouse) || CursorCaptured;
+                }
+                return _captureCursor != null && _captureCursor.IsPressed() && CursorCaptured;
+            }
+        }
 
         void Awake()
         {
@@ -147,6 +164,12 @@ namespace Moa.Unity.Input
         public void DebugSetSprint(bool sprint) { _override = true; _ovSprint = sprint; }
         public void DebugPressDodge() { _dodgeLatched = true; }
         public void DebugPressAttack() { _attackLatched = true; }
+        public void DebugHoldAttack(float seconds)
+        {
+            _attackLatched = true;
+            // 누름은 다음 고정 스텝에 꺼내진다 — 그 스텝 뒤로 seconds 동안 누른 채로
+            _debugHoldEnd = Time.fixedTime + Time.fixedDeltaTime + seconds + 1e-4f;
+        }
 
         public void DebugClear()
         {

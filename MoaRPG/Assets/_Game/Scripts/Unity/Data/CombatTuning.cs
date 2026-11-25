@@ -14,6 +14,20 @@ namespace Moa.Unity.Data
         [Tooltip("With no move input, turn to the nearest target within this many meters (else keep facing)")]
         [SerializeField] float autoAimRange;
 
+        [Header("Charged attack (2-2)")]
+        [Tooltip("s the Attack button must stay held after the press for a charged attack")]
+        [SerializeField] float chargeHoldTime;
+
+        [Header("Plunge attack (2-2)")]
+        [Tooltip("m above the ground needed to start a plunge (a flat-ground jump apex reaches it)")]
+        [SerializeField] float plungeMinHeight;
+        [Tooltip("m fallen (start feet - landing feet) at which the plunge counts as high")]
+        [SerializeField] float plungeHighHeight;
+        [Tooltip("m/s straight down while plunging (no horizontal move)")]
+        [SerializeField] float plungeFallSpeed;
+        [Tooltip("s of recovery after landing (dodge or jump cancels it)")]
+        [SerializeField] float plungeLandRecovery;
+
         [Header("Damage numbers (screen)")]
         [Tooltip("Font size, 1920x1080 reference pixels")]
         [SerializeField] int damageFontSize;
@@ -28,6 +42,11 @@ namespace Moa.Unity.Data
 
         public float DefenseConstant => defenseConstant;
         public float AutoAimRange => autoAimRange;
+        public float ChargeHoldTime => chargeHoldTime;
+        public float PlungeMinHeight => plungeMinHeight;
+        public float PlungeHighHeight => plungeHighHeight;
+        public float PlungeFallSpeed => plungeFallSpeed;
+        public float PlungeLandRecovery => plungeLandRecovery;
         public int DamageFontSize => damageFontSize;
         public float DamageLifetime => damageLifetime;
         public float DamageRise => damageRise;

@@ -28,6 +28,13 @@ namespace Moa.Tests
             { 0.85f, 0.16f, 0.14f, 0.40f, 0.16f, 0.60f },
         };
 
+        // BALANCE 6번 강공격 표 (2-2): 배율 · 선딜 · 판정 · 후딜 · 내딛기
+        static readonly float[,] ChargedTable =
+        {
+            { 0.56f, 0.16f, 0.08f, 0.06f, 0.30f },
+            { 0.72f, 0.08f, 0.10f, 0.36f, 0.30f },
+        };
+
         static T Load<T>(string path) where T : UnityEngine.Object
         {
             var t = AssetDatabase.LoadAssetAtPath<T>(path);
@@ -83,6 +90,77 @@ namespace Moa.Tests
             Assert.That(d.KnockbackTime, Is.EqualTo(0.06f).Within(Eps));
             Assert.That(d.FlashTime, Is.EqualTo(0.1f).Within(Eps));
             Assert.That(d.NumberHeight, Is.EqualTo(2.0f).Within(Eps));
+        }
+
+        [Test]
+        public void Sword_ChargedAndPlunge_MatchBalance6()
+        {
+            var w = Load<WeaponTuning>(SwordPath);
+            Assert.That(w.ChargedStaminaCost, Is.EqualTo(20f).Within(Eps));
+            Assert.That(w.ChargedHitRange, Is.EqualTo(2.6f).Within(Eps));
+            Assert.That(w.ChargedHitAngle, Is.EqualTo(180f).Within(Eps));
+            Assert.That(w.PlungeLowMultiplier, Is.EqualTo(1.28f).Within(Eps));
+            Assert.That(w.PlungeHighMultiplier, Is.EqualTo(1.60f).Within(Eps));
+            Assert.That(w.PlungeRange, Is.EqualTo(2.5f).Within(Eps));
+            Assert.That(w.ChargedSlashCount, Is.EqualTo(ChargedTable.GetLength(0)));
+            for (int i = 0; i < w.ChargedSlashCount; i++)
+            {
+                WeaponTuning.Step s = w.GetChargedSlash(i);
+                string at = "charged slash " + (i + 1);
+                Assert.That(s.multiplier, Is.EqualTo(ChargedTable[i, 0]).Within(Eps), at);
+                Assert.That(s.windup, Is.EqualTo(ChargedTable[i, 1]).Within(Eps), at);
+                Assert.That(s.active, Is.EqualTo(ChargedTable[i, 2]).Within(Eps), at);
+                Assert.That(s.recovery, Is.EqualTo(ChargedTable[i, 3]).Within(Eps), at);
+                Assert.That(s.lunge, Is.EqualTo(ChargedTable[i, 4]).Within(Eps), at);
+            }
+        }
+
+        [Test]
+        public void Combat_ChargeAndPlunge_MatchBalance7()
+        {
+            var c = Load<CombatTuning>(CombatPath);
+            Assert.That(c.ChargeHoldTime, Is.EqualTo(0.36f).Within(Eps));
+            Assert.That(c.PlungeMinHeight, Is.EqualTo(1.0f).Within(Eps));
+            Assert.That(c.PlungeHighHeight, Is.EqualTo(5.0f).Within(Eps));
+            Assert.That(c.PlungeFallSpeed, Is.EqualTo(20f).Within(Eps));
+            Assert.That(c.PlungeLandRecovery, Is.EqualTo(0.40f).Within(Eps));
+        }
+
+        [Test]
+        public void ChargedAndPlunge_AreConsistent()
+        {
+            var w = Load<WeaponTuning>(SwordPath);
+            var c = Load<CombatTuning>(CombatPath);
+            var d = Load<DummyTuning>(DummyPath);
+            var m = Load<MovementTuning>(MovementPath);
+            float total = 0f;
+            int damage = 0;
+            for (int i = 0; i < w.ChargedSlashCount; i++)
+            {
+                WeaponTuning.Step s = w.GetChargedSlash(i);
+                string at = "charged slash " + (i + 1);
+                Assert.That(s.active, Is.GreaterThanOrEqualTo(FixedStep), at);
+                foreach (float v in new[] { s.windup, s.active, s.recovery })
+                {
+                    float steps = v / FixedStep;
+                    Assert.That(steps, Is.EqualTo((float)System.Math.Round(steps)).Within(1e-3f), at + ": times are whole fixed steps");
+                }
+                total += s.windup + s.active + s.recovery;
+                damage += DamageMath.Compute(w.BaseAttack, s.multiplier, d.Defense, c.DefenseConstant);
+            }
+            Assert.That(total, Is.EqualTo(0.84f).Within(1e-3f));
+            Assert.That(damage, Is.EqualTo(45 + 58), "100 x 0.56 / 0.72 against defense 100");
+            float holdSteps = c.ChargeHoldTime / FixedStep;
+            Assert.That(holdSteps, Is.EqualTo(18f).Within(1e-3f), "hold = 18 fixed steps");
+            Assert.That(c.PlungeLandRecovery / FixedStep, Is.EqualTo((float)System.Math.Round(c.PlungeLandRecovery / FixedStep)).Within(1e-3f));
+            // 평지 점프 정점(jumpHeight)에서도 낙하가 되고, 높은 낙하는 그보다 훨씬 높다
+            Assert.That(c.PlungeMinHeight, Is.LessThan(m.JumpHeight));
+            Assert.That(c.PlungeHighHeight, Is.GreaterThan(m.JumpHeight));
+            Assert.That(c.PlungeFallSpeed, Is.LessThanOrEqualTo(m.MaxFallSpeed));
+            Assert.That(w.PlungeHighMultiplier, Is.GreaterThan(w.PlungeLowMultiplier));
+            Assert.That(DamageMath.Compute(w.BaseAttack, w.PlungeLowMultiplier, d.Defense, c.DefenseConstant), Is.EqualTo(102));
+            Assert.That(DamageMath.Compute(w.BaseAttack, w.PlungeHighMultiplier, d.Defense, c.DefenseConstant), Is.EqualTo(128));
+            Assert.That(w.PlungeRange, Is.GreaterThan(w.HitRange), "landing area is wider than a swing");
         }
 
         [Test]

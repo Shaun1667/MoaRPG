@@ -44,6 +44,8 @@ namespace Moa.Core.Motion
         Landed,
         Wall,
         Cancelled,
+        /// <summary>낙하 공격으로 접힘 (2-2).</summary>
+        Plunge,
     }
 
     /// <summary>
