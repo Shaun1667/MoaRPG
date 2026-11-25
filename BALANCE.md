@@ -8,6 +8,8 @@
 | 1 | `Assets/_Game/Data/Player/MovementTuning.asset` | `Moa.Unity.Data.MovementTuning` | `Moa.Tests.PlayerTuningAssetTests` |
 | 2 | `Assets/_Game/Data/Player/CameraTuning.asset` | `Moa.Unity.Data.CameraTuning` | `Moa.Tests.PlayerTuningAssetTests` |
 | 3 | `Assets/_Game/Data/Player/StaminaTuning.asset` | `Moa.Unity.Data.StaminaTuning` | `Moa.Tests.StaminaTuningAssetTests` |
+| 4 | `Assets/_Game/Data/Player/ClimbTuning.asset` | `Moa.Unity.Data.ClimbTuning` | `Moa.Tests.ClimbGlideTuningAssetTests` |
+| 5 | `Assets/_Game/Data/Player/GlideTuning.asset` | `Moa.Unity.Data.GlideTuning` | `Moa.Tests.ClimbGlideTuningAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -72,6 +74,31 @@
 | gaugeHideDelay | 0.6 | s | 가득 찬 뒤 보이는 시간 |
 | gaugeFadeTime | 0.3 | s | 사라지는 시간 |
 
+## 4. 등반 (TASKS 1-3) — 정한 것 (Claude, 2026-11-25, 확인 필요)
+| 항목 | 값 | 단위 | 근거 |
+|---|---|---|---|
+| minWallAngle · maxWallAngle | 60 · 120 | ° | 위쪽과 벽 법선 사이(수직 = 90). 걸을 수 있는 경사(45°)와 50° 경사는 붙지 않고, 30°까지 앞으로 기운 벽은 붙는다 |
+| attachInputAngle | 50 | ° | 입력 방향과 벽 쪽 방향 차이. 비스듬히 스쳐 지나가면 안 붙는다 |
+| climbSpeed | 1.5 | m/s | 원신 체감(느리게). 기둥 20m = 13.3초 |
+| drainPerSecond | 10 | /s | 움직이는 동안만. 매달려 가만히 있으면 줄지도 차지도 않는다(회복 지연을 처음부터). 기둥 20m = 133 (가득 240에서 가능) |
+| jumpCost | 25 | | 위로 도약 1번. 모자라면 안 나가고 그대로 |
+| jumpHeight · jumpDuration | 1.8 · 0.35 | m · s | 도약 속력 5.14 m/s, 고정 스텝 18번(마지막 0.01초) |
+| reattachDelay | 0.5 | s | 회피 · 바닥남 · 벽 끝으로 떨어진 뒤 다시 붙기까지. 내려와 땅에 닿음 · 올라서기는 지연 없음 |
+| probeDistance | 0.3 | m | 벽 · 턱 검사 레이 길이(캡슐 표면에서). 붙기 검사 레이는 캡슐 가운데 높이(0.9m) |
+| ledgeHeight | 0.6 | m | 턱 레이 높이 = 캡슐 꼭대기 − 0.6 = 발에서 1.2m. 여기서 벽이 사라지고 몸 레이(0.9m)는 벽이면 올라서기 |
+| mantleForward | 0.8 | m | 올라선 뒤 앞으로. 캡슐 지름 0.7보다 길게 — 가장자리를 넘어선다 |
+| mantleDuration | 0.35 | s | 앞 절반 위로(턱 높이 + 0.05), 뒤 절반 앞으로 — 벽을 뚫지 않게 |
+
+## 5. 활공 (TASKS 1-3) — 정한 것 (Claude, 2026-11-25, 확인 필요)
+| 항목 | 값 | 단위 | 근거 |
+|---|---|---|---|
+| minHeight | 1.5 | m | 땅에서 이 높이 이상에서만 편다. 평지 점프 정점(1.28m)에서는 안 펴진다 |
+| horizontalSpeed | 6 | m/s | 뛰기(5.5)보다 조금 빠르게. 입력이 없으면 몸 앞으로 |
+| horizontalAcceleration | 8 | m/s² | 가속 · 감속 같은 값. 0 → 6 m/s 0.75초 |
+| fallSpeed | 2 | m/s | 활공비 3:1 (6 ÷ 2) — 기둥 20m에서 약 60m |
+| verticalAcceleration | 30 | m/s² | 떨어지던 속도를 −2로 맞추는 빠르기 (−10 → −2 0.27초) |
+| drainPerSecond | 5 | /s | 가득에서 48초. 바닥나면 접힌다 |
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
@@ -81,9 +108,14 @@
 - 지침: 바닥난 뒤 60 미만이면 질주 불가 → `Exhausted_BlocksSprint_Until60`
 - 회피 3.5m ÷ 0.3초, 고정 스텝 15번, 무적 0.2초, 쿨 0.2초, 비용 20, 모자라면 안 나감 · 공중 불가 → `DodgeTests`
 - 3번 표의 값 그대로 → `StaminaTuningAssetTests.Stamina_MatchesBalance3`
+- 벽 기울기 60 ~ 120°만 · 입력 각도 50° 이내 · 지침이면 안 붙음 → `ClimbTests.Attach_*`, 움직일 때 10/s · 가만히 있으면 그대로 → `Moving_Drains10PerSecond_StillDoesNot`, 회복 막기 → `TickWithoutRegen_RestartsDelay`
+- 도약 비용 25 · 1.8m ÷ 0.35초(18스텝) → `ClimbTests.Leap_Costs25_Covers18m_In035Seconds`, 올라서기 0.35초 · 위 먼저 → `Mantle_Takes035Seconds` · `MantlePath_RiseFirst_ThenForward`, 다시 붙기 0.5초 → `ReattachDelay_05Seconds`
+- 활공 높이 1.5m · 평지 점프로는 안 펴짐 · 5/s(가득 48초) · 낙하 −2 · 수평 6 (0.76초) → `GlideTests`
+- 4 · 5번 표의 값 그대로 → `ClimbGlideTuningAssetTests.Climb_MatchesBalance4` · `Glide_MatchesBalance5`
 
 ## 실험 기록
 | 날짜 | 무엇 | 결과 |
 |---|---|---|
 | 2026-11-24 | TestField 코드 주입 플레이 (1-1) | 뛰기 5.5 · 걷기 2.0 m/s, 점프 정점 +1.28m, 35° 오름 · 50° 막힘, 계단 3m 오름, 벽 앞 카메라 6 → 0.92m |
 | 2026-11-25 | TestField 코드 주입 플레이 (1-2) | 질주 8.000 m/s · 소모 18.000/s, 10에서 0.56초에 바닥 → 지침 · 뛰기 5.5 m/s, 회복 지연 1.0초 · 회복 25.000/s, 60.5에서 지침 풀림 → 질주 다시, 바닥에서 가득 10.62초, 게이지 가득 뒤 0.9초에 숨김, 회피 3.500m · 15스텝(0.3초) · 무적 10스텝(0.2초) · 비용 20, 19에서 안 나감(NoStamina), 공중 안 나감(Airborne), 연타 2초에 4번 |
+| 2026-11-25 | TestField 코드 주입 플레이 (1-3) | 기둥 붙기 · 오르기 1.500 m/s · 소모 10.0/s, 도약 +1.800m · 비용 25, 가만히 2초 스태미나 그대로, 꼭대기 올라서기 17스텝(0.35초) → 20.05m · 앞 0.8m 접지, 스태미나 5 → 0.5초에 바닥 · 떨어짐(지침 보라) · 60 차면 다시 붙음, 회피 → 떨어짐 · 0.50초 뒤 다시 붙음, 내려가다 땅 → Landed, 옆으로 가다 벽 끝 → WallEnded, 뒤 벽(4m) 올라서기, 35° · 50° 경사 안 붙음, 활공 수평 6.000 · 낙하 2.000 m/s · 5.0/s, 평지 점프(1.31m)에서 TooLow, 점프로 접기/다시 펴기, 착지로 풀림, 스태미나 1 → 0.2초에 접힘 · 지침 중 못 폄, 기둥 앞 공중에서 활공 → 벽에 붙음(Wall) |

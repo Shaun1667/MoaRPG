@@ -11,12 +11,19 @@ namespace Moa.Unity.Player
     /// 비주얼(자식 visual)은 매 프레임 고정 스텝 사이를 보간해 그린다 — 모델을 바꿔도 이 스크립트는 그대로.
     /// GameRoot가 Bind로 연결한다.
     /// 1-2: 질주(누르는 동안, 땅 위에서 움직일 때만 스태미나 소모) · 회피(입력 방향, 없으면 앞) — 규칙은 Core의 Stamina · Dodge, 수치는 StaminaTuning 에셋.
+    /// 1-3: 등반(벽 쪽으로 움직이면 붙음 · 위로 도약 · 올라서기) · 활공(공중에서 점프로 펴고 접음) — 규칙은 Core의 Climb · Glide,
+    /// 수치는 ClimbTuning · GlideTuning 에셋. 벽 · 턱 · 높이 검사 레이는 자기 콜라이더를 뺀다.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
     public sealed class PlayerMotor : MonoBehaviour
     {
+        const int MaxProbeHits = 8;
+        const float HeightProbeLength = 1000f; // 높이 검사 레이 길이 (게임 수치 아님 — 충분히 길게)
+
         [SerializeField] MovementTuning tuning;
         [SerializeField] StaminaTuning staminaTuning;
+        [SerializeField] ClimbTuning climbTuning;
+        [SerializeField] GlideTuning glideTuning;
         [Tooltip("Visual root (graybox now, character model later). Interpolated between physics steps.")]
         [SerializeField] Transform visual;
 
@@ -39,20 +46,40 @@ namespace Moa.Unity.Player
         bool _airSprint;
         Planar _dodgeDir;
 
+        Climb _climb;
+        Glide _glide;
+        Vector3 _wallNormal = Vector3.back;
+        Vector3 _mantleStart;
+        Vector3 _mantleDir;
+        float _mantleRise;
+        float _heightAboveGround;
+        readonly RaycastHit[] _hits = new RaycastHit[MaxProbeHits];
+
         Vector3 _prevPos, _currPos;
         Quaternion _prevRot, _currRot;
 
         public MovementTuning Tuning => tuning;
         public StaminaTuning StaminaTuning => staminaTuning;
+        public ClimbTuning ClimbTuning => climbTuning;
+        public GlideTuning GlideTuning => glideTuning;
         /// <summary>스태미나 (Core 규칙, Bind 전에는 null).</summary>
         public Stamina Stamina => _stamina;
         /// <summary>회피 (Core 규칙, Bind 전에는 null).</summary>
         public Dodge Dodge => _dodge;
+        /// <summary>등반 · 활공 (Core 규칙, Bind 전에는 null).</summary>
+        public Climb Climb => _climb;
+        public Glide Glide => _glide;
         /// <summary>지난 고정 스텝에 질주 중이었는지 (땅 위에서 움직이며 소모).</summary>
         public bool Sprinting => _sprinting;
         public bool Dodging => _dodge != null && _dodge.Active;
         public bool Invulnerable => _dodge != null && _dodge.Invulnerable;
         public bool Exhausted => _stamina != null && _stamina.Exhausted;
+        public bool Climbing => _climb != null && _climb.Active;
+        public bool Gliding => _glide != null && _glide.Active;
+        /// <summary>붙어 있는 벽의 법선 (등반 중일 때만 의미 있음).</summary>
+        public Vector3 WallNormal => _wallNormal;
+        /// <summary>발 아래 땅까지 높이 (m, 지난 고정 스텝, 땅이 없으면 매우 큼).</summary>
+        public float HeightAboveGround => _heightAboveGround;
         public bool Grounded => _grounded;
         public bool OnSteepSlope => _onSteep;
         public bool Walking => _input != null && _input.WalkMode;
@@ -63,6 +90,9 @@ namespace Moa.Unity.Player
         /// <summary>보간된 그리기 위치 (카메라가 따라간다).</summary>
         public Vector3 SmoothedPosition => visual != null ? visual.position : transform.position;
 
+        Vector3 Center => transform.position + Vector3.up * _cc.center.y;
+        Vector3 Forward { get { float r = _yaw * Mathf.Deg2Rad; return new Vector3(Mathf.Sin(r), 0f, Mathf.Cos(r)); } }
+
         public void Bind(IPlayerInput input, OrbitCamera view)
         {
             _input = input;
@@ -70,8 +100,12 @@ namespace Moa.Unity.Player
             _cc = GetComponent<CharacterController>();
             if (tuning == null) { Debug.LogError("PlayerMotor: MovementTuning is not assigned"); enabled = false; return; }
             if (staminaTuning == null) { Debug.LogError("PlayerMotor: StaminaTuning is not assigned"); enabled = false; return; }
+            if (climbTuning == null) { Debug.LogError("PlayerMotor: ClimbTuning is not assigned"); enabled = false; return; }
+            if (glideTuning == null) { Debug.LogError("PlayerMotor: GlideTuning is not assigned"); enabled = false; return; }
             _stamina = new Stamina(staminaTuning.ToStaminaRules());
             _dodge = new Dodge(staminaTuning.ToDodgeRules());
+            _climb = new Climb(climbTuning.ToRules());
+            _glide = new Glide(glideTuning.ToRules());
             _cc.height = tuning.CapsuleHeight;
             _cc.radius = tuning.CapsuleRadius;
             _cc.center = new Vector3(0f, tuning.CapsuleHeight * 0.5f, 0f);
@@ -82,7 +116,7 @@ namespace Moa.Unity.Player
             ResetMotion();
         }
 
-        /// <summary>[상태 변경] 순간이동 — 속도를 0으로.</summary>
+        /// <summary>[상태 변경] 순간이동 — 속도를 0으로 (등반 · 활공도 멈춤).</summary>
         public void Teleport(Vector3 position)
         {
             if (_cc == null) _cc = GetComponent<CharacterController>();
@@ -91,6 +125,23 @@ namespace Moa.Unity.Player
             _cc.enabled = true;
             ResetMotion();
         }
+
+        /// <summary>[상태 변경] 등반 중이면 떨어진다 (다시 붙기 지연 없음).</summary>
+        public void DropClimb()
+        {
+            if (_climb != null && _climb.Active) Drop(ClimbEnd.Cancelled);
+        }
+
+        /// <summary>[상태 변경] 활공을 펼친다 (공중 · 높이 · 스태미나 조건은 그대로). 펼쳤으면 true.</summary>
+        public bool OpenGlide()
+        {
+            if (_glide == null || _climb.Active) return false;
+            _heightAboveGround = MeasureHeight();
+            return _glide.TryOpen(_stamina, _grounded, _heightAboveGround);
+        }
+
+        /// <summary>[상태 변경] 활공을 접는다.</summary>
+        public void CloseGlide() => _glide?.Close(GlideEnd.Toggled);
 
         void ResetMotion()
         {
@@ -102,6 +153,8 @@ namespace Moa.Unity.Player
             _sprinting = false;
             _airSprint = false;
             _dodge?.Cancel();
+            _climb?.Cancel();
+            _glide?.Cancel();
             _currPos = _prevPos = transform.position;
             _currRot = _prevRot = transform.rotation;
             if (visual != null) visual.SetPositionAndRotation(_currPos, _currRot);
@@ -111,11 +164,35 @@ namespace Moa.Unity.Player
         {
             if (_input == null || tuning == null || _stamina == null) return;
             float dt = Time.fixedDeltaTime;
-            bool grounded = _grounded;
+            Vector3 before = transform.position;
 
             Vector2 move = _input.Move;
             float camYaw = _view != null ? _view.Yaw : _yaw;
             Planar wish = MoveMath.CameraRelative(move.x, move.y, camYaw);
+
+            _heightAboveGround = MeasureHeight();
+            if (!_climb.Active && !_dodge.Active) TryAttachWall(wish);
+
+            // 등반 중에는 회복하지 않는다 (움직이지 않고 매달려 있어도, 1-3)
+            bool climbStep = _climb.Active;
+            if (climbStep) StepClimb(move, dt);
+            else StepFree(wish, dt);
+
+            _climb.Tick(dt);
+            _stamina.Tick(dt, !climbStep);
+
+            transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
+            _velocity = (transform.position - before) / dt;
+
+            _prevPos = _currPos; _prevRot = _currRot;
+            _currPos = transform.position; _currRot = transform.rotation;
+        }
+
+        // ---- 땅 · 공중 · 활공 ----
+
+        void StepFree(Planar wish, float dt)
+        {
+            bool grounded = _grounded;
             float wishLen = wish.Length;
 
             // 회피 (1-2): 입력 방향, 없으면 캐릭터 앞. 시작 조건(쿨 · 공중 · 스태미나)은 Core Dodge
@@ -128,6 +205,15 @@ namespace Moa.Unity.Player
             bool dodging = _dodge.Active;
             float dashTime = _dodge.Advance(dt);
 
+            // 점프: 땅 위면 점프, 공중이면 활공 펴기 · 접기 (1-3)
+            bool jumpPressed = _input.ConsumeJump() && !dodging;
+            if (jumpPressed && !grounded)
+            {
+                if (_glide.Active) _glide.Close(GlideEnd.Toggled);
+                else _glide.TryOpen(_stamina, false, _heightAboveGround);
+            }
+            bool gliding = _glide.Active && _glide.Hold(_stamina, dt);
+
             // 질주 (1-2): 누르는 동안 · 땅 위 · 움직일 때만 소모. 공중에서는 뛰어오를 때의 질주 속력을 소모 없이 유지
             bool wantSprint = _input.SprintHeld && wishLen > 0f;
             _sprinting = false;
@@ -137,12 +223,20 @@ namespace Moa.Unity.Player
                 _sprinting = true;
             }
             if (grounded) _airSprint = _sprinting;
+            if (gliding) _airSprint = false;
             bool sprintPace = _sprinting || (!grounded && _airSprint && wantSprint);
 
-            // 수평: 회피 중이면 대시, 아니면 카메라 기준 방향 → 목표 속도 → 가속/감속
+            // 수평: 회피 중이면 대시, 활공 중이면 입력 방향(없으면 앞)으로 활공 속력, 아니면 카메라 기준 방향 → 목표 속도 → 가속/감속
             if (dodging)
             {
                 _planar = _dodgeDir * (_dodge.Rules.Speed * (dashTime / dt));
+            }
+            else if (gliding)
+            {
+                if (wishLen > 0f) _yaw = MoveMath.TurnTowards(_yaw, MoveMath.YawOf(wish), tuning.TurnSpeed, dt);
+                Vector3 f = Forward;
+                Planar dir = wishLen > 0f ? wish.Normalized : new Planar(f.x, f.z);
+                _planar = _glide.Horizontal(_planar, dir, dt);
             }
             else
             {
@@ -154,13 +248,16 @@ namespace Moa.Unity.Player
                 if (wishLen > 0f) _yaw = MoveMath.TurnTowards(_yaw, MoveMath.YawOf(wish), tuning.TurnSpeed, dt);
             }
 
-            // 수직: 점프 · 중력 (회피 중에는 점프 안 함)
-            bool jump = _input.ConsumeJump() && !dodging;
+            // 수직: 점프 · 중력 · 활공 낙하 (회피 중에는 점프 안 함)
             bool jumped = false;
             if (grounded)
             {
-                if (jump) { _vertical = MoveMath.JumpVelocity(tuning.JumpHeight, tuning.Gravity); jumped = true; }
+                if (jumpPressed) { _vertical = MoveMath.JumpVelocity(tuning.JumpHeight, tuning.Gravity); jumped = true; }
                 else _vertical = -tuning.GroundStickSpeed;
+            }
+            else if (gliding)
+            {
+                _vertical = _glide.Vertical(_vertical, dt);
             }
             else
             {
@@ -168,7 +265,6 @@ namespace Moa.Unity.Player
             }
 
             // 이동 (CharacterController가 경사 한계 · 계단 높이 · 충돌을 처리)
-            Vector3 before = transform.position;
             _bestGroundNormalY = -1f;
             _groundNormal = Vector3.up;
             CollisionFlags flags = _cc.Move(new Vector3(_planar.X, _vertical, _planar.Z) * dt);
@@ -180,6 +276,7 @@ namespace Moa.Unity.Player
             if (grounded && !below && !jumped) _vertical = 0f; // 가장자리에서 떨어질 때 붙어 있던 속도를 버린다
             if (_onSteep && _vertical < 0f && grounded) _vertical = 0f; // 가파른 면에 막 닿음 → 중력으로 미끄러진다
             _grounded = walkable && !jumped;
+            if (below && _glide.Active) _glide.Close(GlideEnd.Landed);
 
             // 회피가 이번 스텝에 끝났으면 지금 입력이 바라는 속력보다 빠른 부분을 버린다 (거리가 정확히 dodgeDistance)
             if (dodging && !_dodge.Active)
@@ -188,14 +285,151 @@ namespace Moa.Unity.Player
                 float after = MoveMath.TargetSpeed(sprintNext, _input.WalkMode, tuning.WalkSpeed, tuning.RunSpeed, staminaTuning.SprintSpeed, wishLen);
                 if (_planar.Length > after) _planar = _planar.Normalized * after;
             }
+        }
 
-            _stamina.Tick(dt);
+        // ---- 등반 (1-3) ----
 
-            transform.rotation = Quaternion.Euler(0f, _yaw, 0f);
-            _velocity = (transform.position - before) / dt;
+        /// <summary>입력 방향(활공 중이면 입력이 없어도 앞)으로 벽이 가까우면 붙는다. 조건은 Core Climb.</summary>
+        void TryAttachWall(Planar wish)
+        {
+            Vector3 dir;
+            if (wish.Length > 0f) dir = new Vector3(wish.X, 0f, wish.Z).normalized;
+            else if (_glide.Active) dir = Forward;
+            else return;
+            if (!Probe(Center, dir, _cc.radius + climbTuning.ProbeDistance, out RaycastHit hit)) return;
+            float inputAngle = Climb.InputAngle(dir.x, dir.z, hit.normal.x, hit.normal.z);
+            if (!_climb.TryAttach(_stamina, hit.normal.y, inputAngle)) return;
+            if (_glide.Active) _glide.Close(GlideEnd.Wall);
+            _sprinting = false;
+            _airSprint = false;
+            _planar = Planar.Zero;
+            _vertical = 0f;
+            _grounded = false;
+            _onSteep = false;
+            SetWall(hit.normal);
+        }
 
-            _prevPos = _currPos; _prevRot = _currRot;
-            _currPos = transform.position; _currRot = transform.rotation;
+        void SetWall(Vector3 normal)
+        {
+            _wallNormal = normal;
+            if (normal.x * normal.x + normal.z * normal.z > 1e-6f) _yaw = MoveMath.YawOf(new Planar(-normal.x, -normal.z));
+        }
+
+        /// <summary>벽 위: 입력 x = 벽을 따라 오른쪽, y = 위. 움직일 때만 소모 · 점프 = 위로 도약 · 회피 = 떨어짐 · 턱 = 올라서기.</summary>
+        void StepClimb(Vector2 move, float dt)
+        {
+            _dodge.Advance(dt); // 쿨만 줄어든다
+            _sprinting = false;
+            _grounded = false;
+            _onSteep = false;
+
+            if (_climb.Mantling) { StepMantle(dt); return; }
+            if (_input.ConsumeDodge()) { _input.ConsumeJump(); Drop(ClimbEnd.Dodge); return; }
+
+            Vector3 into = new Vector3(-_wallNormal.x, 0f, -_wallNormal.z);
+            if (into.sqrMagnitude < 1e-6f) into = Forward;
+            into.Normalize();
+            float reach = _cc.radius + climbTuning.ProbeDistance;
+            bool body = Probe(Center, into, reach, out RaycastHit bodyHit);
+            bool ledge = Probe(transform.position + Vector3.up * (_cc.height - climbTuning.LedgeHeight), into, reach, out _);
+            if (body && !ledge && TryStartMantle(bodyHit, into)) { StepMantle(dt); return; }
+            if (!body || !_climb.IsClimbableWall(bodyHit.normal.y)) { Drop(ClimbEnd.WallEnded); return; }
+            SetWall(bodyHit.normal);
+
+            if (_input.ConsumeJump() && !_climb.Leaping) _climb.TryLeap(_stamina);
+
+            Vector3 right = Vector3.Cross(_wallNormal, Vector3.up).normalized;
+            Vector3 up = Vector3.Cross(right, _wallNormal).normalized;
+            Vector3 delta;
+            bool moving = false;
+            float upInput = 0f;
+            if (_climb.Leaping)
+            {
+                delta = up * (_climb.Rules.JumpSpeed * _climb.AdvanceLeap(dt));
+            }
+            else
+            {
+                Vector2 m = move.sqrMagnitude > 1f ? move.normalized : move;
+                moving = m.sqrMagnitude > 0f;
+                upInput = m.y;
+                delta = (right * m.x + up * m.y) * (climbTuning.ClimbSpeed * dt);
+            }
+            if (!_climb.Hold(_stamina, moving, dt)) { Drop(ClimbEnd.Exhausted); return; }
+
+            // 벽에 붙여 둔다 (몸 레이가 잰 틈만큼 벽 쪽으로)
+            delta += into * Mathf.Max(0f, bodyHit.distance - _cc.radius);
+            _bestGroundNormalY = -1f;
+            _groundNormal = Vector3.up;
+            CollisionFlags flags = _cc.Move(delta);
+            _planar = Planar.Zero;
+            _vertical = 0f;
+
+            // 내려가다 땅에 닿으면 끝
+            if (upInput < 0f && (flags & CollisionFlags.Below) != 0 && MoveMath.IsWalkable(_groundNormal.y, tuning.SlopeLimit))
+            {
+                Drop(ClimbEnd.Landed);
+                _grounded = true;
+            }
+        }
+
+        /// <summary>턱 레이에 벽이 없으면 벽 너머 위에서 아래로 쏘아 디딜 면을 찾는다. 찾으면 올라서기 시작.</summary>
+        bool TryStartMantle(RaycastHit bodyHit, Vector3 into)
+        {
+            float feet = transform.position.y;
+            Vector3 origin = new Vector3(bodyHit.point.x, feet + _cc.height + _cc.skinWidth, bodyHit.point.z) + into * _cc.radius;
+            if (!Probe(origin, Vector3.down, _cc.height + _cc.skinWidth, out RaycastHit top)) return false;
+            if (!MoveMath.IsWalkable(top.normal.y, tuning.SlopeLimit) || top.point.y <= feet) return false;
+            if (!_climb.StartMantle()) return false;
+            _mantleStart = transform.position;
+            _mantleRise = top.point.y - feet + _cc.skinWidth;
+            _mantleDir = into;
+            return true;
+        }
+
+        void StepMantle(float dt)
+        {
+            _input.ConsumeJump();
+            _input.ConsumeDodge();
+            float progress = _climb.AdvanceMantle(dt);
+            Climb.MantlePath(progress, out float up01, out float forward01);
+            Vector3 target = _mantleStart + Vector3.up * (_mantleRise * up01) + _mantleDir * (climbTuning.MantleForward * forward01);
+            _bestGroundNormalY = -1f;
+            _groundNormal = Vector3.up;
+            _cc.Move(target - transform.position);
+            _planar = Planar.Zero;
+            _vertical = 0f;
+        }
+
+        void Drop(ClimbEnd reason)
+        {
+            _climb.End(reason);
+            _planar = Planar.Zero;
+            _vertical = 0f;
+        }
+
+        // ---- 검사 레이 (자기 콜라이더 제외) ----
+
+        float MeasureHeight()
+        {
+            float lift = _cc.radius;
+            return Probe(transform.position + Vector3.up * lift, Vector3.down, HeightProbeLength, out RaycastHit hit)
+                ? Mathf.Max(0f, hit.distance - lift)
+                : HeightProbeLength;
+        }
+
+        bool Probe(Vector3 origin, Vector3 direction, float distance, out RaycastHit best)
+        {
+            best = default;
+            int n = Physics.RaycastNonAlloc(origin, direction, _hits, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            bool found = false;
+            float bestDistance = float.MaxValue;
+            for (int i = 0; i < n; i++)
+            {
+                Collider c = _hits[i].collider;
+                if (c == null || c == _cc || c.transform.IsChildOf(transform)) continue;
+                if (_hits[i].distance < bestDistance) { bestDistance = _hits[i].distance; best = _hits[i]; found = true; }
+            }
+            return found;
         }
 
         void Update()

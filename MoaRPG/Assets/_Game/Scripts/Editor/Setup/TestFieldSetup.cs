@@ -28,6 +28,8 @@ namespace Moa.Editor.Setup
         public const string MovementTuningPath = "Assets/_Game/Data/Player/MovementTuning.asset";
         public const string CameraTuningPath = "Assets/_Game/Data/Player/CameraTuning.asset";
         public const string StaminaTuningPath = "Assets/_Game/Data/Player/StaminaTuning.asset";
+        public const string ClimbTuningPath = "Assets/_Game/Data/Player/ClimbTuning.asset";
+        public const string GlideTuningPath = "Assets/_Game/Data/Player/GlideTuning.asset";
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
         const string CheckerPath = GrayboxFolder + "/Checker.png";
@@ -41,6 +43,11 @@ namespace Moa.Editor.Setup
         static readonly Color DodgeColor = new Color(0.30f, 0.80f, 1.00f);       // 회피 중(무적 끝난 뒤): 하늘
         static readonly Color InvulnerableColor = new Color(1.00f, 1.00f, 1.00f); // 무적 중: 흰색
         static readonly Color ExhaustedColor = new Color(0.50f, 0.36f, 0.62f);   // 지침: 보라
+        static readonly Color ClimbColor = new Color(0.35f, 0.85f, 0.45f);       // 등반 중(올라서기 포함): 초록 (1-3)
+        static readonly Color GlideColor = new Color(0.95f, 0.55f, 0.85f);       // 활공 중: 분홍 (1-3)
+        static readonly Color WingsColor = new Color(0.95f, 0.95f, 0.85f);       // 날개 상자 (1-3)
+        static readonly Vector3 WingsSize = new Vector3(2.4f, 0.06f, 0.7f);      // 날개 상자 크기 (m, 표현 값)
+        const float WingsHeightRatio = 0.85f;                                    // 날개 높이 = 키 × 이 비율
         static readonly Color GaugeColor = new Color(0.60f, 0.95f, 0.35f);       // 게이지 채움
         static readonly Color GaugeExhaustedColor = new Color(1.00f, 0.35f, 0.30f);
         static readonly Color GaugeBackColor = new Color(0f, 0f, 0f, 0.45f);
@@ -76,6 +83,8 @@ namespace Moa.Editor.Setup
             ("Stairs", new Vector3(10f, 0.05f, 3f)),
             ("WallBack", new Vector3(0f, 0.05f, -10.5f)),
             ("Pillar", new Vector3(16f, 0.05f, -3f)),
+            ("PillarTop", new Vector3(16f, 20.05f, 0f)),   // 1-3: 기둥 꼭대기 (활공 시작)
+            ("PillarAir", new Vector3(16f, 12f, -9f)),     // 1-3: 기둥 앞 공중 (+Z로 활공해 벽에 붙기)
         };
 
         [MenuItem(MenuPath)]
@@ -103,6 +112,8 @@ namespace Moa.Editor.Setup
             var move = LoadOrCreate<MovementTuning>(MovementTuningPath);
             var cam = LoadOrCreate<CameraTuning>(CameraTuningPath);
             var stamina = LoadOrCreate<StaminaTuning>(StaminaTuningPath);
+            var climb = LoadOrCreate<ClimbTuning>(ClimbTuningPath);
+            var glide = LoadOrCreate<GlideTuning>(GlideTuningPath);
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
             if (inputAsset == null) Debug.LogError("TestFieldSetup: input actions missing at " + InputPath);
@@ -118,7 +129,7 @@ namespace Moa.Editor.Setup
             BuildLight();
             BuildEnvironment(mats);
             var points = BuildDebugPoints();
-            var player = BuildPlayer(move, stamina, inputAsset, mats);
+            var player = BuildPlayer(move, stamina, climb, glide, inputAsset, mats);
             var camera = BuildCamera(cam, player.transform);
             var gauge = BuildHud();
             BuildGameRoot(config, player, camera, points, gauge);
@@ -160,7 +171,7 @@ namespace Moa.Editor.Setup
 
         sealed class Materials
         {
-            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose;
+            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings;
 
             public Materials()
             {
@@ -174,6 +185,7 @@ namespace Moa.Editor.Setup
                 Pillar = Get("Pillar", new Color(0.55f, 0.55f, 0.62f), null, Vector2.one);
                 Player = Get("Player", new Color(1.00f, 0.62f, 0.22f), null, Vector2.one);
                 Nose = Get("PlayerNose", new Color(0.15f, 0.15f, 0.20f), null, Vector2.one);
+                Wings = Get("PlayerWings", WingsColor, null, Vector2.one);
             }
 
             static Material Get(string name, Color color, Texture tex, Vector2 tiling)
@@ -280,7 +292,7 @@ namespace Moa.Editor.Setup
             return result;
         }
 
-        static PlayerMotor BuildPlayer(MovementTuning tuning, StaminaTuning stamina, Object inputAsset, Materials mats)
+        static PlayerMotor BuildPlayer(MovementTuning tuning, StaminaTuning stamina, ClimbTuning climb, GlideTuning glide, Object inputAsset, Materials mats)
         {
             float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
             if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: MovementTuning capsule size is empty - fill it and run again");
@@ -303,6 +315,9 @@ namespace Moa.Editor.Setup
             float nose = radius * 0.5f;
             Primitive(PrimitiveType.Cube, visual, "Nose", new Vector3(0f, height * 0.78f, radius + nose * 0.4f), Quaternion.identity,
                 new Vector3(nose, nose, nose * 1.6f), mats.Nose);
+            var wings = Primitive(PrimitiveType.Cube, visual, "Wings", new Vector3(0f, height * WingsHeightRatio, 0f), Quaternion.identity,
+                WingsSize, mats.Wings);
+            wings.SetActive(false); // 활공 중에만 보인다 (PlayerGrayboxFeedback)
 
             var reader = go.AddComponent<PlayerInputReader>();
             Set(reader, "actions", inputAsset);
@@ -310,6 +325,8 @@ namespace Moa.Editor.Setup
             Set(motor, "tuning", tuning);
             Set(motor, "visual", visual);
             Set(motor, "staminaTuning", stamina);
+            Set(motor, "climbTuning", climb);
+            Set(motor, "glideTuning", glide);
 
             var feedback = go.AddComponent<PlayerGrayboxFeedback>();
             Set(feedback, "body", body.GetComponent<MeshRenderer>());
@@ -317,6 +334,9 @@ namespace Moa.Editor.Setup
             SetColor(feedback, "dodgeColor", DodgeColor);
             SetColor(feedback, "invulnerableColor", InvulnerableColor);
             SetColor(feedback, "exhaustedColor", ExhaustedColor);
+            SetColor(feedback, "climbColor", ClimbColor);
+            SetColor(feedback, "glideColor", GlideColor);
+            Set(feedback, "wings", wings);
             return motor;
         }
 

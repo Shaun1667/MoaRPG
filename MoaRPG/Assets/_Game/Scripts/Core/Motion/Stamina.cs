@@ -112,6 +112,17 @@ namespace Moa.Core.Motion
             if (Exhausted && Current >= _rules.ExhaustRecover) Exhausted = false;
         }
 
+        /// <summary>
+        /// 고정 스텝 끝에 한 번 (1-3). allowRegen이 false면(등반 중 매달려 있을 때) 회복하지 않고 회복 지연을 처음부터 다시 센다.
+        /// true면 <see cref="Tick(float)"/>와 같다.
+        /// </summary>
+        public void Tick(float dt, bool allowRegen)
+        {
+            if (allowRegen) { Tick(dt); return; }
+            _spentThisStep = false;
+            SinceSpend = 0f;
+        }
+
         /// <summary>[상태 변경] 가득 채우기 (지침도 풀림).</summary>
         public void Fill()
         {

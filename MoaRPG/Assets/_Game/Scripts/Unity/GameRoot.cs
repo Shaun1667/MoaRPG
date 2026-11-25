@@ -150,6 +150,39 @@ namespace Moa.Unity
         /// <summary>[상태 변경] 무한 스태미나.</summary>
         public void DebugStaminaSetInfinite(bool infinite) { if (DebugHasStamina) playerMotor.Stamina.Infinite = infinite; }
 
+        // ---- 등반 · 활공 (1-3) ----
+
+        public bool DebugHasClimb => playerMotor != null && playerMotor.Climb != null;
+        public bool DebugClimbing => DebugHasClimb && playerMotor.Climb.Active;
+        /// <summary>등반 단계 (None · Climbing · Leaping · Mantling).</summary>
+        public string DebugClimbPhase => DebugHasClimb ? playerMotor.Climb.Phase.ToString() : "-";
+        /// <summary>마지막으로 끝난 까닭 (Dodge · Exhausted · Landed · Mantled · WallEnded · Cancelled).</summary>
+        public string DebugClimbLastEnd => DebugHasClimb ? playerMotor.Climb.LastEnd.ToString() : "-";
+        /// <summary>마지막으로 붙지 못한 까닭 (WallAngle · InputAngle · Cooldown · NoStamina …).</summary>
+        public string DebugClimbLastBlock => DebugHasClimb ? playerMotor.Climb.LastBlock.ToString() : "-";
+        public int DebugClimbCount => DebugHasClimb ? playerMotor.Climb.Count : 0;
+        public int DebugClimbLeapCount => DebugHasClimb ? playerMotor.Climb.LeapCount : 0;
+        public int DebugClimbMantleCount => DebugHasClimb ? playerMotor.Climb.MantleCount : 0;
+        /// <summary>다시 붙을 수 있기까지 남은 초.</summary>
+        public float DebugClimbReattachWait => DebugHasClimb ? playerMotor.Climb.ReattachLeft : 0f;
+        /// <summary>붙어 있는 벽 기울기 (도, 수직 = 90).</summary>
+        public float DebugClimbWallAngle => DebugClimbing ? Moa.Core.Motion.Climb.WallAngle(playerMotor.WallNormal.y) : 0f;
+        public bool DebugGliding => playerMotor != null && playerMotor.Gliding;
+        public string DebugGlideLastEnd => playerMotor != null && playerMotor.Glide != null ? playerMotor.Glide.LastEnd.ToString() : "-";
+        public string DebugGlideLastBlock => playerMotor != null && playerMotor.Glide != null ? playerMotor.Glide.LastBlock.ToString() : "-";
+        public int DebugGlideCount => playerMotor != null && playerMotor.Glide != null ? playerMotor.Glide.Count : 0;
+        /// <summary>발 아래 땅까지 높이 (m).</summary>
+        public float DebugPlayerHeightAboveGround => playerMotor != null ? playerMotor.HeightAboveGround : 0f;
+
+        /// <summary>[상태 변경] 등반 중이면 떨어지기.</summary>
+        public void DebugClimbDrop() { if (playerMotor != null) playerMotor.DropClimb(); }
+
+        /// <summary>[상태 변경] 활공 펴기 (조건이 안 되면 false, 까닭은 DebugGlideLastBlock).</summary>
+        public bool DebugGlideOpen() => playerMotor != null && playerMotor.OpenGlide();
+
+        /// <summary>[상태 변경] 활공 접기.</summary>
+        public void DebugGlideClose() { if (playerMotor != null) playerMotor.CloseGlide(); }
+
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()
         {
