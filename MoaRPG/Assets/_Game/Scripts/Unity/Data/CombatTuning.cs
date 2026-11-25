@@ -1,0 +1,37 @@
+using UnityEngine;
+
+namespace Moa.Unity.Data
+{
+    /// <summary>
+    /// 전투 공통 수치 (2-1). 에셋 Assets/_Game/Data/Combat/CombatTuning.asset, 값은 BALANCE.md 7번.
+    /// 무기마다 다른 값은 WeaponTuning, 적마다 다른 값은 DummyTuning(적 표). 코드에는 기본값을 두지 않는다.
+    /// </summary>
+    [CreateAssetMenu(menuName = "MoaRPG/Data/Combat Tuning", fileName = "CombatTuning")]
+    public sealed class CombatTuning : ScriptableObject
+    {
+        [Tooltip("Defense reduction = def / (def + this). Defense equal to this halves damage")]
+        [SerializeField] float defenseConstant;
+        [Tooltip("With no move input, turn to the nearest target within this many meters (else keep facing)")]
+        [SerializeField] float autoAimRange;
+
+        [Header("Damage numbers (screen)")]
+        [Tooltip("Font size, 1920x1080 reference pixels")]
+        [SerializeField] int damageFontSize;
+        [Tooltip("s a number stays")]
+        [SerializeField] float damageLifetime;
+        [Tooltip("m the number rises over its lifetime")]
+        [SerializeField] float damageRise;
+        [Tooltip("s of fade at the end")]
+        [SerializeField] float damageFadeTime;
+        [Tooltip("Random-free spread: each new number is shifted sideways by this many reference pixels, cycling")]
+        [SerializeField] float damageSpread;
+
+        public float DefenseConstant => defenseConstant;
+        public float AutoAimRange => autoAimRange;
+        public int DamageFontSize => damageFontSize;
+        public float DamageLifetime => damageLifetime;
+        public float DamageRise => damageRise;
+        public float DamageFadeTime => damageFadeTime;
+        public float DamageSpread => damageSpread;
+    }
+}

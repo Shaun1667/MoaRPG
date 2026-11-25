@@ -1,2 +1,3 @@
 key,ko,en
 ui.boot.ready,MoaRPG 준비 완료 · 시드 {0},MoaRPG ready · seed {0}
+ui.combat.damage,{0},{0}

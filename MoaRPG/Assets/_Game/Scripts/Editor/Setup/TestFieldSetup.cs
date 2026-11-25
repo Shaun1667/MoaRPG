@@ -1,6 +1,7 @@
 using System.IO;
 using Moa.Unity;
 using Moa.Unity.Cameras;
+using Moa.Unity.Combat;
 using Moa.Unity.Data;
 using Moa.Unity.Input;
 using Moa.Unity.Player;
@@ -30,13 +31,18 @@ namespace Moa.Editor.Setup
         public const string StaminaTuningPath = "Assets/_Game/Data/Player/StaminaTuning.asset";
         public const string ClimbTuningPath = "Assets/_Game/Data/Player/ClimbTuning.asset";
         public const string GlideTuningPath = "Assets/_Game/Data/Player/GlideTuning.asset";
+        public const string WeaponPath = "Assets/_Game/Data/Weapons/Sword.asset";              // 2-1: 첫 무기 한손검
+        public const string CombatTuningPath = "Assets/_Game/Data/Combat/CombatTuning.asset";
+        public const string DummyTuningPath = "Assets/_Game/Data/Enemies/TrainingDummy.asset";
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
         const string CheckerPath = GrayboxFolder + "/Checker.png";
         const string RingPath = GrayboxFolder + "/Ring.png";
         const string LitShader = "Universal Render Pipeline/Lit";
+        const string TrailShader = "Sprites/Default";                       // 궤적 (정점 색 · 투명)
+        const string TrailShaderFallback = "Universal Render Pipeline/Unlit";
 
-        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD" };
+        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD", "Dummies" };
 
         // ---- 표현 표 (1-2, 게임 수치 아님) ----
         static readonly Color SprintColor = new Color(1.00f, 0.86f, 0.20f);      // 질주 중: 노랑
@@ -52,6 +58,29 @@ namespace Moa.Editor.Setup
         static readonly Color GaugeExhaustedColor = new Color(1.00f, 0.35f, 0.30f);
         static readonly Color GaugeBackColor = new Color(0f, 0f, 0f, 0.45f);
         static readonly Vector2 HudReference = new Vector2(1920f, 1080f);
+
+        // ---- 표현 표 (2-1 전투, 게임 수치 아님) ----
+        static readonly Color AttackColor = new Color(0.95f, 0.35f, 0.30f);      // 공격 중: 빨강 (무적 > 회피 > 공격 > 등반 …)
+        static readonly Color SwordColor = new Color(0.82f, 0.86f, 0.92f);       // 칼 상자
+        static readonly Color HiltColor = new Color(0.35f, 0.25f, 0.18f);
+        static readonly Color TrailColor = new Color(1.00f, 1.00f, 1.00f, 0.75f); // 휘두르기 궤적 (끝으로 투명)
+        const float TrailTime = 0.15f, TrailWidth = 0.25f;                       // 궤적 길이(초) · 너비(m)
+        static readonly Vector3 SwordPivot = new Vector3(0.32f, 1.15f, 0.10f);   // 칼 회전 중심 (발 기준, m) — 오른손
+        static readonly Vector3 BladeSize = new Vector3(0.07f, 0.03f, 0.90f);
+        const float BladeOffset = 0.55f;                                          // 회전 중심에서 칼날 가운데까지 (로컬 +Z)
+        static readonly Vector3 HiltSize = new Vector3(0.18f, 0.05f, 0.05f);
+        static readonly Vector3 SwordRest = new Vector3(65f, 25f, 0f);           // 쉬는 자세 (회전 중심 로컬 오일러)
+        static readonly Vector3 SwordSweepStart = new Vector3(10f, 80f, 0f);     // 옆 베기: 오른쪽 → 왼쪽 (짝수 타는 반대)
+        static readonly Vector3 SwordSweepEnd = new Vector3(10f, -80f, 0f);
+        static readonly Vector3 SwordFinisherStart = new Vector3(-60f, 0f, 0f);  // 마지막 타: 위 → 아래
+        static readonly Vector3 SwordFinisherEnd = new Vector3(70f, 0f, 0f);
+        static readonly Color DummyColor = new Color(0.80f, 0.66f, 0.42f);       // 허수아비 (짚 색)
+        static readonly Color DummyFlashColor = new Color(1.00f, 1.00f, 1.00f);  // 맞으면 번쩍임
+        static readonly Color DamageColor = new Color(1.00f, 0.92f, 0.55f);      // 피해 숫자
+        static readonly Color DamageBlockedColor = new Color(0.70f, 0.70f, 0.70f); // 무적 대상 (체력 안 줌)
+        static readonly Color DamageOutlineColor = new Color(0f, 0f, 0f, 0.8f);
+        const float DummyHeight = 1.8f, DummyRadius = 0.35f;                     // 허수아비 몸 (m, 표현 · 충돌 크기)
+        static readonly Vector3 DummyArmsSize = new Vector3(1.4f, 0.12f, 0.12f);
 
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
@@ -85,6 +114,15 @@ namespace Moa.Editor.Setup
             ("Pillar", new Vector3(16f, 0.05f, -3f)),
             ("PillarTop", new Vector3(16f, 20.05f, 0f)),   // 1-3: 기둥 꼭대기 (활공 시작)
             ("PillarAir", new Vector3(16f, 12f, -9f)),     // 1-3: 기둥 앞 공중 (+Z로 활공해 벽에 붙기)
+            ("Dummies", new Vector3(-15.4f, 0.05f, -3.6f)), // 2-1: 허수아비 둘 앞 (+Z를 보면 둘이 부채꼴 안)
+        };
+
+        // 2-1: 허수아비 배치 (발 위치, 바라보는 방향 도) — 새 허수아비 = 줄 하나
+        static readonly (string name, Vector3 position, float yaw)[] Dummies =
+        {
+            ("Dummy1", new Vector3(-16.0f, 0f, -2.0f), 180f),
+            ("Dummy2", new Vector3(-14.8f, 0f, -2.0f), 180f),
+            ("Dummy3", new Vector3(-12.0f, 0f, -6.0f), 180f),
         };
 
         [MenuItem(MenuPath)]
@@ -100,6 +138,9 @@ namespace Moa.Editor.Setup
         {
             EnsureFolder("Assets/_Game/Input");
             EnsureFolder("Assets/_Game/Data/Player");
+            EnsureFolder("Assets/_Game/Data/Weapons");
+            EnsureFolder("Assets/_Game/Data/Combat");
+            EnsureFolder("Assets/_Game/Data/Enemies");
             EnsureFolder(GrayboxFolder);
             EnsureFolder("Assets/_Game/Scenes");
 
@@ -114,6 +155,9 @@ namespace Moa.Editor.Setup
             var stamina = LoadOrCreate<StaminaTuning>(StaminaTuningPath);
             var climb = LoadOrCreate<ClimbTuning>(ClimbTuningPath);
             var glide = LoadOrCreate<GlideTuning>(GlideTuningPath);
+            var weapon = LoadOrCreate<WeaponTuning>(WeaponPath);
+            var combat = LoadOrCreate<CombatTuning>(CombatTuningPath);
+            var dummyTuning = LoadOrCreate<DummyTuning>(DummyTuningPath);
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
             if (inputAsset == null) Debug.LogError("TestFieldSetup: input actions missing at " + InputPath);
@@ -129,10 +173,12 @@ namespace Moa.Editor.Setup
             BuildLight();
             BuildEnvironment(mats);
             var points = BuildDebugPoints();
-            var player = BuildPlayer(move, stamina, climb, glide, inputAsset, mats);
+            var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, inputAsset, mats);
             var camera = BuildCamera(cam, player.transform);
             var gauge = BuildHud();
-            BuildGameRoot(config, player, camera, points, gauge);
+            var numbers = DamageNumbers.CreateIn(gauge.transform.parent, DamageColor, DamageBlockedColor, DamageOutlineColor);
+            var dummies = BuildDummies(dummyTuning, mats);
+            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -171,7 +217,7 @@ namespace Moa.Editor.Setup
 
         sealed class Materials
         {
-            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings;
+            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings, Dummy, Sword, Hilt, SwordTrail;
 
             public Materials()
             {
@@ -186,6 +232,10 @@ namespace Moa.Editor.Setup
                 Player = Get("Player", new Color(1.00f, 0.62f, 0.22f), null, Vector2.one);
                 Nose = Get("PlayerNose", new Color(0.15f, 0.15f, 0.20f), null, Vector2.one);
                 Wings = Get("PlayerWings", WingsColor, null, Vector2.one);
+                Dummy = Get("Dummy", DummyColor, null, Vector2.one);
+                Sword = Get("Sword", SwordColor, null, Vector2.one);
+                Hilt = Get("SwordHilt", HiltColor, null, Vector2.one);
+                SwordTrail = GetTrail("SwordTrail");
             }
 
             static Material Get(string name, Color color, Texture tex, Vector2 tiling)
@@ -201,6 +251,18 @@ namespace Moa.Editor.Setup
                     m.SetTextureScale("_BaseMap", tiling);
                 }
                 m.SetFloat("_Smoothness", 0.1f);
+                AssetDatabase.CreateAsset(m, path);
+                return m;
+            }
+
+            /// <summary>궤적용 반투명 머티리얼 (색은 TrailRenderer가 입힌다).</summary>
+            static Material GetTrail(string name)
+            {
+                string path = GrayboxFolder + "/" + name + ".mat";
+                var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+                if (m != null) return m;
+                Shader shader = Shader.Find(TrailShader) ?? Shader.Find(TrailShaderFallback);
+                m = new Material(shader) { name = name };
                 AssetDatabase.CreateAsset(m, path);
                 return m;
             }
@@ -292,7 +354,8 @@ namespace Moa.Editor.Setup
             return result;
         }
 
-        static PlayerMotor BuildPlayer(MovementTuning tuning, StaminaTuning stamina, ClimbTuning climb, GlideTuning glide, Object inputAsset, Materials mats)
+        static PlayerMotor BuildPlayer(MovementTuning tuning, StaminaTuning stamina, ClimbTuning climb, GlideTuning glide,
+            WeaponTuning weapon, CombatTuning combatTuning, Object inputAsset, Materials mats)
         {
             float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
             if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: MovementTuning capsule size is empty - fill it and run again");
@@ -337,6 +400,41 @@ namespace Moa.Editor.Setup
             SetColor(feedback, "climbColor", ClimbColor);
             SetColor(feedback, "glideColor", GlideColor);
             Set(feedback, "wings", wings);
+            SetColor(feedback, "attackColor", AttackColor);
+
+            // 2-1: 일반 공격 + 그레이박스 칼 (회전 중심 → 칼날 상자 · 손잡이 · 끝에 궤적)
+            var combat = go.AddComponent<PlayerCombat>();
+            Set(combat, "weapon", weapon);
+            Set(combat, "tuning", combatTuning);
+            var pivot = new GameObject("SwordPivot").transform;
+            pivot.SetParent(visual, false);
+            pivot.localPosition = SwordPivot;
+            pivot.localRotation = Quaternion.Euler(SwordRest);
+            Primitive(PrimitiveType.Cube, pivot, "Blade", new Vector3(0f, 0f, BladeOffset), Quaternion.identity, BladeSize, mats.Sword);
+            Primitive(PrimitiveType.Cube, pivot, "Hilt", new Vector3(0f, 0f, BladeOffset - BladeSize.z * 0.5f), Quaternion.identity, HiltSize, mats.Hilt);
+            var tip = new GameObject("Tip").transform;
+            tip.SetParent(pivot, false);
+            tip.localPosition = new Vector3(0f, 0f, BladeOffset + BladeSize.z * 0.5f);
+            var trail = tip.gameObject.AddComponent<TrailRenderer>();
+            trail.sharedMaterial = mats.SwordTrail;
+            trail.time = TrailTime;
+            trail.widthMultiplier = TrailWidth;
+            trail.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 0f);
+            var g = new Gradient();
+            g.SetKeys(new[] { new GradientColorKey(TrailColor, 0f), new GradientColorKey(TrailColor, 1f) },
+                new[] { new GradientAlphaKey(TrailColor.a, 0f), new GradientAlphaKey(0f, 1f) });
+            trail.colorGradient = g;
+            trail.shadowCastingMode = ShadowCastingMode.Off;
+            trail.emitting = false;
+            var swing = go.AddComponent<SwordSwingVisual>();
+            Set(swing, "combat", combat);
+            Set(swing, "pivot", pivot);
+            Set(swing, "trail", trail);
+            SetVector(swing, "restEuler", SwordRest);
+            SetVector(swing, "sweepStartEuler", SwordSweepStart);
+            SetVector(swing, "sweepEndEuler", SwordSweepEnd);
+            SetVector(swing, "finisherStartEuler", SwordFinisherStart);
+            SetVector(swing, "finisherEndEuler", SwordFinisherEnd);
             return motor;
         }
 
@@ -391,7 +489,42 @@ namespace Moa.Editor.Setup
             return AssetDatabase.LoadAssetAtPath<Sprite>(RingPath);
         }
 
-        static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge)
+        /// <summary>허수아비 (2-1): 루트에 캡슐 콜라이더 + TrainingDummy, 자식 Visual에 몸 캡슐 · 팔 상자 (번쩍임 대상). 배치는 Dummies 표.</summary>
+        static TrainingDummy[] BuildDummies(DummyTuning tuning, Materials mats)
+        {
+            var root = new GameObject("Dummies").transform;
+            var result = new TrainingDummy[Dummies.Length];
+            for (int i = 0; i < Dummies.Length; i++)
+            {
+                var go = new GameObject(Dummies[i].name);
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(Dummies[i].position, Quaternion.Euler(0f, Dummies[i].yaw, 0f));
+                var col = go.AddComponent<CapsuleCollider>();
+                col.height = DummyHeight;
+                col.radius = DummyRadius;
+                col.center = new Vector3(0f, DummyHeight * 0.5f, 0f);
+                var visual = new GameObject("Visual").transform;
+                visual.SetParent(go.transform, false);
+                var body = Primitive(PrimitiveType.Capsule, visual, "Body", new Vector3(0f, DummyHeight * 0.5f, 0f), Quaternion.identity,
+                    new Vector3(DummyRadius * 2f, DummyHeight * 0.5f, DummyRadius * 2f), mats.Dummy);
+                var arms = Primitive(PrimitiveType.Cube, visual, "Arms", new Vector3(0f, DummyHeight * 0.72f, 0f), Quaternion.identity, DummyArmsSize, mats.Dummy);
+                var dummy = go.AddComponent<TrainingDummy>();
+                Set(dummy, "tuning", tuning);
+                Set(dummy, "visual", visual);
+                SetColor(dummy, "flashColor", DummyFlashColor);
+                var so = new SerializedObject(dummy);
+                var arr = so.FindProperty("flashRenderers");
+                arr.arraySize = 2;
+                arr.GetArrayElementAtIndex(0).objectReferenceValue = body.GetComponent<MeshRenderer>();
+                arr.GetArrayElementAtIndex(1).objectReferenceValue = arms.GetComponent<MeshRenderer>();
+                so.ApplyModifiedPropertiesWithoutUndo();
+                result[i] = dummy;
+            }
+            return result;
+        }
+
+        static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge,
+            DamageNumbers numbers, TrainingDummy[] dummies)
         {
             var go = new GameObject("GameRoot");
             var root = go.AddComponent<GameRoot>();
@@ -401,6 +534,11 @@ namespace Moa.Editor.Setup
             so.FindProperty("playerMotor").objectReferenceValue = motor;
             so.FindProperty("orbitCamera").objectReferenceValue = camera;
             so.FindProperty("staminaGauge").objectReferenceValue = gauge;
+            so.FindProperty("playerCombat").objectReferenceValue = motor.GetComponent<PlayerCombat>();
+            so.FindProperty("damageNumbers").objectReferenceValue = numbers;
+            var dummyArr = so.FindProperty("trainingDummies");
+            dummyArr.arraySize = dummies.Length;
+            for (int i = 0; i < dummies.Length; i++) dummyArr.GetArrayElementAtIndex(i).objectReferenceValue = dummies[i];
             var arr = so.FindProperty("debugTeleportPoints");
             arr.arraySize = points.Length;
             for (int i = 0; i < points.Length; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = points[i];
@@ -432,6 +570,15 @@ namespace Moa.Editor.Setup
             go.transform.localScale = scale;
             go.GetComponent<MeshRenderer>().sharedMaterial = mat;
             return go;
+        }
+
+        static void SetVector(Object target, string property, Vector3 value)
+        {
+            var so = new SerializedObject(target);
+            var p = so.FindProperty(property);
+            if (p == null) { Debug.LogError("TestFieldSetup: no field '" + property + "' on " + target.GetType().Name); return; }
+            p.vector3Value = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
         }
 
         static void SetColor(Object target, string property, Color value)

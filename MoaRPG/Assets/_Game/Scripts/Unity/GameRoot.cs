@@ -3,6 +3,7 @@ using Moa.Core.Ids;
 using Moa.Core.Localization;
 using Moa.Core.Rng;
 using Moa.Unity.Cameras;
+using Moa.Unity.Combat;
 using Moa.Unity.Data;
 using Moa.Unity.Player;
 using Moa.Unity.UI;
@@ -29,6 +30,11 @@ namespace Moa.Unity
         [SerializeField] OrbitCamera orbitCamera;
         [Tooltip("Stamina ring on the HUD canvas (1-2)")]
         [SerializeField] StaminaGauge staminaGauge;
+        [Header("Combat (2-1, empty in scenes without a player)")]
+        [SerializeField] PlayerCombat playerCombat;
+        [SerializeField] TrainingDummy[] trainingDummies;
+        [Tooltip("Floating damage numbers on the HUD canvas")]
+        [SerializeField] DamageNumbers damageNumbers;
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
 
@@ -57,6 +63,30 @@ namespace Moa.Unity
             playerMotor.Bind(_input, orbitCamera);
             if (orbitCamera != null) orbitCamera.Bind(_input, playerMotor);
             if (staminaGauge != null) staminaGauge.Bind(playerMotor, orbitCamera != null ? orbitCamera.GetComponent<Camera>() : Camera.main);
+            BindCombat();
+        }
+
+        void BindCombat()
+        {
+            if (playerCombat == null) return;
+            playerCombat.Bind(_input);
+            playerCombat.HitLanded += OnHitLanded;
+            if (damageNumbers != null)
+                damageNumbers.Bind(playerCombat.Tuning, orbitCamera != null ? orbitCamera.GetComponent<Camera>() : Camera.main, UiFont.Get(config));
+        }
+
+        /// <summary>전투 엔티티 ID (판을 시작할 때마다 새로 — 핵심 설계 규칙 5).</summary>
+        void AssignCombatIds()
+        {
+            if (_ids == null) return;
+            if (playerCombat != null) playerCombat.SetId(_ids.Next());
+            if (trainingDummies == null) return;
+            foreach (var d in trainingDummies) if (d != null) d.SetId(_ids.Next());
+        }
+
+        void OnHitLanded(HitReport hit)
+        {
+            if (damageNumbers != null) damageNumbers.Show(hit.NumberPosition, hit.Damage, hit.Applied == 0 && hit.Damage > 0);
         }
 
         void StartRun(int seed)
@@ -65,6 +95,7 @@ namespace Moa.Unity
             _random = new RandomStreams(RandomStreams.SeedFromInt(seed));
             _ids = new IdGenerator();
             _runCount++;
+            AssignCombatIds();
             if (bootLabel != null) bootLabel.SetArgs(seed);
         }
 
@@ -182,6 +213,57 @@ namespace Moa.Unity
 
         /// <summary>[상태 변경] 활공 접기.</summary>
         public void DebugGlideClose() { if (playerMotor != null) playerMotor.CloseGlide(); }
+
+        // ---- 전투 (2-1) ----
+
+        public bool DebugHasCombat => playerCombat != null && playerCombat.Bound;
+        /// <summary>[상태 변경] 공격 입력 주입 (다음 고정 스텝에 소비).</summary>
+        public void DebugInputAttack() => _input?.DebugPressAttack();
+        public bool DebugAttacking => DebugHasCombat && playerCombat.Attacking;
+        /// <summary>지금(또는 마지막) 콤보 단계, 1부터 (0 = 아직 없음).</summary>
+        public int DebugComboStep => DebugHasCombat ? playerCombat.Combo.StepIndex + 1 : 0;
+        public int DebugComboStepCount => DebugHasCombat ? playerCombat.Combo.Rules.StepCount : 0;
+        /// <summary>대기 중에 누르면 나갈 단계, 1부터.</summary>
+        public int DebugComboNextStep => DebugHasCombat ? playerCombat.Combo.NextStep + 1 : 0;
+        /// <summary>단계 안 구간 (Idle · Windup · Active · Recovery).</summary>
+        public string DebugComboPhase => DebugHasCombat ? playerCombat.Combo.Phase.ToString() : "-";
+        public float DebugComboElapsed => DebugHasCombat ? playerCombat.Combo.Elapsed : 0f;
+        public bool DebugComboQueued => DebugHasCombat && playerCombat.Combo.Queued;
+        /// <summary>콤보가 1타로 돌아가기까지 남은 초.</summary>
+        public float DebugComboResetLeft => DebugHasCombat ? playerCombat.Combo.ResetLeft : 0f;
+        public int DebugComboSwingCount => DebugHasCombat ? playerCombat.Combo.SwingCount : 0;
+        public int DebugComboBreakCount => DebugHasCombat ? playerCombat.Combo.BreakCount : 0;
+        public string DebugComboLastBlock => DebugHasCombat ? playerCombat.Combo.LastBlock.ToString() : "-";
+        public string DebugComboLastEnd => DebugHasCombat ? playerCombat.Combo.LastEnd.ToString() : "-";
+        public int DebugHitCount => DebugHasCombat ? playerCombat.HitCount : 0;
+        public HitReport DebugLastHit => DebugHasCombat ? playerCombat.LastHit : default;
+        public float DebugAttack => DebugHasCombat ? playerCombat.Attack : 0f;
+        public float DebugAttackScale => DebugHasCombat ? playerCombat.AttackScale : 0f;
+        public string DebugWeaponName => playerCombat != null && playerCombat.Weapon != null ? playerCombat.Weapon.name : "-";
+        public long DebugPlayerEntityId => playerCombat != null ? playerCombat.Id.Value : 0;
+        public TrainingDummy[] DebugDummies => trainingDummies;
+        public int DebugDamageNumbersActive => damageNumbers != null ? damageNumbers.ActiveCount : 0;
+        public string DebugDamageNumbersLastText => damageNumbers != null ? damageNumbers.LastText : null;
+        bool _dummiesInvulnerable;
+        public bool DebugDummiesInvulnerable => _dummiesInvulnerable;
+
+        /// <summary>[상태 변경] 공격력 배수 (1 = 그대로).</summary>
+        public void DebugSetAttackScale(float scale) { if (playerCombat != null) playerCombat.AttackScale = scale; }
+
+        /// <summary>[상태 변경] 허수아비를 모두 다시 세운다 (체력 가득).</summary>
+        public void DebugRespawnDummies()
+        {
+            if (trainingDummies == null) return;
+            foreach (var d in trainingDummies) if (d != null) d.Respawn();
+        }
+
+        /// <summary>[상태 변경] 허수아비 무적 (피해 숫자는 뜨고 체력은 안 줌).</summary>
+        public void DebugSetDummiesInvulnerable(bool on)
+        {
+            _dummiesInvulnerable = on;
+            if (trainingDummies == null) return;
+            foreach (var d in trainingDummies) if (d != null) d.SetInvulnerable(on);
+        }
 
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()

@@ -22,8 +22,9 @@ namespace Moa.Unity.Input
         public const string CaptureCursor = "CaptureCursor";
         public const string Sprint = "Sprint";
         public const string Dodge = "Dodge";
+        public const string Attack = "Attack";
 
-        /// <summary>기본 키: WASD · 방향키 / 왼쪽 스틱 이동, 마우스 · 오른쪽 스틱 시점, 휠 줌, Space · A(South) 점프, 왼쪽 Ctrl · 왼쪽 스틱 누르기 걷기 전환, ESC 커서 풀기, 왼쪽 클릭 커서 잠그기, 왼쪽 Shift · RT 누르는 동안 질주, 오른쪽 클릭 · B(East) 회피 (1-2).</summary>
+        /// <summary>기본 키: WASD · 방향키 / 왼쪽 스틱 이동, 마우스 · 오른쪽 스틱 시점, 휠 줌, Space · A(South) 점프, 왼쪽 Ctrl · 왼쪽 스틱 누르기 걷기 전환, ESC 커서 풀기, 왼쪽 클릭 커서 잠그기, 왼쪽 Shift · RT 누르는 동안 질주, 오른쪽 클릭 · B(East) 회피 (1-2), 왼쪽 클릭(커서가 잠겼을 때) · X(West) 일반 공격 (2-1).</summary>
         public static string BuildDefaultJson()
         {
             var asset = ScriptableObject.CreateInstance<InputActionAsset>();
@@ -57,6 +58,10 @@ namespace Moa.Unity.Input
 
             var dodge = map.AddAction(Dodge, InputActionType.Button, "<Mouse>/rightButton");
             dodge.AddBinding("<Gamepad>/buttonEast");
+
+            // 2-1: 일반 공격 — 마우스 왼쪽은 커서가 잠겨 있을 때만 공격(PlayerInputReader), 풀려 있으면 CaptureCursor
+            var attack = map.AddAction(Attack, InputActionType.Button, "<Mouse>/leftButton");
+            attack.AddBinding("<Gamepad>/buttonWest");
 
             string json = asset.ToJson();
             Object.DestroyImmediate(asset);

@@ -35,6 +35,9 @@ namespace Moa.Unity.Player
         /// <summary>눌린 회피를 한 번 꺼낸다 (FixedUpdate에서 소비, 1-2).</summary>
         bool ConsumeDodge();
 
+        /// <summary>눌린 일반 공격을 한 번 꺼낸다 (FixedUpdate에서 소비, 2-1). 마우스 왼쪽은 커서가 잠겨 있을 때만 공격 — 풀려 있으면 그 클릭은 커서 잠금.</summary>
+        bool ConsumeAttack();
+
         // ---- 디버그 주입 ----
         bool DebugOverriding { get; }
         void DebugSetMove(Vector2 move);
@@ -44,6 +47,7 @@ namespace Moa.Unity.Player
         void DebugSetWalk(bool walk);
         void DebugSetSprint(bool sprint);
         void DebugPressDodge();
+        void DebugPressAttack();
         void DebugClear();
     }
 }

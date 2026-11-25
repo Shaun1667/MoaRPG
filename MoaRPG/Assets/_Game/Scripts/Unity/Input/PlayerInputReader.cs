@@ -7,6 +7,8 @@ namespace Moa.Unity.Input
     /// <summary>
     /// 플레이어 입력은 여기 한 곳에서만 읽는다 (CLAUDE.md 코딩 규칙). 액션 에셋 Assets/_Game/Input/MoaControls.inputactions.
     /// 커서: 시작할 때 잠그고 ESC로 풀고, 왼쪽 클릭으로 다시 잠근다. 커서가 풀려 있으면 마우스 시점 입력은 0.
+    /// 공격(2-1): 커서가 잠겨 있을 때의 왼쪽 클릭 · 패드 X. 커서가 풀려 있을 때의 왼쪽 클릭은 커서를 잠그기만 한다.
+    /// 에셋에 Attack 액션이 없으면 CaptureCursor(왼쪽 클릭)를 공격으로도 쓴다(패드 X는 없음).
     /// 디버그 주입 중(DebugOverriding)에는 장치 대신 주입 값을 쓴다 — 에디터 포커스 없이 확인할 때 쓴다.
     /// </summary>
     [DefaultExecutionOrder(-500)]
@@ -15,11 +17,12 @@ namespace Moa.Unity.Input
         [SerializeField] InputActionAsset actions;
 
         InputActionMap _map;
-        InputAction _move, _look, _lookStick, _zoom, _jump, _walkToggle, _releaseCursor, _captureCursor, _sprint, _dodge;
+        InputAction _move, _look, _lookStick, _zoom, _jump, _walkToggle, _releaseCursor, _captureCursor, _sprint, _dodge, _attack;
 
         bool _walkMode;
         bool _jumpLatched;
         bool _dodgeLatched;
+        bool _attackLatched;
         Vector2 _lookMouse;
         Vector2 _lookStickValue;
         float _zoomValue;
@@ -53,6 +56,9 @@ namespace Moa.Unity.Input
             _captureCursor = _map.FindAction(PlayerControls.CaptureCursor, true);
             _sprint = _map.FindAction(PlayerControls.Sprint, false);
             _dodge = _map.FindAction(PlayerControls.Dodge, false);
+            _attack = _map.FindAction(PlayerControls.Attack, false);
+            if (_attack == null)
+                Debug.LogWarning("PlayerInputReader: action '" + PlayerControls.Attack + "' is missing in " + actions.name + " - left click (CaptureCursor) attacks while the cursor is locked, no gamepad attack. Add Attack (see PlayerControls.BuildDefaultJson).");
             if (_sprint == null || _dodge == null)
                 Debug.LogWarning("PlayerInputReader: action '" + (_sprint == null ? PlayerControls.Sprint : PlayerControls.Dodge) + "' is missing in " + actions.name + " - add Sprint/Dodge (see PlayerControls.BuildDefaultJson). Debug injection still works.");
         }
@@ -74,8 +80,14 @@ namespace Moa.Unity.Input
             if (_map == null) return;
 
             // 커서
+            // 커서 · 공격 (2-1): 커서가 풀려 있을 때의 클릭은 잠금만, 잠겨 있을 때의 클릭은 공격
+            bool click = _captureCursor.WasPressedThisFrame();
+            bool attack = _attack != null ? _attack.WasPressedThisFrame() : click;
+            bool mouseAttack = _attack == null || (attack && (_attack.activeControl != null ? _attack.activeControl.device is Mouse : click));
+            bool wasCaptured = CursorCaptured;
             if (_releaseCursor.WasPressedThisFrame()) SetCursorCaptured(false);
-            else if (!CursorCaptured && _captureCursor.WasPressedThisFrame()) SetCursorCaptured(true);
+            else if (!wasCaptured && click) SetCursorCaptured(true);
+            if (attack && (!mouseAttack || wasCaptured) && !_override) _attackLatched = true;
 
             // 버튼은 프레임 단위로 받아 둔다 (점프는 FixedUpdate가 꺼낼 때까지 유지)
             if (_jump.WasPressedThisFrame()) _jumpLatched = true;
@@ -105,6 +117,13 @@ namespace Moa.Unity.Input
             return j;
         }
 
+        public bool ConsumeAttack()
+        {
+            bool a = _attackLatched;
+            _attackLatched = false;
+            return a;
+        }
+
         public bool ConsumeDodge()
         {
             bool d = _dodgeLatched;
@@ -127,6 +146,7 @@ namespace Moa.Unity.Input
         public void DebugSetWalk(bool walk) { _walkMode = walk; }
         public void DebugSetSprint(bool sprint) { _override = true; _ovSprint = sprint; }
         public void DebugPressDodge() { _dodgeLatched = true; }
+        public void DebugPressAttack() { _attackLatched = true; }
 
         public void DebugClear()
         {
