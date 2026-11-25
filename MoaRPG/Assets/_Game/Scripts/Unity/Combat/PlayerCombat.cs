@@ -30,6 +30,7 @@ namespace Moa.Unity.Combat
         readonly Collider[] _overlap = new Collider[MaxOverlap];
         IPlayerInput _input;
         PlayerAttack _attack;
+        PlayerDefense _defense; // 2-3: 저스트 회피 반격 보너스 (없으면 ×1)
         EntityId _id;
         float _attackScale = 1f; // 디버그 공격력 배수 (1 = 그대로)
 
@@ -73,6 +74,7 @@ namespace Moa.Unity.Combat
             var plunge = new PlungeRules(tuning.PlungeMinHeight, tuning.PlungeHighHeight, weapon.PlungeLowMultiplier, weapon.PlungeHighMultiplier,
                 tuning.PlungeFallSpeed, tuning.PlungeLandRecovery);
             _attack = new PlayerAttack(weapon.ToRules(), weapon.ToChargedRules(), plunge, tuning.ChargeHoldTime);
+            _defense = GetComponent<PlayerDefense>();
         }
 
         public void SetId(EntityId id) => _id = id;
@@ -141,8 +143,8 @@ namespace Moa.Unity.Combat
                 if (to.sqrMagnitude > 1e-6f && Vector3.Angle(forward, to) > halfAngle) continue;
                 if (!_attack.TryHitSwing(t.Id)) continue; // 이번 휘두르기에 이미 맞음
                 float multiplier = _attack.CurrentSwing.Multiplier;
-                if (charged) Report(t, multiplier, feet, AttackMode.Charged, _attack.Charged.SlashIndex + 1, _attack.Charged.Count);
-                else Report(t, multiplier, feet, AttackMode.Combo, _attack.Combo.StepIndex + 1, _attack.Combo.SwingCount);
+                if (charged) Report(t, multiplier, weapon.ChargedPoise(_attack.Charged.SlashIndex), feet, AttackMode.Charged, _attack.Charged.SlashIndex + 1, _attack.Charged.Count);
+                else Report(t, multiplier, weapon.ComboPoise(_attack.Combo.StepIndex), feet, AttackMode.Combo, _attack.Combo.StepIndex + 1, _attack.Combo.SwingCount);
                 hits++;
             }
             return hits;
@@ -164,7 +166,7 @@ namespace Moa.Unity.Combat
                 IHitTarget t = TargetOf(_overlap[i]);
                 if (t == null || !t.Alive) continue;
                 if (!p.TryHit(t.Id)) continue; // 낙하 한 번에 대상마다 한 번 (콜라이더가 여럿이어도)
-                Report(t, p.Multiplier, feet, AttackMode.Plunge, p.High ? 2 : 1, p.Count);
+                Report(t, p.Multiplier, weapon.PlungePoise(p.High), feet, AttackMode.Plunge, p.High ? 2 : 1, p.Count);
                 hits++;
             }
             LastLandPosition = feet;
@@ -173,11 +175,26 @@ namespace Moa.Unity.Combat
             return hits;
         }
 
-        void Report(IHitTarget t, float multiplier, Vector3 feet, AttackMode kind, int step, int swing)
+        /// <summary>
+        /// 한 대상에 피해 · 경직 (2-3): 피해 = 공격력 × 배율 × 대상의 받는 피해 배율(그로기면 큼) → 방어.
+        /// 그 뒤 경직 = 표 값 × 반격 보너스(저스트 회피 뒤) — 이 한 방으로 그로기가 되어도 이 피해에는 배율이 안 든다.
+        /// </summary>
+        void Report(IHitTarget t, float multiplier, float poise, Vector3 feet, AttackMode kind, int step, int swing)
         {
-            int damage = DamageMath.Compute(Attack, multiplier, t.Defense, tuning.DefenseConstant);
+            var pt = t as IPoiseTarget;
+            bool onGroggy = pt != null && pt.Groggy;
+            float taken = pt != null ? pt.DamageTakenMultiplier : 1f;
+            int damage = DamageMath.Compute(Attack, multiplier * taken, t.Defense, tuning.DefenseConstant);
             int applied = t.ReceiveHit(damage, feet);
-            var report = new HitReport(t.Id, (t as Component) != null ? ((Component)t).name : "-", damage, applied, step, swing, t.NumberPosition, kind);
+            float poiseApplied = 0f;
+            bool broke = false;
+            if (pt != null && pt.Poise != null && !pt.Groggy && t.Alive && poise > 0f)
+            {
+                poiseApplied = poise * (_defense != null ? _defense.PoiseMultiplier : 1f);
+                broke = pt.ReceivePoise(poiseApplied);
+            }
+            var report = new HitReport(t.Id, (t as Component) != null ? ((Component)t).name : "-", damage, applied, step, swing, t.NumberPosition, kind,
+                poiseApplied, broke, onGroggy);
             LastHit = report;
             HitCount++;
             HitLanded?.Invoke(report);

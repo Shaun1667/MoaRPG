@@ -12,7 +12,7 @@ namespace Moa.Unity.Combat
     /// 되살아나기 시간은 고정 스텝(FixedUpdate), 번쩍임 · 넉백 그리기는 Update.
     /// </summary>
     [RequireComponent(typeof(Collider))]
-    public sealed class TrainingDummy : MonoBehaviour, IHitTarget
+    public sealed class TrainingDummy : MonoBehaviour, IHitTarget, IPoiseTarget
     {
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
@@ -21,8 +21,15 @@ namespace Moa.Unity.Combat
         [SerializeField] Transform visual;
         [SerializeField] Renderer[] flashRenderers;
         [SerializeField] Color flashColor;
+        [Tooltip("Body color while groggy (2-3)")]
+        [SerializeField] Color groggyColor;
+        [Tooltip("Degrees the body leans back while groggy (visual only)")]
+        [SerializeField] float groggyTilt;
 
         Health _health;
+        Poise _poise;
+        Quaternion _visualHomeRot = Quaternion.identity;
+        int _shownColor; // 0 = 그대로, 1 = 번쩍임, 2 = 그로기
         EntityId _id;
         Collider _collider;
         MaterialPropertyBlock _block;
@@ -47,6 +54,21 @@ namespace Moa.Unity.Combat
         /// <summary>되살아나기까지 남은 초 (죽어 있을 때).</summary>
         public float RespawnLeft => Alive ? 0f : _respawnLeft;
         public bool Flashing => _flashing;
+        /// <summary>경직 게이지 (2-3, DummyTuning maxPoise가 0이면 null).</summary>
+        public Poise Poise => _poise;
+        public bool Groggy => _poise != null && _poise.Groggy;
+        public float DamageTakenMultiplier => _poise != null ? _poise.DamageTakenMultiplier : 1f;
+        /// <summary>행동할 수 있는지 (살아 있고 그로기가 아님 — 공격 허수아비 DummyAttacker가 본다).</summary>
+        public bool CanAct => Alive && !Groggy;
+
+        public bool ReceivePoise(float amount)
+        {
+            if (!Alive || _poise == null) return false;
+            return _poise.Apply(amount);
+        }
+
+        /// <summary>[상태 변경] 경직 게이지를 비운다 (그로기도 풀림).</summary>
+        public void ResetPoise() => _poise?.Reset();
 
         void Awake()
         {
@@ -55,6 +77,9 @@ namespace Moa.Unity.Combat
             if (tuning == null) { Debug.LogError("TrainingDummy: DummyTuning is not assigned"); enabled = false; return; }
             _health = new Health(tuning.MaxHealth);
             _health.Died += OnDied;
+            if (tuning.MaxPoise > 0f) _poise = new Poise(tuning.ToPoiseRules());
+            else Debug.LogWarning("TrainingDummy: DummyTuning maxPoise is 0 - no poise gauge");
+            if (visual != null) _visualHomeRot = visual.localRotation;
             if (visual != null) _visualHome = visual.localPosition;
         }
 
@@ -78,6 +103,7 @@ namespace Moa.Unity.Combat
             if (_health == null) return;
             bool wasDead = _health.IsDead;
             _health.Restore();
+            _poise?.Reset();
             _respawnLeft = 0f;
             _knockAge = -1f;
             _flashLeft = 0f;
@@ -90,6 +116,7 @@ namespace Moa.Unity.Combat
         void OnDied()
         {
             DeathCount++;
+            _poise?.Reset();
             _respawnLeft = tuning.RespawnDelay;
             SetShown(false);
         }
@@ -102,7 +129,8 @@ namespace Moa.Unity.Combat
 
         void FixedUpdate()
         {
-            if (_health == null || !_health.IsDead) return;
+            if (_health == null) return;
+            if (!_health.IsDead) { _poise?.Advance(Time.fixedDeltaTime); return; }
             _respawnLeft -= Time.fixedDeltaTime;
             if (_respawnLeft <= 1e-5f) Respawn();
         }
@@ -126,20 +154,24 @@ namespace Moa.Unity.Combat
                 }
                 Vector3 local = transform.InverseTransformDirection(_knockDir) * (tuning.KnockbackDistance * k);
                 visual.localPosition = _visualHome + local;
+                visual.localRotation = Groggy ? _visualHomeRot * Quaternion.Euler(-groggyTilt, 0f, 0f) : _visualHomeRot;
             }
 
             // 번쩍임
+            // 2-3: 번쩍임이 그로기 색보다 앞선다
             bool flash = _flashLeft > 0f;
             if (flash) _flashLeft -= dt;
-            if (flash != _flashing && flashRenderers != null)
+            _flashing = flash;
+            int want = flash ? 1 : Groggy ? 2 : 0;
+            if (want != _shownColor && flashRenderers != null)
             {
-                _flashing = flash;
+                _shownColor = want;
                 foreach (var r in flashRenderers)
                 {
                     if (r == null) continue;
-                    if (!flash) { r.SetPropertyBlock(null); continue; }
+                    if (want == 0) { r.SetPropertyBlock(null); continue; }
                     r.GetPropertyBlock(_block);
-                    _block.SetColor(BaseColorId, flashColor);
+                    _block.SetColor(BaseColorId, want == 1 ? flashColor : groggyColor);
                     r.SetPropertyBlock(_block);
                 }
             }

@@ -19,3 +19,8 @@ MonoBehaviour:
   knockbackTime: 0.06
   flashTime: 0.1
   numberHeight: 2
+  maxPoise: 100
+  groggyDuration: 5
+  groggyDamageTaken: 1.3
+  poiseRegenDelay: 2
+  poiseRegenPerSecond: 25

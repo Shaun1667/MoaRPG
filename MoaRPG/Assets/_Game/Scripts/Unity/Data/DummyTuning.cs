@@ -22,6 +22,18 @@ namespace Moa.Unity.Data
         [Tooltip("Damage number height above the feet (m)")]
         [SerializeField] float numberHeight;
 
+        [Header("Poise gauge / groggy (2-3)")]
+        [Tooltip("Poise built up by hits; reaching this makes the dummy groggy")]
+        [SerializeField] float maxPoise;
+        [Tooltip("s the dummy stays groggy (cannot act)")]
+        [SerializeField] float groggyDuration;
+        [Tooltip("Damage taken x this while groggy (1.3 = +30%)")]
+        [SerializeField] float groggyDamageTaken;
+        [Tooltip("s after the last hit before the gauge starts to drain")]
+        [SerializeField] float poiseRegenDelay;
+        [Tooltip("Gauge drained per second after the delay")]
+        [SerializeField] float poiseRegenPerSecond;
+
         public int MaxHealth => maxHealth;
         public float Defense => defense;
         public float RespawnDelay => respawnDelay;
@@ -29,5 +41,13 @@ namespace Moa.Unity.Data
         public float KnockbackTime => knockbackTime;
         public float FlashTime => flashTime;
         public float NumberHeight => numberHeight;
+        public float MaxPoise => maxPoise;
+        public float GroggyDuration => groggyDuration;
+        public float GroggyDamageTaken => groggyDamageTaken;
+        public float PoiseRegenDelay => poiseRegenDelay;
+        public float PoiseRegenPerSecond => poiseRegenPerSecond;
+
+        /// <summary>경직 게이지 규칙 (2-3).</summary>
+        public Moa.Core.Combat.PoiseRules ToPoiseRules() => new Moa.Core.Combat.PoiseRules(maxPoise, groggyDuration, groggyDamageTaken, poiseRegenDelay, poiseRegenPerSecond);
     }
 }

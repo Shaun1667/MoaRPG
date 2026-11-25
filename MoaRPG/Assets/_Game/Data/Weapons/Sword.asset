@@ -20,30 +20,35 @@ MonoBehaviour:
     recovery: 0.2
     inputOpen: 0.1
     lunge: 0.3
+    poise: 8
   - multiplier: 0.45
     windup: 0.1
     active: 0.1
     recovery: 0.22
     inputOpen: 0.1
     lunge: 0.3
+    poise: 8
   - multiplier: 0.6
     windup: 0.12
     active: 0.1
     recovery: 0.24
     inputOpen: 0.12
     lunge: 0.4
+    poise: 10
   - multiplier: 0.65
     windup: 0.12
     active: 0.12
     recovery: 0.26
     inputOpen: 0.12
     lunge: 0.4
+    poise: 12
   - multiplier: 0.85
     windup: 0.16
     active: 0.14
     recovery: 0.4
     inputOpen: 0.16
     lunge: 0.6
+    poise: 16
   comboResetTime: 0.5
   attackMoveFactor: 0
   hitRange: 2.2
@@ -57,14 +62,18 @@ MonoBehaviour:
     recovery: 0.06
     inputOpen: 0
     lunge: 0.3
+    poise: 15
   - multiplier: 0.72
     windup: 0.08
     active: 0.1
     recovery: 0.36
     inputOpen: 0
     lunge: 0.3
+    poise: 20
   chargedHitRange: 2.6
   chargedHitAngle: 180
   plungeLowMultiplier: 1.28
   plungeHighMultiplier: 1.6
   plungeRange: 2.5
+  plungeLowPoise: 20
+  plungeHighPoise: 35

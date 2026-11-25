@@ -13,6 +13,7 @@
 | 6 | `Assets/_Game/Data/Weapons/Sword.asset` (새 무기 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.WeaponTuning` | `Moa.Tests.CombatTuningAssetTests` |
 | 7 | `Assets/_Game/Data/Combat/CombatTuning.asset` | `Moa.Unity.Data.CombatTuning` | `Moa.Tests.CombatTuningAssetTests` |
 | 8 | `Assets/_Game/Data/Enemies/TrainingDummy.asset` | `Moa.Unity.Data.DummyTuning` | `Moa.Tests.CombatTuningAssetTests` |
+| 9 | `Assets/_Game/Data/Enemies/AttackingDummy.asset` | `Moa.Unity.Data.EnemyAttackTuning` | `Moa.Tests.PoiseTuningAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -172,6 +173,23 @@
 | flashTime | 0.1 | s | 맞으면 흰색 번쩍임 |
 | numberHeight | 2.0 | m | 피해 숫자가 뜨는 높이(발에서) |
 
+## 9. 경직 · 그로기 · 저스트 회피 · 예고 공격 (TASKS 2-3) — 정한 것 (Claude, 2026-11-25, 확인 필요 — 그로기 5초 · 피해 ×1.3만 GDD)
+| 곳 | 항목 | 값 | 근거 |
+|---|---|---|---|
+| 6번 한손검 `Sword.asset` | 콤보 1~5타 `poise` | 8 · 8 · 10 · 12 · 16 (합 54) | 콤보 한 번으로는 안 되고 두 번째 콤보 5타에서 그로기 |
+| 6번 | 강공격 `poise` | 15 · 20 | |
+| 6번 | `plungeLowPoise` · `plungeHighPoise` | 20 · 35 | |
+| 7번 `CombatTuning.asset` | `justDodgeWindow` | 0.16 s (8스텝) | 닿는 순간 회피 시작 8스텝 이내 + 무적이면 Just, 무적 중 창 밖 Avoided, 무적 아니면 Hit |
+| 7번 | `justSlowScale` · `justSlowDuration` | 0.3 · 0.8 s(실제 시간) | |
+| 7번 | `justCounterTime` · `justCounterPoiseMultiplier` | 3.0 s(게임 시간) · ×2 | 반격이면 콤보 한 번(108)으로 그로기. 2초면 5타(1.94초 + 슬로모션 0.24초)가 창 밖 |
+| 8번 `TrainingDummy.asset` | `maxPoise` | 100 | |
+| 8번 | `groggyDuration` · `groggyDamageTaken` | 5 s · ×1.3 | GDD |
+| 8번 | `poiseRegenDelay` · `poiseRegenPerSecond` | 2 s · 25/s | 그로기 중 안 쌓임, 끝나면 0 |
+| 예고 공격 `AttackingDummy.asset` | `attackInterval` · `telegraphTime` · `recoveryTime` | 2.0 · 0.8 · 0.6 s (주기 3.4초) | 예고 끝나는 스텝에 닿음, 그로기 · 쓰러짐이면 멈추고 처음부터 |
+| 예고 공격 | `attackRange` | 3 m (평면 거리) | |
+
+- 표현 값(Setup 표): 그로기 몸 노랑 + 뒤로 14°, 경직 막대 96×10px(발에서 2.3m 위, 주황 → 그로기 때 노랑으로 남은 시간), 예고 원 엷은 노랑 → 빨강 · 닿는 순간 흰색, 글 색 저스트 하늘색 · 그로기 주황
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
@@ -191,6 +209,7 @@
 - 강공격: 누른 스텝 뒤 18스텝(0.36초)에 나감 · 17스텝은 안 됨, 가만히 길게 = 1타 뒤 강공격(N1C), 비용 20 · 19면 안 나감(콤보 그대로), 2베기 0.84초 · 판정 4 · 5스텝 · 내딛기 0.6m, 3타 중 강공격 → 콤보 1타로, 강공격 중 누름 Busy, 회피가 끊음 → `ChargedPlungeTests`
 - 낙하: 높이 1.0m부터(0.99m TooLow), 등반 · 회피 불가 · 활공 가능, 떨어진 높이 5m 기준 1.28 / 1.60, 착지 판정 한 번 · 대상마다 한 번, 경직 0.40초 · 회피 · 점프로 끊김, 경직 0이어도 판정 → `ChargedPlungeTests`
 - 6 · 7번 강공격 · 낙하 값 그대로 · 강공격 45 + 58 · 낙하 102 / 128 · 길게 누르기 18스텝 · 낙하 최소 높이 < 점프 높이 < 높은 낙하 → `CombatTuningAssetTests.Sword_ChargedAndPlunge_MatchBalance6` · `Combat_ChargeAndPlunge_MatchBalance7` · `ChargedAndPlunge_AreConsistent`
+- 경직 · 그로기 · 저스트: 그로기 피해 47 · 47 · 62 · 68 · 88, 2콤보 5타에 그로기 · 반격이면 1콤보, 8스텝 Just · 9 Avoided · 10 Hit, 주기 3.4초 · 예고 시작 2.0초 · 닿음 2.8초, 9번 표 값 그대로 → `PoiseJustDodgeTests` · `PoiseTuningAssetTests`
 
 ## 실험 기록
 | 날짜 | 무엇 | 결과 |
@@ -200,3 +219,4 @@
 | 2026-11-25 | TestField 코드 주입 플레이 (1-3) | 기둥 붙기 · 오르기 1.500 m/s · 소모 10.0/s, 도약 +1.800m · 비용 25, 가만히 2초 스태미나 그대로, 꼭대기 올라서기 17스텝(0.35초) → 20.05m · 앞 0.8m 접지, 스태미나 5 → 0.5초에 바닥 · 떨어짐(지침 보라) · 60 차면 다시 붙음, 회피 → 떨어짐 · 0.50초 뒤 다시 붙음, 내려가다 땅 → Landed, 옆으로 가다 벽 끝 → WallEnded, 뒤 벽(4m) 올라서기, 35° · 50° 경사 안 붙음, 활공 수평 6.000 · 낙하 2.000 m/s · 5.0/s, 평지 점프(1.31m)에서 TooLow, 점프로 접기/다시 펴기, 착지로 풀림, 스태미나 1 → 0.2초에 접힘 · 지침 중 못 폄, 기둥 앞 공중에서 활공 → 벽에 붙음(Wall) |
 | 2026-11-25 | TestField 코드 주입 플레이 (2-1) | 1 ~ 5타 이어짐(2타는 0.40초에 시작), 피해 36 · 36 · 48 · 52 · 68, 1 · 2타는 허수아비 둘을 한 번씩, 3 ~ 5타는 내딛은 뒤 한쪽만(다른 쪽은 부채꼴 밖), 0.5초 대기로 끊김, 점프 · 회피로 끊김, 등반 · 활공 · 공중 공격 막힘, 공격력 ×10(360)으로 두 대에 쓰러짐 → 2.98초 뒤 600으로 다시 섬, 공격 뒤 회피 3.500m |
 | 2026-11-25 | TestField 코드 주입 플레이 (2-2) | 길게 누르기 → 0.38초(누른 스텝 + 18)에 강공격 · 240 → 220 · 45 · 58이 허수아비 둘에 · 0.84초, 스태미나 19면 NoStamina · 1타만, 3타 중 강공격 → 다음 1타, DummiesAir(10.02m) 낙하 20 m/s · 0.5초에 착지 · 9.97m 높은 낙하 128 둘(셋째 4.16m 범위 밖) · 경직 0.40초, 점프 정점 1.01m에서 낮은 낙하(1.03m) 102 둘 · 0.20m에서는 TooLow, 활공 중 낙하(활공 접힘), 착지 경직 회피 · 점프로 끊김, 등반 중 막힘, 강공격 중 회피 3.500m |
+| 2026-11-25 | TestField 코드 주입 플레이 (2-3) | 2콤보 5타 4.46초에 그로기 · 그로기 중 1타 47 · 4.84초에 풀림, 저스트 8스텝 Just · 9 Avoided · 10 Hit, 슬로모션 실제 0.8초(게임 0.22초), 반격 경직 ×2로 1콤보 그로기, 낙하 경직 35 |

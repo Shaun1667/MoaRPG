@@ -20,6 +20,7 @@ namespace Moa.Editor.Debugging
             new StaminaSection(),
             new ClimbGlideSection(),
             new CombatSection(),
+            new PoiseSection(),
         };
 
         bool[] _open;

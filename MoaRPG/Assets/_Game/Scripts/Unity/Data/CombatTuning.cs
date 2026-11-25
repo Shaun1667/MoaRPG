@@ -28,6 +28,18 @@ namespace Moa.Unity.Data
         [Tooltip("s of recovery after landing (dodge or jump cancels it)")]
         [SerializeField] float plungeLandRecovery;
 
+        [Header("Just dodge (2-3)")]
+        [Tooltip("s: an enemy hit that lands within this long after the dodge started (while invulnerable) is a just dodge")]
+        [SerializeField] float justDodgeWindow;
+        [Tooltip("Time.timeScale during the just-dodge slow motion")]
+        [SerializeField] float justSlowScale;
+        [Tooltip("Real-time seconds of slow motion")]
+        [SerializeField] float justSlowDuration;
+        [Tooltip("Game seconds of counter bonus after a just dodge")]
+        [SerializeField] float justCounterTime;
+        [Tooltip("Poise of the player's hits x this during the counter bonus")]
+        [SerializeField] float justCounterPoiseMultiplier;
+
         [Header("Damage numbers (screen)")]
         [Tooltip("Font size, 1920x1080 reference pixels")]
         [SerializeField] int damageFontSize;
@@ -47,6 +59,15 @@ namespace Moa.Unity.Data
         public float PlungeHighHeight => plungeHighHeight;
         public float PlungeFallSpeed => plungeFallSpeed;
         public float PlungeLandRecovery => plungeLandRecovery;
+        public float JustDodgeWindow => justDodgeWindow;
+        public float JustSlowScale => justSlowScale;
+        public float JustSlowDuration => justSlowDuration;
+        public float JustCounterTime => justCounterTime;
+        public float JustCounterPoiseMultiplier => justCounterPoiseMultiplier;
+
+        /// <summary>저스트 회피 규칙 (2-3).</summary>
+        public Moa.Core.Combat.JustDodgeRules ToJustDodgeRules() =>
+            new Moa.Core.Combat.JustDodgeRules(justDodgeWindow, justSlowScale, justSlowDuration, justCounterTime, justCounterPoiseMultiplier);
         public int DamageFontSize => damageFontSize;
         public float DamageLifetime => damageLifetime;
         public float DamageRise => damageRise;

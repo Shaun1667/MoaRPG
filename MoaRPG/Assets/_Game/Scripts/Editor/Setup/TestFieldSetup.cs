@@ -34,6 +34,7 @@ namespace Moa.Editor.Setup
         public const string WeaponPath = "Assets/_Game/Data/Weapons/Sword.asset";              // 2-1: 첫 무기 한손검
         public const string CombatTuningPath = "Assets/_Game/Data/Combat/CombatTuning.asset";
         public const string DummyTuningPath = "Assets/_Game/Data/Enemies/TrainingDummy.asset";
+        public const string AttackingDummyPath = "Assets/_Game/Data/Enemies/AttackingDummy.asset"; // 2-3: 예고 공격 (EnemyAttackTuning)
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
         const string CheckerPath = GrayboxFolder + "/Checker.png";
@@ -92,6 +93,22 @@ namespace Moa.Editor.Setup
         static readonly Color LandRingColor = new Color(0.35f, 0.60f, 1.00f, 0.90f); // 착지 범위 원
         const float LandRingWidth = 0.12f, LandRingTime = 0.4f;                  // 원 선 두께(m) · 보이는 시간(초)
 
+        // ---- 표현 표 (2-3 경직 · 그로기 · 저스트 회피, 게임 수치 아님) ----
+        static readonly Color DummyGroggyColor = new Color(1.00f, 0.85f, 0.15f);  // 그로기 허수아비 몸: 노랑 (번쩍임이 앞선다)
+        const float DummyGroggyTilt = 14f;                                         // 그로기 때 뒤로 기울기 (도)
+        static readonly Color PoiseBackColor = new Color(0f, 0f, 0f, 0.55f);       // 경직 막대 바탕
+        static readonly Color PoiseFillColor = new Color(1.00f, 0.55f, 0.15f);     // 쌓인 경직: 주황
+        static readonly Color PoiseGroggyColor = new Color(1.00f, 0.90f, 0.20f);   // 그로기 남은 시간: 노랑
+        static readonly Vector2 PoiseBarSize = new Vector2(96f, 10f);              // px (1920×1080 기준)
+        const float PoiseBarHeight = 2.3f;                                         // 발에서 막대까지 (m)
+        static readonly Color JustDodgeTextColor = new Color(0.45f, 0.95f, 1.00f); // "저스트 회피" 글
+        static readonly Color GroggyTextColor = new Color(1.00f, 0.80f, 0.15f);    // "그로기" 글
+        static readonly Color AttackDummyColor = new Color(0.72f, 0.38f, 0.30f);   // 공격 허수아비 (붉은 짚)
+        static readonly Color WarnStartColor = new Color(1.00f, 0.80f, 0.20f, 0.45f); // 예고 원: 시작 (엷은 노랑)
+        static readonly Color WarnEndColor = new Color(1.00f, 0.15f, 0.10f, 0.95f);   // 예고 원: 닿기 직전 (진한 빨강)
+        static readonly Color WarnHitColor = new Color(1.00f, 1.00f, 1.00f, 1.00f);   // 닿는 순간
+        const float WarnRingWidth = 0.10f, WarnHitFlashTime = 0.16f, WarnRingHeight = 0.05f; // 선 두께(m) · 닿은 뒤 보이는 시간(초) · 바닥 위 높이(m)
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -126,14 +143,16 @@ namespace Moa.Editor.Setup
             ("PillarAir", new Vector3(16f, 12f, -9f)),     // 1-3: 기둥 앞 공중 (+Z로 활공해 벽에 붙기)
             ("Dummies", new Vector3(-15.4f, 0.05f, -3.6f)), // 2-1: 허수아비 둘 앞 (+Z를 보면 둘이 부채꼴 안)
             ("DummiesAir", new Vector3(-15.4f, 10.05f, -3.6f)), // 2-2: 허수아비 위 10m (높은 낙하)
+            ("AttackDummy", new Vector3(-22.0f, 0.05f, 4.2f)), // 2-3: 공격 허수아비 앞 1.8m (공격 범위 안, 칼이 닿는 거리)
         };
 
-        // 2-1: 허수아비 배치 (발 위치, 바라보는 방향 도) — 새 허수아비 = 줄 하나
-        static readonly (string name, Vector3 position, float yaw)[] Dummies =
+        // 2-1: 허수아비 배치 (발 위치, 바라보는 방향 도, 2-3: 예고 공격을 하는지) — 새 허수아비 = 줄 하나
+        static readonly (string name, Vector3 position, float yaw, bool attacks)[] Dummies =
         {
-            ("Dummy1", new Vector3(-16.0f, 0f, -2.0f), 180f),
-            ("Dummy2", new Vector3(-14.8f, 0f, -2.0f), 180f),
-            ("Dummy3", new Vector3(-12.0f, 0f, -6.0f), 180f),
+            ("Dummy1", new Vector3(-16.0f, 0f, -2.0f), 180f, false),
+            ("Dummy2", new Vector3(-14.8f, 0f, -2.0f), 180f, false),
+            ("Dummy3", new Vector3(-12.0f, 0f, -6.0f), 180f, false),
+            ("AttackDummy", new Vector3(-22.0f, 0f, 6.0f), 180f, true), // 2-3: 저스트 회피 시험용 (다른 허수아비에서 멀리)
         };
 
         [MenuItem(MenuPath)]
@@ -169,6 +188,7 @@ namespace Moa.Editor.Setup
             var weapon = LoadOrCreate<WeaponTuning>(WeaponPath);
             var combat = LoadOrCreate<CombatTuning>(CombatTuningPath);
             var dummyTuning = LoadOrCreate<DummyTuning>(DummyTuningPath);
+            var attackTuning = LoadOrCreate<EnemyAttackTuning>(AttackingDummyPath);
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
             if (inputAsset == null) Debug.LogError("TestFieldSetup: input actions missing at " + InputPath);
@@ -187,9 +207,12 @@ namespace Moa.Editor.Setup
             var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, inputAsset, mats);
             var camera = BuildCamera(cam, player.transform);
             var gauge = BuildHud();
+            var poiseBars = PoiseBars.CreateIn(gauge.transform.parent, PoiseBackColor, PoiseFillColor, PoiseGroggyColor, PoiseBarSize, PoiseBarHeight); // 숫자보다 먼저 = 아래에 그린다
             var numbers = DamageNumbers.CreateIn(gauge.transform.parent, DamageColor, DamageBlockedColor, DamageOutlineColor);
-            var dummies = BuildDummies(dummyTuning, mats);
-            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies);
+            SetColor(numbers, "justDodgeColor", JustDodgeTextColor);
+            SetColor(numbers, "groggyColor", GroggyTextColor);
+            var dummies = BuildDummies(dummyTuning, attackTuning, mats);
+            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -228,7 +251,7 @@ namespace Moa.Editor.Setup
 
         sealed class Materials
         {
-            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings, Dummy, Sword, Hilt, SwordTrail;
+            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings, Dummy, Sword, Hilt, SwordTrail, AttackDummy;
 
             public Materials()
             {
@@ -247,6 +270,7 @@ namespace Moa.Editor.Setup
                 Sword = Get("Sword", SwordColor, null, Vector2.one);
                 Hilt = Get("SwordHilt", HiltColor, null, Vector2.one);
                 SwordTrail = GetTrail("SwordTrail");
+                AttackDummy = Get("AttackDummy", AttackDummyColor, null, Vector2.one);
             }
 
             static Material Get(string name, Color color, Texture tex, Vector2 tiling)
@@ -467,6 +491,9 @@ namespace Moa.Editor.Setup
             ring.enabled = false;
             Set(swing, "landRing", ring);
             SetFloat(swing, "landRingTime", LandRingTime);
+            // 2-3: 적 공격을 받는 쪽 (저스트 회피)
+            var defense = go.AddComponent<PlayerDefense>();
+            Set(defense, "tuning", combatTuning);
             return motor;
         }
 
@@ -522,7 +549,7 @@ namespace Moa.Editor.Setup
         }
 
         /// <summary>허수아비 (2-1): 루트에 캡슐 콜라이더 + TrainingDummy, 자식 Visual에 몸 캡슐 · 팔 상자 (번쩍임 대상). 배치는 Dummies 표.</summary>
-        static TrainingDummy[] BuildDummies(DummyTuning tuning, Materials mats)
+        static TrainingDummy[] BuildDummies(DummyTuning tuning, EnemyAttackTuning attackTuning, Materials mats)
         {
             var root = new GameObject("Dummies").transform;
             var result = new TrainingDummy[Dummies.Length];
@@ -537,13 +564,17 @@ namespace Moa.Editor.Setup
                 col.center = new Vector3(0f, DummyHeight * 0.5f, 0f);
                 var visual = new GameObject("Visual").transform;
                 visual.SetParent(go.transform, false);
+                Material bodyMat = Dummies[i].attacks ? mats.AttackDummy : mats.Dummy;
                 var body = Primitive(PrimitiveType.Capsule, visual, "Body", new Vector3(0f, DummyHeight * 0.5f, 0f), Quaternion.identity,
-                    new Vector3(DummyRadius * 2f, DummyHeight * 0.5f, DummyRadius * 2f), mats.Dummy);
-                var arms = Primitive(PrimitiveType.Cube, visual, "Arms", new Vector3(0f, DummyHeight * 0.72f, 0f), Quaternion.identity, DummyArmsSize, mats.Dummy);
+                    new Vector3(DummyRadius * 2f, DummyHeight * 0.5f, DummyRadius * 2f), bodyMat);
+                var arms = Primitive(PrimitiveType.Cube, visual, "Arms", new Vector3(0f, DummyHeight * 0.72f, 0f), Quaternion.identity, DummyArmsSize, bodyMat);
                 var dummy = go.AddComponent<TrainingDummy>();
                 Set(dummy, "tuning", tuning);
                 Set(dummy, "visual", visual);
                 SetColor(dummy, "flashColor", DummyFlashColor);
+                SetColor(dummy, "groggyColor", DummyGroggyColor);
+                SetFloat(dummy, "groggyTilt", DummyGroggyTilt);
+                if (Dummies[i].attacks) AddAttacker(go, attackTuning, mats);
                 var so = new SerializedObject(dummy);
                 var arr = so.FindProperty("flashRenderers");
                 arr.arraySize = 2;
@@ -555,8 +586,33 @@ namespace Moa.Editor.Setup
             return result;
         }
 
+        /// <summary>공격 허수아비 (2-3): DummyAttacker + 바닥 예고 원(월드 좌표 LineRenderer, 예고 중에만 보인다).</summary>
+        static void AddAttacker(GameObject go, EnemyAttackTuning tuning, Materials mats)
+        {
+            var ringGo = new GameObject("WarningRing");
+            ringGo.transform.SetParent(go.transform, false);
+            var ring = ringGo.AddComponent<LineRenderer>();
+            ring.sharedMaterial = mats.SwordTrail;
+            ring.useWorldSpace = true;
+            ring.loop = true;
+            ring.widthMultiplier = WarnRingWidth;
+            ring.startColor = WarnStartColor;
+            ring.endColor = WarnStartColor;
+            ring.shadowCastingMode = ShadowCastingMode.Off;
+            ring.positionCount = 0;
+            ring.enabled = false;
+            var attacker = go.AddComponent<DummyAttacker>();
+            Set(attacker, "tuning", tuning);
+            Set(attacker, "warningRing", ring);
+            SetColor(attacker, "warnStartColor", WarnStartColor);
+            SetColor(attacker, "warnEndColor", WarnEndColor);
+            SetColor(attacker, "hitColor", WarnHitColor);
+            SetFloat(attacker, "hitFlashTime", WarnHitFlashTime);
+            SetFloat(attacker, "ringHeight", WarnRingHeight);
+        }
+
         static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge,
-            DamageNumbers numbers, TrainingDummy[] dummies)
+            DamageNumbers numbers, TrainingDummy[] dummies, PoiseBars poiseBars)
         {
             var go = new GameObject("GameRoot");
             var root = go.AddComponent<GameRoot>();
@@ -568,6 +624,8 @@ namespace Moa.Editor.Setup
             so.FindProperty("staminaGauge").objectReferenceValue = gauge;
             so.FindProperty("playerCombat").objectReferenceValue = motor.GetComponent<PlayerCombat>();
             so.FindProperty("damageNumbers").objectReferenceValue = numbers;
+            so.FindProperty("playerDefense").objectReferenceValue = motor.GetComponent<PlayerDefense>();
+            so.FindProperty("poiseBars").objectReferenceValue = poiseBars;
             var dummyArr = so.FindProperty("trainingDummies");
             dummyArr.arraySize = dummies.Length;
             for (int i = 0; i < dummies.Length; i++) dummyArr.GetArrayElementAtIndex(i).objectReferenceValue = dummies[i];

@@ -35,10 +35,17 @@ namespace Moa.Unity
         [SerializeField] TrainingDummy[] trainingDummies;
         [Tooltip("Floating damage numbers on the HUD canvas")]
         [SerializeField] DamageNumbers damageNumbers;
+        [Header("Poise / just dodge (2-3, empty in scenes without a player)")]
+        [Tooltip("Player side of enemy attacks (just dodge)")]
+        [SerializeField] PlayerDefense playerDefense;
+        [Tooltip("Poise gauge bars over the dummies on the HUD canvas")]
+        [SerializeField] PoiseBars poiseBars;
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
 
         IPlayerInput _input;
+        DummyAttacker[] _attackers = new DummyAttacker[0];
+        bool _attackersPaused;
 
         int _seed;
         RandomStreams _random;
@@ -71,8 +78,38 @@ namespace Moa.Unity
             if (playerCombat == null) return;
             playerCombat.Bind(_input);
             playerCombat.HitLanded += OnHitLanded;
+            Camera view = orbitCamera != null ? orbitCamera.GetComponent<Camera>() : Camera.main;
             if (damageNumbers != null)
-                damageNumbers.Bind(playerCombat.Tuning, orbitCamera != null ? orbitCamera.GetComponent<Camera>() : Camera.main, UiFont.Get(config));
+                damageNumbers.Bind(playerCombat.Tuning, view, UiFont.Get(config));
+            BindPoise(view);
+        }
+
+        /// <summary>2-3: 저스트 회피(플레이어 쪽) · 공격 허수아비의 대상 · 경직 막대.</summary>
+        void BindPoise(Camera view)
+        {
+            if (playerDefense != null)
+            {
+                playerDefense.Bind(playerMotor);
+                playerDefense.Judged += OnJudged;
+            }
+            var list = new System.Collections.Generic.List<DummyAttacker>();
+            if (trainingDummies != null)
+                foreach (var d in trainingDummies)
+                {
+                    var a = d != null ? d.GetComponent<DummyAttacker>() : null;
+                    if (a == null) continue;
+                    a.Bind(playerDefense);
+                    list.Add(a);
+                }
+            _attackers = list.ToArray();
+            if (poiseBars != null) poiseBars.Bind(view, trainingDummies);
+        }
+
+        void OnJudged(Moa.Core.Combat.DodgeJudgement judgement, Vector3 feet)
+        {
+            if (judgement != Moa.Core.Combat.DodgeJudgement.Just || damageNumbers == null) return;
+            float height = playerMotor != null && playerMotor.Tuning != null ? playerMotor.Tuning.CapsuleHeight : 0f;
+            damageNumbers.ShowJustDodge(feet + Vector3.up * height);
         }
 
         /// <summary>전투 엔티티 ID (판을 시작할 때마다 새로 — 핵심 설계 규칙 5).</summary>
@@ -87,6 +124,7 @@ namespace Moa.Unity
         void OnHitLanded(HitReport hit)
         {
             if (damageNumbers != null) damageNumbers.Show(hit.NumberPosition, hit.Damage, hit.Applied == 0 && hit.Damage > 0);
+            if (damageNumbers != null && hit.Broke) damageNumbers.ShowGroggy(hit.NumberPosition + Vector3.up * GroggyWordRise);
         }
 
         void StartRun(int seed)
@@ -128,6 +166,7 @@ namespace Moa.Unity
         {
             if (playerMotor == null) return;
             playerMotor.Teleport(position);
+            if (playerDefense != null) playerDefense.Cancel();
             if (orbitCamera != null) orbitCamera.SnapToTarget();
         }
 
@@ -318,6 +357,53 @@ namespace Moa.Unity
         }
 
         const string DummiesPointName = "Dummies"; // 시험 지형 순간이동 지점 이름 (Setup 배치 표)
+        const float GroggyWordRise = 0.5f; // 그로기 글을 피해 숫자보다 이만큼 위에 (m, 표현 값)
+
+        // ---- 경직 · 그로기 · 저스트 회피 (2-3) ----
+
+        public bool DebugHasDefense => playerDefense != null && playerDefense.Bound;
+        /// <summary>마지막 판정 (Hit · Avoided · Just).</summary>
+        public string DebugJustLast => DebugHasDefense ? playerDefense.Just.Last.ToString() : "-";
+        public int DebugJustCount => DebugHasDefense ? playerDefense.Just.JustCount : 0;
+        public int DebugAvoidCount => DebugHasDefense ? playerDefense.Just.AvoidCount : 0;
+        /// <summary>플레이어가 맞은 수 (아직 피해 없음).</summary>
+        public int DebugPlayerHitCount => DebugHasDefense ? playerDefense.Just.HitCount : 0;
+        public float DebugJustSlowLeft => DebugHasDefense ? playerDefense.Just.SlowLeft : 0f;
+        public float DebugJustCounterLeft => DebugHasDefense ? playerDefense.Just.CounterLeft : 0f;
+        public float DebugPoiseMultiplier => DebugHasDefense ? playerDefense.PoiseMultiplier : 1f;
+        public float DebugJustWindow => DebugHasDefense ? playerDefense.Just.Rules.Window : 0f;
+        public float DebugTimeScale => Time.timeScale;
+        public DummyAttacker[] DebugAttackers => _attackers;
+        public bool DebugAttackersPaused => _attackersPaused;
+        public int DebugPoiseBarsVisible => poiseBars != null ? poiseBars.VisibleCount : 0;
+
+        /// <summary>[상태 변경] 공격 허수아비 멈춤 / 다시 (멈추면 예고도 취소).</summary>
+        public void DebugSetAttackersPaused(bool paused)
+        {
+            _attackersPaused = paused;
+            foreach (var a in _attackers) if (a != null) a.Paused = paused;
+        }
+
+        /// <summary>[상태 변경] 공격 허수아비 주기를 처음으로 (다음 예고까지 쉬는 시간부터).</summary>
+        public void DebugResetAttackers() { foreach (var a in _attackers) if (a != null) a.ResetCycle(); }
+
+        /// <summary>[상태 변경] 허수아비 경직 게이지를 모두 비운다 (그로기도 풀림).</summary>
+        public void DebugResetPoise()
+        {
+            if (trainingDummies == null) return;
+            foreach (var d in trainingDummies) if (d != null) d.ResetPoise();
+        }
+
+        /// <summary>[상태 변경] 허수아비를 모두 바로 그로기로 (게이지를 가득 채움).</summary>
+        public void DebugBreakDummies()
+        {
+            if (trainingDummies == null) return;
+            foreach (var d in trainingDummies)
+                if (d != null && d.Poise != null) d.ReceivePoise(d.Poise.Rules.Max);
+        }
+
+        /// <summary>[상태 변경] 슬로모션 · 반격 보너스를 끈다.</summary>
+        public void DebugCancelJustDodge() { if (playerDefense != null) playerDefense.Cancel(); }
 
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()

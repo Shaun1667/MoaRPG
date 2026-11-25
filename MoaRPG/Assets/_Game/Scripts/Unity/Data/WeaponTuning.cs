@@ -27,6 +27,8 @@ namespace Moa.Unity.Data
             public float inputOpen;
             [Tooltip("m moved forward during windup + hit window")]
             public float lunge;
+            [Tooltip("Poise added to the target per hit (2-3, groggy gauge)")]
+            public float poise;
         }
 
         [Tooltip("Weapon attack (character attack is added later)")]
@@ -63,6 +65,10 @@ namespace Moa.Unity.Data
         [SerializeField] float plungeHighMultiplier;
         [Tooltip("Landing hit radius (m) around feet + hitHeight, all directions")]
         [SerializeField] float plungeRange;
+        [Tooltip("Poise added per target by a low plunge (2-3)")]
+        [SerializeField] float plungeLowPoise;
+        [Tooltip("Poise added per target by a high plunge (2-3)")]
+        [SerializeField] float plungeHighPoise;
 
         public float BaseAttack => baseAttack;
         public int StepCount => steps != null ? steps.Length : 0;
@@ -80,6 +86,13 @@ namespace Moa.Unity.Data
         public float PlungeLowMultiplier => plungeLowMultiplier;
         public float PlungeHighMultiplier => plungeHighMultiplier;
         public float PlungeRange => plungeRange;
+        public float PlungeLowPoise => plungeLowPoise;
+        public float PlungeHighPoise => plungeHighPoise;
+
+        /// <summary>콤보 단계 · 강공격 베기 · 낙하의 경직 수치 (2-3). index는 0부터, 낙하는 high로 고른다.</summary>
+        public float ComboPoise(int index) => index >= 0 && index < StepCount ? steps[index].poise : 0f;
+        public float ChargedPoise(int index) => index >= 0 && index < ChargedSlashCount ? chargedSlashes[index].poise : 0f;
+        public float PlungePoise(bool high) => high ? plungeHighPoise : plungeLowPoise;
 
         public ComboRules ToRules()
         {

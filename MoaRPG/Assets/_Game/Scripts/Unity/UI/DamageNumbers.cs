@@ -19,6 +19,10 @@ namespace Moa.Unity.UI
         [SerializeField] Color normalColor;
         [SerializeField] Color blockedColor;
         [SerializeField] Color outlineColor;
+        [Tooltip("Just dodge word (2-3)")]
+        [SerializeField] Color justDodgeColor;
+        [Tooltip("Groggy word when a target breaks (2-3)")]
+        [SerializeField] Color groggyColor;
 
         sealed class Entry
         {
@@ -60,6 +64,29 @@ namespace Moa.Unity.UI
             e.World = world;
             e.Age = 0f;
             e.OffsetX = ((_shownCount % 3) - 1) * _tuning.DamageSpread;
+            e.Active = true;
+            e.Label.gameObject.SetActive(true);
+            LastText = s;
+            _shownCount++;
+            Place(e);
+        }
+
+        /// <summary>저스트 회피 글 (2-3, 텍스트 표 ui.combat.just_dodge).</summary>
+        public void ShowJustDodge(Vector3 world) => ShowWord(world, Text.Get("ui.combat.just_dodge"), justDodgeColor);
+
+        /// <summary>그로기 글 (2-3, 텍스트 표 ui.combat.groggy).</summary>
+        public void ShowGroggy(Vector3 world) => ShowWord(world, Text.Get("ui.combat.groggy"), groggyColor);
+
+        void ShowWord(Vector3 world, string s, Color color)
+        {
+            if (_tuning == null) return;
+            Entry e = Take();
+            e.Label.text = s;
+            e.Label.color = color;
+            e.Label.fontSize = _tuning.DamageFontSize;
+            e.World = world;
+            e.Age = 0f;
+            e.OffsetX = 0f;
             e.Active = true;
             e.Label.gameObject.SetActive(true);
             LastText = s;

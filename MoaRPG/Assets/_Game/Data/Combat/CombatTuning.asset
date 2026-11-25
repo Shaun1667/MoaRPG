@@ -19,6 +19,11 @@ MonoBehaviour:
   plungeHighHeight: 5
   plungeFallSpeed: 20
   plungeLandRecovery: 0.4
+  justDodgeWindow: 0.16
+  justSlowScale: 0.3
+  justSlowDuration: 0.8
+  justCounterTime: 3
+  justCounterPoiseMultiplier: 2
   damageFontSize: 36
   damageLifetime: 0.8
   damageRise: 0.8

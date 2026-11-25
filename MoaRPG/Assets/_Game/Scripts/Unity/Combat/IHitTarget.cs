@@ -39,12 +39,25 @@ namespace Moa.Unity.Combat
         public readonly Vector3 NumberPosition;
         /// <summary>어느 공격의 피해인지 (2-2).</summary>
         public readonly AttackMode Kind;
+        /// <summary>쌓은 경직 (2-3, 반격 보너스 포함 — 그로기 중이거나 경직이 없는 대상이면 0).</summary>
+        public readonly float Poise;
+        /// <summary>이 한 방으로 그로기가 됐는지 (2-3).</summary>
+        public readonly bool Broke;
+        /// <summary>맞을 때 대상이 그로기였는지 — 그러면 피해에 그로기 배율이 들어 있다 (2-3).</summary>
+        public readonly bool OnGroggy;
 
         public HitReport(EntityId target, string targetName, int damage, int applied, int step, int swing, Vector3 numberPosition)
             : this(target, targetName, damage, applied, step, swing, numberPosition, AttackMode.Combo) { }
 
         public HitReport(EntityId target, string targetName, int damage, int applied, int step, int swing, Vector3 numberPosition, AttackMode kind)
+            : this(target, targetName, damage, applied, step, swing, numberPosition, kind, 0f, false, false) { }
+
+        public HitReport(EntityId target, string targetName, int damage, int applied, int step, int swing, Vector3 numberPosition, AttackMode kind,
+            float poise, bool broke, bool onGroggy)
         {
+            Poise = poise;
+            Broke = broke;
+            OnGroggy = onGroggy;
             Target = target;
             TargetName = targetName;
             Damage = damage;
