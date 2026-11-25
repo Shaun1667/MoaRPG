@@ -39,7 +39,7 @@ namespace Moa.Tests
             Assert.That(g.TryOpen(s, false, 10f), Is.True);
             Assert.That(s.Current, Is.EqualTo(240f));
             for (int i = 0; i < 200; i++) { g.Hold(s, Dt); s.Tick(Dt); }
-            Assert.That(s.Current, Is.EqualTo(220f).Within(Eps));
+            Assert.That(s.Current, Is.EqualTo(220f).Within(0.01f)); // float 200번 누적 오차(약 0.0012)
             Assert.That(g.Active, Is.True);
         }
 

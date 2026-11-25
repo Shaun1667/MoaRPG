@@ -46,8 +46,8 @@ namespace Moa.Tests
             float after = s.Current;
             Run(s, 1f); // 회복 지연 1초
             Assert.That(s.Current, Is.EqualTo(after).Within(Eps));
-            Run(s, 2f);
-            Assert.That(s.Current, Is.EqualTo(after + 50f).Within(Eps));
+            Run(s, 0.4f); // 최대치(240)에 닿기 전 구간
+            Assert.That(s.Current, Is.EqualTo(after + 10f).Within(0.01f));
         }
 
         [Test]
