@@ -12,7 +12,7 @@ namespace Moa.Unity.Combat
     /// 되살아나기 시간은 고정 스텝(FixedUpdate), 번쩍임 · 넉백 그리기는 Update.
     /// </summary>
     [RequireComponent(typeof(Collider))]
-    public sealed class TrainingDummy : MonoBehaviour, IHitTarget, IPoiseTarget
+    public sealed class TrainingDummy : MonoBehaviour, IHitTarget, IPoiseTarget, IEnergyDrop
     {
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
@@ -60,6 +60,9 @@ namespace Moa.Unity.Combat
         public float DamageTakenMultiplier => _poise != null ? _poise.DamageTakenMultiplier : 1f;
         /// <summary>행동할 수 있는지 (살아 있고 그로기가 아님 — 공격 허수아비 DummyAttacker가 본다).</summary>
         public bool CanAct => Alive && !Groggy;
+        /// <summary>처치하면 플레이어가 얻는 궁극기 에너지 (2-4).</summary>
+        public float EnergyOnDefeat => tuning != null ? tuning.EnergyOnDefeat : 0f;
+
 
         public bool ReceivePoise(float amount)
         {

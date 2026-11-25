@@ -34,6 +34,11 @@ namespace Moa.Unity.Data
         [Tooltip("Gauge drained per second after the delay")]
         [SerializeField] float poiseRegenPerSecond;
 
+        [Header("Burst energy (2-4)")]
+        [Tooltip("Burst (Q) energy the player gains when this enemy is defeated")]
+        [SerializeField] float energyOnDefeat;
+
+
         public int MaxHealth => maxHealth;
         public float Defense => defense;
         public float RespawnDelay => respawnDelay;
@@ -46,6 +51,9 @@ namespace Moa.Unity.Data
         public float GroggyDamageTaken => groggyDamageTaken;
         public float PoiseRegenDelay => poiseRegenDelay;
         public float PoiseRegenPerSecond => poiseRegenPerSecond;
+        /// <summary>처치하면 플레이어가 얻는 궁극기 에너지 (2-4, BALANCE 10번).</summary>
+        public float EnergyOnDefeat => energyOnDefeat;
+
 
         /// <summary>경직 게이지 규칙 (2-3).</summary>
         public Moa.Core.Combat.PoiseRules ToPoiseRules() => new Moa.Core.Combat.PoiseRules(maxPoise, groggyDuration, groggyDamageTaken, poiseRegenDelay, poiseRegenPerSecond);

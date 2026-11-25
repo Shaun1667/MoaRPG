@@ -1,7 +1,7 @@
 # TASKS — MoaRPG
 
 ## 진행 요약 (2026-11-24 기준 — 새 세션은 여기부터 읽는다)
-**최신 (2026-11-25): Phase 2 2-3 경직 게이지 · 그로기 · 저스트 회피 구현 — Core `Poise` · `JustDodge` · `EnemyAttackCycle`, 허수아비 경직 최대 100 · 그로기 5초 · 받는 피해 ×1.3(GDD), 한손검 경직 콤보 8/8/10/12/16 · 강공격 15/20 · 낙하 20/35, 저스트 회피 창 0.16초 · 슬로모션 0.3배 실제 0.8초 · 반격 3초 경직 ×2, 공격 허수아비(쉬기 2.0 → 예고 0.8 → 쉬는 자세 0.6초, 지점 `AttackDummy`) · BALANCE 9번. 브랜치 `phase2-combat`. **EditMode 173개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 · 2-2 · 2-3. 다음: 플레이 확인 → 2-4 스킬(E) · 궁극기(Q) · 에너지.**
+**최신 (2026-11-25): Phase 2 2-4 스킬(E) · 궁극기(Q) · 에너지 구현 — E 짧게 회전 베기(쿨 5초) · 길게 0.5초 두 번 베기(쿨 8초) · Q 에너지 40 가득 · 쿨 12초 · 1.2초 무적 · 에너지는 스킬 적중 10/15 + 처치 5 · HUD 오른쪽 아래 · BALANCE 10번. 입력 E · RB / Q · Y. 브랜치 `phase2-combat`(2-3까지 커밋). **EditMode 197개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 · 2-2 · 2-3 · 2-4. 다음: 플레이 확인 → 2-5 적 AI 1종.**
 
 ## Phase 0. 세팅
 - [x] **0-0. 문서 3종 + 기획서** (2026-11-24 사용자 "원신 라이크 기획서 노션에", "MY_DEV_GUIDE 대입") — CLAUDE.md · GDD.md · TASKS.md, Notion 기획서
@@ -91,7 +91,14 @@
   - 테스트: 새 `PoiseJustDodgeTests`(17) · `PoiseTuningAssetTests`(5). EditMode 173개 모두 통과(2026-11-25 재실행 — 처음엔 strings.csv 두 줄이 없어 `TextTableRulesTests.UsedKeys_AllExistInTable` 1개 실패 → 감독이 두 줄 넣음)
   - 캡처: `Assets/Screenshots/p2_3_groggy.png` · `p2_3_groggy-1.png` · `p2_3_groggy_break.png` · `p2_3_telegraph.png` · `p2_3_just_dodge.png` · `p2_3_counter_groggy.png`
   - 확인 방법: (TestField가 옛것이면 메뉴 MoaRPG > Setup > Test Field) → TestField 플레이 → 디버그 지점 `Dummies`에서 콤보 두 번 → 허수아비가 노랗게 기울고 막대 노랑, 맞으면 숫자가 커짐 → 지점 `AttackDummy`에서 바닥 원이 빨개져 닿기 직전 오른쪽 클릭 → 느려지며 "저스트 회피!" → 바로 콤보 한 번이면 그로기. 디버그 창 "경직 · 그로기 · 저스트 회피" 섹션
-- [ ] 2-4. 스킬(E) · 궁극기(Q) · 에너지
+- [x] **2-4. 스킬(E) · 궁극기(Q) · 에너지** (2026-11-25 사용자 "세 프로젝트 다음 진행사항들 진행해줘") — 플레이 확인 대기
+  - 구현: Core `Energy` · `SlashSequence`(스킬 · 궁극기 베기 진행) · `SkillAttack` · `BurstAttack`, `ComboAttack` · `PlayerAttack`에 Skill · Burst 추가(예전 Step · 생성자 그대로) / Unity `SkillTuning`(`Data/Skills/SwordHero.asset`) · `IEnergyDrop` · `SkillHud` · `DummyTuning.energyOnDefeat` · PlayerCombat · PlayerDefense · 입력(Skill · Burst 액션, 없으면 건너뜀) · 디버그 창 `SkillSection` · `TestFieldSetup`(HUD SkillHud). 입력 액션 · strings.csv 4줄은 감독이 넣음
+  - 정한 것 (Claude, 확인 필요 — 수치 전부, BALANCE 10번): E 길게 기준 0.5초(되는 순간 나감) · 짧게 회전 베기 136 · 쿨 5초 · 에너지 10 · 길게 두 번 베기 96 + 160 · 쿨 8초 · 에너지 15 · Q 비용 40(가득) · 쿨 12초 · 1.2초 무적 · 320 · 경직 30 / 20 · 40 / 60 · 에너지는 스킬 첫 적중 한 번 + 처치 5 · 일반 공격 · 궁극기 중 0 · 입력 E · RB / Q · Y
+  - 확인(TestField, 일시정지 + Step, 입력 주입): E 짧게 허수아비 둘에 136 · 에너지 +10 한 번 · 쿨 250스텝, E 길게 26스텝째 Hold · 96 · 160 · +15, 처치 +5, Q 40/40 금색 → 에너지 0 · 1.2초 무적 · 회피 · 점프 무시 · 셋에 320 · 공격 허수아비 Avoided, 쿨 중 Q 막힘, Q 처치 에너지 0, 공중 E Airborne, 누르는 중 회피면 쿨 안 씀. 2-1 콤보 값 그대로. 콘솔 오류 0. dataPath 이탈 없음(도메인 리로드 중 인스턴스 한 번 잠깐 안 보였다가 돌아옴)
+  - 확인 못 함: 실제 E · Q 키 · 패드(작업 때 입력 액션이 없어 주입으로만), 디버그 창 새 섹션 화면, 영어 표시, 실제 프레임레이트 체감, Notion 상세 기획서 대조
+  - 테스트: 새 `SkillBurstTests`(21) · `SkillTuningAssetTests`(3). EditMode 197개 모두 통과(2026-11-25 재실행 — 처음엔 strings 4줄이 없어 `TextTableRulesTests.UsedKeys_AllExistInTable` 1개 실패 → 감독이 넣음). Play에서 Skill · Burst 액션 enabled · 바인딩 2개씩 확인
+  - 캡처: `Assets/Screenshots/p2_4_skill_tap.png` · `p2_4_skill_hold.png` · `p2_4_energy_full.png` · `p2_4_burst.png`
+  - 확인 방법: (TestField가 옛것이면 메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 지점 `Dummies` → E를 톡 누르면 청록 회전 베기와 136, 오른쪽 아래 E 칸 5초 쿨 → E를 0.5초 누르고 있으면 두 번 베기 96 · 160 → 에너지가 40이 되면 Q 칸 금색 → Q를 누르면 금색 캡슐, 범위 원, 320
 - [ ] 2-5. 적 AI 1종
 - [ ] 2-6. 파티 4인 교체
 

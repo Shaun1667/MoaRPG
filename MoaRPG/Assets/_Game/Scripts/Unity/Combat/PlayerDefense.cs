@@ -47,7 +47,10 @@ namespace Moa.Unity.Combat
             if (!Bound) return DodgeJudgement.Hit;
             bool invulnerable = _motor.Invulnerable;
             float elapsed = _motor.Dodge != null ? _motor.Dodge.Elapsed : 0f;
-            DodgeJudgement j = _just.Judge(invulnerable, elapsed);
+            // 2-4: 궁극기 무적이면 피하기만 (저스트 보상은 회피 무적일 때만)
+            DodgeJudgement j = !invulnerable && _motor.BurstInvulnerable
+                ? _just.Judge(true, float.MaxValue)
+                : _just.Judge(invulnerable, elapsed);
             LastAttackFrom = from;
             LastJudgedAt = transform.position;
             if (j == DodgeJudgement.Just) ApplyTimeScale();

@@ -40,6 +40,10 @@ namespace Moa.Unity
         [SerializeField] PlayerDefense playerDefense;
         [Tooltip("Poise gauge bars over the dummies on the HUD canvas")]
         [SerializeField] PoiseBars poiseBars;
+        [Header("Skill / burst / energy (2-4, empty in scenes without a player)")]
+        [Tooltip("E cooldown and Q energy slots on the HUD canvas")]
+        [SerializeField] SkillHud skillHud;
+
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
 
@@ -82,6 +86,7 @@ namespace Moa.Unity
             if (damageNumbers != null)
                 damageNumbers.Bind(playerCombat.Tuning, view, UiFont.Get(config));
             BindPoise(view);
+            if (skillHud != null) skillHud.Bind(playerCombat, UiFont.Get(config)); // 2-4
         }
 
         /// <summary>2-3: 저스트 회피(플레이어 쪽) · 공격 허수아비의 대상 · 경직 막대.</summary>
@@ -405,7 +410,41 @@ namespace Moa.Unity
         /// <summary>[상태 변경] 슬로모션 · 반격 보너스를 끈다.</summary>
         public void DebugCancelJustDodge() { if (playerDefense != null) playerDefense.Cancel(); }
 
-        /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
+        // ---- 스킬(E) · 궁극기(Q) · 에너지 (2-4) ----
+
+        /// <summary>[상태 변경] 스킬 짧게 누르기 주입 (다음 고정 스텝에 소비).</summary>
+        public void DebugInputSkill() => _input?.DebugPressSkill();
+        /// <summary>[상태 변경] 스킬을 누르고 누른 스텝 뒤로 seconds 동안 누른 채로 (길게 누르기 주입).</summary>
+        public void DebugInputSkillHold(float seconds) => _input?.DebugHoldSkill(seconds);
+        /// <summary>[상태 변경] 궁극기 입력 주입.</summary>
+        public void DebugInputBurst() => _input?.DebugPressBurst();
+        public bool DebugHasSkills => DebugHasCombat && playerCombat.Skills != null;
+        public string DebugSkillsName => playerCombat != null && playerCombat.Skills != null ? playerCombat.Skills.name : "-";
+        public Moa.Core.Combat.SkillAttack DebugSkill => DebugHasCombat ? playerCombat.Skill : null;
+        public Moa.Core.Combat.BurstAttack DebugBurst => DebugHasCombat ? playerCombat.Burst : null;
+        public Moa.Core.Combat.Energy DebugEnergy => DebugHasCombat ? playerCombat.Energy : null;
+        public float DebugEnergyFromSkill => playerCombat != null ? playerCombat.EnergyFromSkill : 0f;
+        public float DebugEnergyFromDefeat => playerCombat != null ? playerCombat.EnergyFromDefeat : 0f;
+        public float DebugLastEnergyGain => playerCombat != null ? playerCombat.LastEnergyGain : 0f;
+        public bool DebugBurstInvulnerable => playerMotor != null && playerMotor.BurstInvulnerable;
+        public SkillHud DebugSkillHud => skillHud;
+
+        /// <summary>[상태 변경] 에너지 가득 채우기.</summary>
+        public void DebugEnergyFill() { if (DebugEnergy != null) DebugEnergy.Fill(); }
+
+        /// <summary>[상태 변경] 에너지 값 정하기.</summary>
+        public void DebugEnergySet(float value) { if (DebugEnergy != null) DebugEnergy.Set(value); }
+
+        /// <summary>[상태 변경] 스킬 · 궁극기 쿨타임 없애기.</summary>
+        public void DebugResetSkillCooldowns()
+        {
+            if (!DebugHasCombat) return;
+            playerCombat.Skill.ResetCooldown();
+            playerCombat.Burst.ResetCooldown();
+        }
+
+        
+/// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()
         {
             var sb = new StringBuilder();

@@ -18,6 +18,10 @@ namespace Moa.Unity.Input
 
         InputActionMap _map;
         InputAction _move, _look, _lookStick, _zoom, _jump, _walkToggle, _releaseCursor, _captureCursor, _sprint, _dodge, _attack;
+        InputAction _skill, _burst; // 2-4: 에셋에 없으면 null (주입만 받는다)
+        bool _skillLatched;
+        bool _burstLatched;
+        float _debugSkillHoldEnd = float.NegativeInfinity; // 주입한 스킬 길게 누르기가 끝나는 고정 스텝 시각 (2-4)
 
         bool _walkMode;
         bool _jumpLatched;
@@ -41,7 +45,10 @@ namespace Moa.Unity.Input
         public float ZoomScroll => _zoomValue;
         public bool CursorCaptured => Cursor.lockState == CursorLockMode.Locked;
         public bool DebugOverriding => _override;
-        public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.IsPressed());
+        /// <summary>스킬 버튼을 누르고 있는지 (2-4). 주입 중에는 DebugHoldSkill만.</summary>
+        public bool SkillHeld => Time.fixedTime <= _debugSkillHoldEnd || (!_override && _skill != null && _skill.IsPressed());
+        
+public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.IsPressed());
 
         /// <summary>공격 버튼을 누르고 있는지 (2-2). 마우스는 커서가 잠겨 있을 때만, 주입 중에는 DebugHoldAttack만.</summary>
         public bool AttackHeld
@@ -74,6 +81,9 @@ namespace Moa.Unity.Input
             _sprint = _map.FindAction(PlayerControls.Sprint, false);
             _dodge = _map.FindAction(PlayerControls.Dodge, false);
             _attack = _map.FindAction(PlayerControls.Attack, false);
+            _skill = _map.FindAction(PlayerControls.Skill, false); // 2-4: 없으면 조용히 건너뛴다
+            _burst = _map.FindAction(PlayerControls.Burst, false);
+
             if (_attack == null)
                 Debug.LogWarning("PlayerInputReader: action '" + PlayerControls.Attack + "' is missing in " + actions.name + " - left click (CaptureCursor) attacks while the cursor is locked, no gamepad attack. Add Attack (see PlayerControls.BuildDefaultJson).");
             if (_sprint == null || _dodge == null)
@@ -110,6 +120,9 @@ namespace Moa.Unity.Input
             if (_jump.WasPressedThisFrame()) _jumpLatched = true;
             if (_dodge != null && _dodge.WasPressedThisFrame() && !_override) _dodgeLatched = true;
             if (_walkToggle.WasPressedThisFrame()) _walkMode = !_walkMode;
+            if (_skill != null && _skill.WasPressedThisFrame() && !_override) _skillLatched = true; // 2-4
+            if (_burst != null && _burst.WasPressedThisFrame() && !_override) _burstLatched = true;
+
 
             if (_override)
             {
@@ -148,6 +161,21 @@ namespace Moa.Unity.Input
             return d;
         }
 
+        public bool ConsumeSkill()
+        {
+            bool s = _skillLatched;
+            _skillLatched = false;
+            return s;
+        }
+
+        public bool ConsumeBurst()
+        {
+            bool b = _burstLatched;
+            _burstLatched = false;
+            return b;
+        }
+
+
         static void SetCursorCaptured(bool captured)
         {
             Cursor.lockState = captured ? CursorLockMode.Locked : CursorLockMode.None;
@@ -170,6 +198,18 @@ namespace Moa.Unity.Input
             // 누름은 다음 고정 스텝에 꺼내진다 — 그 스텝 뒤로 seconds 동안 누른 채로
             _debugHoldEnd = Time.fixedTime + Time.fixedDeltaTime + seconds + 1e-4f;
         }
+
+        public void DebugPressSkill() { _skillLatched = true; _debugSkillHoldEnd = float.NegativeInfinity; }
+
+        public void DebugHoldSkill(float seconds)
+        {
+            _skillLatched = true;
+            // 누름은 다음 고정 스텝에 꺼내진다 — 그 스텝 뒤로 seconds 동안 누른 채로 (2-4)
+            _debugSkillHoldEnd = Time.fixedTime + Time.fixedDeltaTime + seconds + 1e-4f;
+        }
+
+        public void DebugPressBurst() { _burstLatched = true; }
+
 
         public void DebugClear()
         {

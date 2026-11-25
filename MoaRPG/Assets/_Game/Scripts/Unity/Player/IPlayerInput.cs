@@ -41,6 +41,16 @@ namespace Moa.Unity.Player
         /// <summary>공격 버튼을 누르고 있는지 (길게 누르면 강공격, 2-2). 마우스 왼쪽은 커서가 잠겨 있을 때만.</summary>
         bool AttackHeld { get; }
 
+        /// <summary>눌린 스킬(E)을 한 번 꺼낸다 (FixedUpdate에서 소비, 2-4). 입력 에셋에 Skill 액션이 없으면 주입만.</summary>
+        bool ConsumeSkill();
+
+        /// <summary>스킬 버튼을 누르고 있는지 (길게 누르면 길게 누르기 형태, 2-4).</summary>
+        bool SkillHeld { get; }
+
+        /// <summary>눌린 궁극기(Q)를 한 번 꺼낸다 (FixedUpdate에서 소비, 2-4). 입력 에셋에 Burst 액션이 없으면 주입만.</summary>
+        bool ConsumeBurst();
+
+
         // ---- 디버그 주입 ----
         bool DebugOverriding { get; }
         void DebugSetMove(Vector2 move);
@@ -53,6 +63,13 @@ namespace Moa.Unity.Player
         void DebugPressAttack();
         /// <summary>공격을 누르고, 누른 스텝 뒤로 seconds 동안 누른 채로 둔다 (고정 스텝 시간 기준, 2-2).</summary>
         void DebugHoldAttack(float seconds);
+        /// <summary>스킬을 짧게 눌렀다 떼다 (2-4).</summary>
+        void DebugPressSkill();
+        /// <summary>스킬을 누르고, 누른 스텝 뒤로 seconds 동안 누른 채로 둔다 (고정 스텝 시간 기준, 2-4).</summary>
+        void DebugHoldSkill(float seconds);
+        /// <summary>궁극기를 누른다 (2-4).</summary>
+        void DebugPressBurst();
+
         void DebugClear();
     }
 }

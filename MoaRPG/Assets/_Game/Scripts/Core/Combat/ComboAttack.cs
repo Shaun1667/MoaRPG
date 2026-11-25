@@ -107,6 +107,10 @@ namespace Moa.Core.Combat
         Cancelled,
         /// <summary>길게 눌러 강공격으로 넘어갔다 (2-2).</summary>
         Charged,
+        /// <summary>스킬(E)로 넘어갔다 (2-4).</summary>
+        Skill,
+        /// <summary>궁극기(Q)로 넘어갔다 (2-4).</summary>
+        Burst,
     }
 
     public enum ComboPhase

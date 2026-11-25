@@ -3,3 +3,7 @@ ui.boot.ready,MoaRPG 준비 완료 · 시드 {0},MoaRPG ready · seed {0}
 ui.combat.damage,{0},{0}
 ui.combat.just_dodge,저스트 회피!,Just Dodge!
 ui.combat.groggy,그로기!,Groggy!
+ui.skill.key,E,E
+ui.burst.key,Q,Q
+ui.skill.cooldown,{0:0.0},{0:0.0}
+ui.burst.energy,{0:0}/{1:0},{0:0}/{1:0}

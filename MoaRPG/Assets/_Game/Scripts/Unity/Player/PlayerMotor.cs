@@ -90,6 +90,13 @@ namespace Moa.Unity.Player
         /// <summary>낙하 공격 중인지 (떨어지는 중 + 착지 경직, 2-2).</summary>
         public bool Plunging => _combat != null && _combat.Plunging;
         public bool PlungeFalling => _combat != null && _combat.PlungeFalling;
+        /// <summary>스킬(E) 중 — 누르는 중 포함 (2-4).</summary>
+        public bool SkillActive => _combat != null && _combat.SkillActive;
+        /// <summary>궁극기(Q) 중 (2-4) — 이때 회피 · 점프 입력은 버린다.</summary>
+        public bool Bursting => _combat != null && _combat.BurstActive;
+        /// <summary>궁극기로 무적 (2-4, 회피 무적 Invulnerable과 따로 — 저스트 회피는 회피 무적만).</summary>
+        public bool BurstInvulnerable => _combat != null && _combat.BurstInvulnerable;
+
         public PlayerCombat Combat => _combat;
         /// <summary>붙어 있는 벽의 법선 (등반 중일 때만 의미 있음).</summary>
         public Vector3 WallNormal => _wallNormal;
@@ -217,7 +224,7 @@ namespace Moa.Unity.Player
             float wishLen = wish.Length;
 
             // 회피 (1-2): 입력 방향, 없으면 캐릭터 앞. 시작 조건(쿨 · 공중 · 스태미나)은 Core Dodge
-            if (_input.ConsumeDodge() && _dodge.TryStart(_stamina, grounded))
+            if (_input.ConsumeDodge() && !Bursting && _dodge.TryStart(_stamina, grounded)) // 궁극기 중 회피는 버린다 (2-4)
             {
                 if (_combat != null) _combat.Interrupt(AttackEnd.Dodge); // 회피가 공격을 끊는다 (2-1, 원신 방식)
                 float r = _yaw * Mathf.Deg2Rad;
@@ -228,7 +235,7 @@ namespace Moa.Unity.Player
             float dashTime = _dodge.Advance(dt);
 
             // 점프: 땅 위면 점프, 공중이면 활공 펴기 · 접기 (1-3). 낙하 중에는 버린다 (2-2)
-            bool jumpPressed = _input.ConsumeJump() && !dodging && !PlungeFalling;
+            bool jumpPressed = _input.ConsumeJump() && !dodging && !PlungeFalling && !Bursting; // 궁극기 중에도 버린다 (2-4)
             if (jumpPressed && grounded && (Attacking || Plunging)) _combat.Interrupt(AttackEnd.Jump); // 점프도 공격 · 착지 경직을 끊는다 (2-1 · 2-2)
             if (jumpPressed && !grounded)
             {

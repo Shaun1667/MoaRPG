@@ -35,6 +35,8 @@ namespace Moa.Editor.Setup
         public const string CombatTuningPath = "Assets/_Game/Data/Combat/CombatTuning.asset";
         public const string DummyTuningPath = "Assets/_Game/Data/Enemies/TrainingDummy.asset";
         public const string AttackingDummyPath = "Assets/_Game/Data/Enemies/AttackingDummy.asset"; // 2-3: 예고 공격 (EnemyAttackTuning)
+        public const string SkillTuningPath = "Assets/_Game/Data/Skills/SwordHero.asset";       // 2-4: 지금 캐릭터(한손검)의 스킬 · 궁극기 (SkillTuning)
+
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
         const string CheckerPath = GrayboxFolder + "/Checker.png";
@@ -109,6 +111,27 @@ namespace Moa.Editor.Setup
         static readonly Color WarnHitColor = new Color(1.00f, 1.00f, 1.00f, 1.00f);   // 닿는 순간
         const float WarnRingWidth = 0.10f, WarnHitFlashTime = 0.16f, WarnRingHeight = 0.05f; // 선 두께(m) · 닿은 뒤 보이는 시간(초) · 바닥 위 높이(m)
 
+        // ---- 표현 표 (2-4 스킬 · 궁극기 · 에너지, 게임 수치 아님) ----
+        static readonly Color SkillColor = new Color(0.20f, 0.75f, 0.70f);        // 스킬 중(누르는 중 포함): 청록 (회피 무적 > 궁극기 > 회피 > 스킬 > 낙하 …)
+        static readonly Color BurstColor = new Color(1.00f, 0.78f, 0.10f);        // 궁극기 중(무적): 금색
+        static readonly Color SkillTrailColor = new Color(0.30f, 1.00f, 0.90f, 0.85f);
+        static readonly Color BurstTrailColor = new Color(1.00f, 0.85f, 0.25f, 0.95f);
+        static readonly Vector3 SwordBurstStart = new Vector3(-80f, 0f, 0f);    // 궁극기: 머리 위 → 아래로 크게
+        static readonly Vector3 SwordBurstEnd = new Vector3(80f, 0f, 0f);
+        static readonly Color BurstRingColor = new Color(1.00f, 0.80f, 0.20f, 0.95f); // 궁극기 범위 원
+        const float BurstRingTime = 1.2f;                                         // 원을 보이는 시간(초) — 궁극기 길이와 같게
+        const float SkillSlotSize = 96f, SkillSlotGap = 16f;                      // HUD 칸 크기 · 사이 (px, 1920×1080 기준)
+        static readonly Vector2 SkillHudMargin = new Vector2(60f, 90f);           // 화면 오른쪽 · 아래에서
+        const int SkillKeyFontSize = 40, SkillNumberFontSize = 24;
+        static readonly Color SkillSlotColor = new Color(0f, 0f, 0f, 0.55f);
+        static readonly Color SkillPressingColor = new Color(0.20f, 0.55f, 0.55f, 0.85f);
+        static readonly Color SkillCastingColor = new Color(0.25f, 0.70f, 0.65f, 0.85f);
+        static readonly Color SkillCooldownCover = new Color(0f, 0f, 0f, 0.6f);
+        static readonly Color EnergyColor = new Color(0.55f, 0.80f, 1.00f);
+        static readonly Color EnergyFullColor = new Color(1.00f, 0.85f, 0.25f);
+        static readonly Color SkillTextColor = new Color(1f, 1f, 1f);
+
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -171,6 +194,8 @@ namespace Moa.Editor.Setup
             EnsureFolder("Assets/_Game/Data/Weapons");
             EnsureFolder("Assets/_Game/Data/Combat");
             EnsureFolder("Assets/_Game/Data/Enemies");
+            EnsureFolder("Assets/_Game/Data/Skills");
+
             EnsureFolder(GrayboxFolder);
             EnsureFolder("Assets/_Game/Scenes");
 
@@ -189,6 +214,8 @@ namespace Moa.Editor.Setup
             var combat = LoadOrCreate<CombatTuning>(CombatTuningPath);
             var dummyTuning = LoadOrCreate<DummyTuning>(DummyTuningPath);
             var attackTuning = LoadOrCreate<EnemyAttackTuning>(AttackingDummyPath);
+            var skills = LoadOrCreate<SkillTuning>(SkillTuningPath);
+
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
             if (inputAsset == null) Debug.LogError("TestFieldSetup: input actions missing at " + InputPath);
@@ -204,15 +231,17 @@ namespace Moa.Editor.Setup
             BuildLight();
             BuildEnvironment(mats);
             var points = BuildDebugPoints();
-            var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, inputAsset, mats);
+            var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, skills, inputAsset, mats);
             var camera = BuildCamera(cam, player.transform);
             var gauge = BuildHud();
             var poiseBars = PoiseBars.CreateIn(gauge.transform.parent, PoiseBackColor, PoiseFillColor, PoiseGroggyColor, PoiseBarSize, PoiseBarHeight); // 숫자보다 먼저 = 아래에 그린다
             var numbers = DamageNumbers.CreateIn(gauge.transform.parent, DamageColor, DamageBlockedColor, DamageOutlineColor);
             SetColor(numbers, "justDodgeColor", JustDodgeTextColor);
             SetColor(numbers, "groggyColor", GroggyTextColor);
+            var skillHud = SkillHud.CreateIn(gauge.transform.parent, EnsureRing(), SkillSlotSize, SkillSlotGap, SkillHudMargin, SkillKeyFontSize, SkillNumberFontSize,
+                SkillSlotColor, SkillPressingColor, SkillCastingColor, SkillCooldownCover, EnergyColor, EnergyFullColor, SkillTextColor, DamageOutlineColor); // 2-4
             var dummies = BuildDummies(dummyTuning, attackTuning, mats);
-            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars);
+            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -390,7 +419,7 @@ namespace Moa.Editor.Setup
         }
 
         static PlayerMotor BuildPlayer(MovementTuning tuning, StaminaTuning stamina, ClimbTuning climb, GlideTuning glide,
-            WeaponTuning weapon, CombatTuning combatTuning, Object inputAsset, Materials mats)
+            WeaponTuning weapon, CombatTuning combatTuning, SkillTuning skills, Object inputAsset, Materials mats)
         {
             float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
             if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: MovementTuning capsule size is empty - fill it and run again");
@@ -438,11 +467,16 @@ namespace Moa.Editor.Setup
             SetColor(feedback, "attackColor", AttackColor);
             SetColor(feedback, "chargedColor", ChargedColor);
             SetColor(feedback, "plungeColor", PlungeColor);
+            SetColor(feedback, "skillColor", SkillColor);
+            SetColor(feedback, "burstColor", BurstColor);
+
 
             // 2-1: 일반 공격 + 그레이박스 칼 (회전 중심 → 칼날 상자 · 손잡이 · 끝에 궤적)
             var combat = go.AddComponent<PlayerCombat>();
             Set(combat, "weapon", weapon);
             Set(combat, "tuning", combatTuning);
+            Set(combat, "skills", skills); // 2-4
+
             var pivot = new GameObject("SwordPivot").transform;
             pivot.SetParent(visual, false);
             pivot.localPosition = SwordPivot;
@@ -491,6 +525,14 @@ namespace Moa.Editor.Setup
             ring.enabled = false;
             Set(swing, "landRing", ring);
             SetFloat(swing, "landRingTime", LandRingTime);
+            // 2-4: 스킬 · 궁극기 칼 자세 · 궤적 색 · 궁극기 범위 원 (착지 원과 같은 LineRenderer)
+            SetColor(swing, "skillTrailColor", SkillTrailColor);
+            SetVector(swing, "burstStartEuler", SwordBurstStart);
+            SetVector(swing, "burstEndEuler", SwordBurstEnd);
+            SetColor(swing, "burstTrailColor", BurstTrailColor);
+            SetColor(swing, "burstRingColor", BurstRingColor);
+            SetFloat(swing, "burstRingTime", BurstRingTime);
+
             // 2-3: 적 공격을 받는 쪽 (저스트 회피)
             var defense = go.AddComponent<PlayerDefense>();
             Set(defense, "tuning", combatTuning);
@@ -612,7 +654,7 @@ namespace Moa.Editor.Setup
         }
 
         static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge,
-            DamageNumbers numbers, TrainingDummy[] dummies, PoiseBars poiseBars)
+            DamageNumbers numbers, TrainingDummy[] dummies, PoiseBars poiseBars, SkillHud skillHud)
         {
             var go = new GameObject("GameRoot");
             var root = go.AddComponent<GameRoot>();
@@ -626,6 +668,8 @@ namespace Moa.Editor.Setup
             so.FindProperty("damageNumbers").objectReferenceValue = numbers;
             so.FindProperty("playerDefense").objectReferenceValue = motor.GetComponent<PlayerDefense>();
             so.FindProperty("poiseBars").objectReferenceValue = poiseBars;
+            so.FindProperty("skillHud").objectReferenceValue = skillHud;
+
             var dummyArr = so.FindProperty("trainingDummies");
             dummyArr.arraySize = dummies.Length;
             for (int i = 0; i < dummies.Length; i++) dummyArr.GetArrayElementAtIndex(i).objectReferenceValue = dummies[i];

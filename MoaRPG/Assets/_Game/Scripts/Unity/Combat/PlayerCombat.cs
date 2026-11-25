@@ -26,6 +26,8 @@ namespace Moa.Unity.Combat
 
         [SerializeField] WeaponTuning weapon;
         [SerializeField] CombatTuning tuning;
+        [Tooltip("Skill (E) / burst (Q) of this character (2-4). Empty = no skill or burst")]
+        [SerializeField] SkillTuning skills;
 
         readonly Collider[] _overlap = new Collider[MaxOverlap];
         IPlayerInput _input;
@@ -36,6 +38,21 @@ namespace Moa.Unity.Combat
 
         public WeaponTuning Weapon => weapon;
         public CombatTuning Tuning => tuning;
+        public SkillTuning Skills => skills;
+        /// <summary>스킬(E) · 궁극기(Q) · 에너지 (2-4, Bind 전에는 null).</summary>
+        public SkillAttack Skill => _attack?.Skill;
+        public BurstAttack Burst => _attack?.Burst;
+        public Energy Energy => _attack?.Energy;
+        /// <summary>스킬 중 (누르는 중 포함).</summary>
+        public bool SkillActive => _attack != null && _attack.Skill.Active;
+        public bool BurstActive => _attack != null && _attack.Burst.Active;
+        /// <summary>궁극기로 무적인지.</summary>
+        public bool BurstInvulnerable => _attack != null && _attack.Invulnerable;
+        /// <summary>마지막으로 찬 에너지 · 스킬로 찬 합 · 처치로 찬 합 (디버그 · 확인용).</summary>
+        public float LastEnergyGain { get; private set; }
+        public float EnergyFromSkill { get; private set; }
+        public float EnergyFromDefeat { get; private set; }
+
         /// <summary>공격 조정 (Core, Bind 전에는 null).</summary>
         public PlayerAttack Attacks => _attack;
         public ComboAttack Combo => _attack?.Combo;
@@ -63,6 +80,11 @@ namespace Moa.Unity.Combat
         public event Action<HitReport> HitLanded;
         /// <summary>낙하 공격이 착지했을 때 (발 위치, 판정 반지름) — 바닥 원 표현용.</summary>
         public event Action<Vector3, float> PlungeLanded;
+        /// <summary>궁극기가 나갔을 때 (발 위치, 판정 반지름) — 바닥 원 표현용 (2-4).</summary>
+        public event Action<Vector3, float> BurstCast;
+        /// <summary>에너지가 찬 때 (찬 양, 스킬이면 true · 처치면 false) (2-4).</summary>
+        public event Action<float, bool> EnergyGained;
+
 
         public void Bind(IPlayerInput input)
         {
@@ -73,18 +95,24 @@ namespace Moa.Unity.Combat
             if (weapon.ChargedSlashCount == 0) Debug.LogWarning("PlayerCombat: weapon " + weapon.name + " has no charged attack slashes");
             var plunge = new PlungeRules(tuning.PlungeMinHeight, tuning.PlungeHighHeight, weapon.PlungeLowMultiplier, weapon.PlungeHighMultiplier,
                 tuning.PlungeFallSpeed, tuning.PlungeLandRecovery);
-            _attack = new PlayerAttack(weapon.ToRules(), weapon.ToChargedRules(), plunge, tuning.ChargeHoldTime);
+            if (skills == null) Debug.LogWarning("PlayerCombat: SkillTuning is not assigned - no skill (E) / burst (Q)");
+            _attack = new PlayerAttack(weapon.ToRules(), weapon.ToChargedRules(), plunge, tuning.ChargeHoldTime,
+                skills != null ? skills.ToSkillRules() : null, skills != null ? skills.ToBurstRules() : null);
             _defense = GetComponent<PlayerDefense>();
         }
 
         public void SetId(EntityId id) => _id = id;
 
-        /// <summary>입력을 꺼내 공격을 고르고 한 스텝 진행 (PlayerMotor가 부른다). 막힌 입력은 버린다. stamina = 강공격 비용.</summary>
+        /// <summary>입력을 꺼내 공격을 고르고 한 스텝 진행 (PlayerMotor가 부른다). 막힌 입력은 버린다. stamina = 강공격 비용. 2-4: 스킬 · 궁극기 입력도.</summary>
         public AttackTick Step(AttackContext ctx, Stamina stamina, float dt)
         {
             if (!Bound) return default;
             bool pressed = _input.ConsumeAttack();
-            return _attack.Step(pressed, _input.AttackHeld, ctx, stamina, dt);
+            bool skill = _input.ConsumeSkill();
+            bool burst = _input.ConsumeBurst();
+            AttackTick tick = _attack.Step(new AttackInput(pressed, _input.AttackHeld, skill, _input.SkillHeld, burst), ctx, stamina, dt);
+            if (tick.BurstStarted && skills != null) BurstCast?.Invoke(transform.position, skills.BurstHitRange);
+            return tick;
         }
 
         /// <summary>공격을 모두 끊는다 (회피 · 점프).</summary>
@@ -121,16 +149,31 @@ namespace Moa.Unity.Combat
             return found;
         }
 
-        /// <summary>판정 구간인 스텝에 부른다: 몸 앞 부채꼴 안의 대상을 이번 휘두르기(콤보 단계 또는 강공격 베기)에 한 번씩 맞힌다. 이번에 맞힌 수.</summary>
+        /// <summary>
+        /// 판정 구간인 스텝에 부른다: 몸 앞 부채꼴 안의 대상을 이번 휘두르기(콤보 단계 · 강공격 · 스킬 · 궁극기 베기)에 한 번씩 맞힌다. 이번에 맞힌 수.
+        /// 범위 · 각도: 콤보 = 무기 hitRange · hitAngle, 강공격 = charged*, 스킬 = 그 형태의 hitRange · hitAngle, 궁극기 = burstHit* (360도면 방향 없음).
+        /// </summary>
         public int CheckHits(Vector3 feet, float yawDegrees)
         {
             if (!Bound || !_attack.Swinging) return 0;
-            bool charged = _attack.Charged.Active;
+            AttackMode kind = _attack.Burst.Active ? AttackMode.Burst
+                : _attack.Skill.Casting ? AttackMode.Skill
+                : _attack.Charged.Active ? AttackMode.Charged
+                : _attack.Combo.Attacking ? AttackMode.Combo
+                : AttackMode.None;
+            if (kind == AttackMode.None) return 0; // 스킬을 누르는 중 (아직 베지 않음)
+            float range, angle;
+            switch (kind)
+            {
+                case AttackMode.Burst: range = skills.BurstHitRange; angle = skills.BurstHitAngle; break;
+                case AttackMode.Skill: { var f = skills.GetForm(_attack.Skill.Form); range = f.hitRange; angle = f.hitAngle; break; }
+                case AttackMode.Charged: range = weapon.ChargedHitRange; angle = weapon.ChargedHitAngle; break;
+                default: range = weapon.HitRange; angle = weapon.HitAngle; break;
+            }
             Vector3 center = feet + Vector3.up * weapon.HitHeight;
             float r = yawDegrees * Mathf.Deg2Rad;
             Vector3 forward = new Vector3(Mathf.Sin(r), 0f, Mathf.Cos(r));
-            float halfAngle = (charged ? weapon.ChargedHitAngle : weapon.HitAngle) * 0.5f;
-            float range = charged ? weapon.ChargedHitRange : weapon.HitRange;
+            float halfAngle = angle * 0.5f;
             int n = Physics.OverlapSphereNonAlloc(center, range, _overlap, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
             int hits = 0;
             for (int i = 0; i < n; i++)
@@ -140,11 +183,26 @@ namespace Moa.Unity.Combat
                 if (t == null || !t.Alive) continue;
                 Vector3 to = c.bounds.center - center;
                 to.y = 0f;
-                if (to.sqrMagnitude > 1e-6f && Vector3.Angle(forward, to) > halfAngle) continue;
+                if (halfAngle < 180f && to.sqrMagnitude > 1e-6f && Vector3.Angle(forward, to) > halfAngle) continue;
                 if (!_attack.TryHitSwing(t.Id)) continue; // 이번 휘두르기에 이미 맞음
                 float multiplier = _attack.CurrentSwing.Multiplier;
-                if (charged) Report(t, multiplier, weapon.ChargedPoise(_attack.Charged.SlashIndex), feet, AttackMode.Charged, _attack.Charged.SlashIndex + 1, _attack.Charged.Count);
-                else Report(t, multiplier, weapon.ComboPoise(_attack.Combo.StepIndex), feet, AttackMode.Combo, _attack.Combo.StepIndex + 1, _attack.Combo.SwingCount);
+                switch (kind)
+                {
+                    case AttackMode.Burst:
+                        Report(t, multiplier, skills.BurstPoise(_attack.Burst.SlashIndex), feet, kind, _attack.Burst.SlashIndex + 1, _attack.Burst.Count);
+                        break;
+                    case AttackMode.Skill:
+                        Report(t, multiplier, skills.SkillPoise(_attack.Skill.Form, _attack.Skill.SlashIndex), feet, kind, _attack.Skill.SlashIndex + 1, _attack.Skill.Count);
+                        float e = _attack.TakeSkillEnergy(); // 이번 스킬이 처음 맞힌 순간 한 번
+                        if (e > 0f) { EnergyFromSkill += e; OnEnergy(e, true); }
+                        break;
+                    case AttackMode.Charged:
+                        Report(t, multiplier, weapon.ChargedPoise(_attack.Charged.SlashIndex), feet, kind, _attack.Charged.SlashIndex + 1, _attack.Charged.Count);
+                        break;
+                    default:
+                        Report(t, multiplier, weapon.ComboPoise(_attack.Combo.StepIndex), feet, AttackMode.Combo, _attack.Combo.StepIndex + 1, _attack.Combo.SwingCount);
+                        break;
+                }
                 hits++;
             }
             return hits;
@@ -185,7 +243,14 @@ namespace Moa.Unity.Combat
             bool onGroggy = pt != null && pt.Groggy;
             float taken = pt != null ? pt.DamageTakenMultiplier : 1f;
             int damage = DamageMath.Compute(Attack, multiplier * taken, t.Defense, tuning.DefenseConstant);
+            bool wasAlive = t.Alive;
             int applied = t.ReceiveHit(damage, feet);
+            // 2-4: 이 한 방으로 쓰러뜨렸으면 적 표의 처치 에너지 (궁극기 중에는 안 찬다)
+            if (wasAlive && !t.Alive && t is IEnergyDrop drop)
+            {
+                float gained = _attack.GainEnergy(drop.EnergyOnDefeat);
+                if (gained > 0f) { EnergyFromDefeat += gained; OnEnergy(gained, false); }
+            }
             float poiseApplied = 0f;
             bool broke = false;
             if (pt != null && pt.Poise != null && !pt.Groggy && t.Alive && poise > 0f)
@@ -205,5 +270,12 @@ namespace Moa.Unity.Combat
             if (c == null || c.transform.IsChildOf(transform)) return null; // 자기 콜라이더 제외
             return c.GetComponentInParent<IHitTarget>();
         }
-    }
+    
+
+void OnEnergy(float amount, bool fromSkill)
+        {
+            LastEnergyGain = amount;
+            EnergyGained?.Invoke(amount, fromSkill);
+        }
+}
 }

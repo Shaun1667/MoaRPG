@@ -14,6 +14,7 @@
 | 7 | `Assets/_Game/Data/Combat/CombatTuning.asset` | `Moa.Unity.Data.CombatTuning` | `Moa.Tests.CombatTuningAssetTests` |
 | 8 | `Assets/_Game/Data/Enemies/TrainingDummy.asset` | `Moa.Unity.Data.DummyTuning` | `Moa.Tests.CombatTuningAssetTests` |
 | 9 | `Assets/_Game/Data/Enemies/AttackingDummy.asset` | `Moa.Unity.Data.EnemyAttackTuning` | `Moa.Tests.PoiseTuningAssetTests` |
+| 10 | `Assets/_Game/Data/Skills/SwordHero.asset` (새 캐릭터 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.SkillTuning` | `Moa.Tests.SkillTuningAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -172,6 +173,7 @@
 | knockbackTime | 0.06 | s | 밀려 나가는 시간, 돌아오는 데는 두 배(0.12) |
 | flashTime | 0.1 | s | 맞으면 흰색 번쩍임 |
 | numberHeight | 2.0 | m | 피해 숫자가 뜨는 높이(발에서) |
+| energyOnDefeat | 5 | | 2-4. 처치하면 궁극기 에너지 (궁극기 중 처치는 0) |
 
 ## 9. 경직 · 그로기 · 저스트 회피 · 예고 공격 (TASKS 2-3) — 정한 것 (Claude, 2026-11-25, 확인 필요 — 그로기 5초 · 피해 ×1.3만 GDD)
 | 곳 | 항목 | 값 | 근거 |
@@ -189,6 +191,20 @@
 | 예고 공격 | `attackRange` | 3 m (평면 거리) | |
 
 - 표현 값(Setup 표): 그로기 몸 노랑 + 뒤로 14°, 경직 막대 96×10px(발에서 2.3m 위, 주황 → 그로기 때 노랑으로 남은 시간), 예고 원 엷은 노랑 → 빨강 · 닿는 순간 흰색, 글 색 저스트 하늘색 · 그로기 주황
+
+## 10. 스킬(E) · 궁극기(Q) · 에너지 (TASKS 2-4) — 정한 것 (Claude, 2026-11-25, 확인 필요 — GDD에는 "스킬(E) · 궁극기(Q, 공통 에너지)"만)
+`Data/Skills/SwordHero.asset`(SkillTuning, 베기 한 줄 = WeaponTuning.Step)
+
+| 항목 | 값 | 근거 · 메모 |
+|---|---|---|
+| E 길게 누르기 기준 | 0.50 s (25스텝) | 그 전에 떼면 짧게, 0.5초가 되는 순간 길게(떼기를 기다리지 않음). 누르는 동안 제자리 |
+| E 짧게 (회전 베기) | 배율 1.70 · 선딜 0.12 · 판정 0.10 · 후딜 0.30 (합 0.52 s) · 내딛기 0.4 m · 경직 30 · 범위 3.0 m 360° · 쿨 5 s · 에너지 10 | 허수아비 136 |
+| E 길게 (모아 두 번 베기) | 1.20 / 0.10 · 0.08 · 0.04 / 0.5 m / 경직 20 → 2.00 / 0.10 · 0.12 · 0.40 / 1.0 m / 40 (합 0.84 s) · 범위 3.5 m 180° · 쿨 8 s · 에너지 15 | 허수아비 96 + 160 |
+| Q 궁극기 | 비용 40 (= 에너지 최대, 가득이어야) · 쿨 12 s · 쓰는 1.2 s 내내 무적 · 배율 4.00 · 선딜 0.60 · 판정 0.10 · 후딜 0.50 · 경직 60 · 범위 5.0 m 360° | 허수아비 320 |
+| 에너지 | 스킬이 처음 맞힌 순간 한 번 · 허수아비 처치 +5 (`energyOnDefeat`) · 일반 · 강공격 · 낙하 0 · 궁극기 중 0 · 판 시작 0 | 원소 입자 오브젝트 없음(속성 없음 규칙) |
+
+- 규칙: 쿨은 쓰는 순간부터, E를 누르는 중 끊기면 쿨 안 씀. E는 콤보 · 강공격을 끊고, Q는 콤보 · 강공격 · 스킬을 끊음. 낙하 중엔 둘 다 Busy. 회피 · 점프 · 공중이 되면 E가 끊김, Q 중 회피 · 점프 입력은 버림. 둘 다 땅 위에서만. Q 무적 중 적 공격은 Avoided(저스트 보상은 회피 무적일 때만)
+- 입력 E · 패드 RB / Q · 패드 Y. HUD 오른쪽 아래 두 칸(E 쿨 덮개 · 남은 초, Q 원형 게이지 · 현재/40, 가득이면 금색). 상태 색 궁극기 금색 · 스킬 청록
 
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
@@ -210,6 +226,8 @@
 - 낙하: 높이 1.0m부터(0.99m TooLow), 등반 · 회피 불가 · 활공 가능, 떨어진 높이 5m 기준 1.28 / 1.60, 착지 판정 한 번 · 대상마다 한 번, 경직 0.40초 · 회피 · 점프로 끊김, 경직 0이어도 판정 → `ChargedPlungeTests`
 - 6 · 7번 강공격 · 낙하 값 그대로 · 강공격 45 + 58 · 낙하 102 / 128 · 길게 누르기 18스텝 · 낙하 최소 높이 < 점프 높이 < 높은 낙하 → `CombatTuningAssetTests.Sword_ChargedAndPlunge_MatchBalance6` · `Combat_ChargeAndPlunge_MatchBalance7` · `ChargedAndPlunge_AreConsistent`
 - 경직 · 그로기 · 저스트: 그로기 피해 47 · 47 · 62 · 68 · 88, 2콤보 5타에 그로기 · 반격이면 1콤보, 8스텝 Just · 9 Avoided · 10 Hit, 주기 3.4초 · 예고 시작 2.0초 · 닿음 2.8초, 9번 표 값 그대로 → `PoiseJustDodgeTests` · `PoiseTuningAssetTests`
+- 스킬 · 궁극기: 짧게 26스텝 · 판정 5스텝 · 내딛기 0.4m, 길게 25스텝 뒤 · 42스텝 · 1.5m, 쿨 5초(250스텝) · 8 · 12, 에너지는 한 번에 10/15 · 짧게 4번이면 가득, Q는 가득이어야 · 60스텝 무적 · 회피로 안 끊김 · 궁극기 중 에너지 0, 누르는 중 회피면 쿨 안 씀 → `SkillBurstTests`
+- 10번 값: 136 · 96+160 · 320, 시간은 0.02 배수, 60+30+16 ≥ 100 → `SkillTuningAssetTests`
 
 ## 실험 기록
 | 날짜 | 무엇 | 결과 |
@@ -220,3 +238,4 @@
 | 2026-11-25 | TestField 코드 주입 플레이 (2-1) | 1 ~ 5타 이어짐(2타는 0.40초에 시작), 피해 36 · 36 · 48 · 52 · 68, 1 · 2타는 허수아비 둘을 한 번씩, 3 ~ 5타는 내딛은 뒤 한쪽만(다른 쪽은 부채꼴 밖), 0.5초 대기로 끊김, 점프 · 회피로 끊김, 등반 · 활공 · 공중 공격 막힘, 공격력 ×10(360)으로 두 대에 쓰러짐 → 2.98초 뒤 600으로 다시 섬, 공격 뒤 회피 3.500m |
 | 2026-11-25 | TestField 코드 주입 플레이 (2-2) | 길게 누르기 → 0.38초(누른 스텝 + 18)에 강공격 · 240 → 220 · 45 · 58이 허수아비 둘에 · 0.84초, 스태미나 19면 NoStamina · 1타만, 3타 중 강공격 → 다음 1타, DummiesAir(10.02m) 낙하 20 m/s · 0.5초에 착지 · 9.97m 높은 낙하 128 둘(셋째 4.16m 범위 밖) · 경직 0.40초, 점프 정점 1.01m에서 낮은 낙하(1.03m) 102 둘 · 0.20m에서는 TooLow, 활공 중 낙하(활공 접힘), 착지 경직 회피 · 점프로 끊김, 등반 중 막힘, 강공격 중 회피 3.500m |
 | 2026-11-25 | TestField 코드 주입 플레이 (2-3) | 2콤보 5타 4.46초에 그로기 · 그로기 중 1타 47 · 4.84초에 풀림, 저스트 8스텝 Just · 9 Avoided · 10 Hit, 슬로모션 실제 0.8초(게임 0.22초), 반격 경직 ×2로 1콤보 그로기, 낙하 경직 35 |
+| 2026-11-25 | TestField 코드 주입 플레이 (2-4) | E 짧게 136 둘 · 에너지 +10 한 번 · 쿨 250스텝, E 길게 26스텝째 Hold · 96/160 · +15, 처치 +5, Q 320 셋 · 1.2초 무적 · 회피/점프 무시 · 공격 허수아비 Avoided, 쿨 중 Q 막힘, 궁극기 처치 에너지 0, 공중 E Airborne, 누르는 중 회피 쿨 안 씀 |

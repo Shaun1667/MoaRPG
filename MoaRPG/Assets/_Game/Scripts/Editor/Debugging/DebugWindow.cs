@@ -21,6 +21,7 @@ namespace Moa.Editor.Debugging
             new ClimbGlideSection(),
             new CombatSection(),
             new PoiseSection(),
+            new SkillSection(),
         };
 
         bool[] _open;
