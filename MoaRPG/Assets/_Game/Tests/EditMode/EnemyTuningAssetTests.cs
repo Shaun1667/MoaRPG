@@ -12,6 +12,7 @@ namespace Moa.Tests
     {
         const string GruntPath = "Assets/_Game/Data/Enemies/Grunt.asset";
         const string SwordPath = "Assets/_Game/Data/Weapons/Sword.asset";
+        const string HeroPath = "Assets/_Game/Data/Characters/SwordHero.asset"; // 2-6: 공격력 = 캐릭터 + 무기
         const string CombatPath = "Assets/_Game/Data/Combat/CombatTuning.asset";
         const string MovementPath = "Assets/_Game/Data/Player/MovementTuning.asset";
         const string StaminaPath = "Assets/_Game/Data/Player/StaminaTuning.asset";
@@ -87,7 +88,7 @@ namespace Moa.Tests
             int combo = 0;
             for (int i = 0; i < w.StepCount; i++)
             {
-                int d = DamageMath.Compute(w.BaseAttack, w.GetStep(i).multiplier, g.Defense, c.DefenseConstant);
+                int d = DamageMath.Compute(Load<CharacterData>(HeroPath).TotalAttack, w.GetStep(i).multiplier, g.Defense, c.DefenseConstant);
                 Assert.That(d, Is.EqualTo(expected[i]), "hit " + (i + 1));
                 combo += d;
             }

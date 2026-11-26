@@ -293,6 +293,9 @@ namespace Moa.Unity
         public HitReport DebugLastHit => DebugHasCombat ? playerCombat.LastHit : default;
         public float DebugAttack => DebugHasCombat ? playerCombat.Attack : 0f;
         public float DebugAttackScale => DebugHasCombat ? playerCombat.AttackScale : 0f;
+        /// <summary>현재 캐릭터 기본 공격력 · 무기 기본 공격력 (2-6, 합 × 디버그 배수 = DebugAttack).</summary>
+        public float DebugCharacterAttack => DebugHasCombat ? playerCombat.CharacterAttack : 0f;
+        public float DebugWeaponAttack => DebugHasCombat ? playerCombat.WeaponAttack : 0f;
         public string DebugWeaponName => playerCombat != null && playerCombat.Weapon != null ? playerCombat.Weapon.name : "-";
         public long DebugPlayerEntityId => playerCombat != null ? playerCombat.Id.Value : 0;
         public TrainingDummy[] DebugDummies => trainingDummies;

@@ -16,4 +16,4 @@ MonoBehaviour:
   color: {r: 0.28, g: 0.28, b: 0.34, a: 1}
   weapon: {fileID: 11400000, guid: 735eb6454e776364b9b10501d0ed4641, type: 2}
   skills: {fileID: 11400000, guid: 0fea42785faea224c96198169dc82e44, type: 2}
-  baseAttack: 10
+  baseAttack: 70

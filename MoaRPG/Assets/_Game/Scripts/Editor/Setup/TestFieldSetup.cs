@@ -38,6 +38,7 @@ namespace Moa.Editor.Setup
         public const string SkillTuningPath = "Assets/_Game/Data/Skills/SwordHero.asset";       // 2-4: 지금 캐릭터(한손검)의 스킬 · 궁극기 (SkillTuning)
         public const string GruntTuningPath = "Assets/_Game/Data/Enemies/Grunt.asset";          // 2-5: 근접 졸병 (EnemyTuning)
         public const string PartyPath = "Assets/_Game/Data/Characters/Party.asset";             // 2-6: 교체 수치 + 시작 파티 (PartyTuning, 캐릭터는 같은 폴더)
+        public const string HeroCharacterPath = "Assets/_Game/Data/Characters/SwordHero.asset"; // 2-6: 파티가 없을 때 캐릭터 기본 공격력 (CharacterData)
 
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
@@ -250,6 +251,7 @@ namespace Moa.Editor.Setup
             var skills = LoadOrCreate<SkillTuning>(SkillTuningPath);
             var grunt = LoadOrCreate<EnemyTuning>(GruntTuningPath); // 2-5
             var party = LoadOrCreate<PartyTuning>(PartyPath); // 2-6
+            var hero = LoadOrCreate<CharacterData>(HeroCharacterPath); // 2-6: 파티 없이 쓸 때의 캐릭터 공격력
 
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
@@ -266,7 +268,7 @@ namespace Moa.Editor.Setup
             BuildLight();
             BuildEnvironment(mats);
             var points = BuildDebugPoints();
-            var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, skills, party, inputAsset, mats);
+            var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, skills, party, hero, inputAsset, mats);
             var camera = BuildCamera(cam, player.transform);
             var gauge = BuildHud();
             var poiseBars = PoiseBars.CreateIn(gauge.transform.parent, PoiseBackColor, PoiseFillColor, PoiseGroggyColor, PoiseBarSize, PoiseBarHeight); // 숫자보다 먼저 = 아래에 그린다
@@ -459,7 +461,7 @@ namespace Moa.Editor.Setup
         }
 
         static PlayerMotor BuildPlayer(MovementTuning tuning, StaminaTuning stamina, ClimbTuning climb, GlideTuning glide,
-            WeaponTuning weapon, CombatTuning combatTuning, SkillTuning skills, PartyTuning party, Object inputAsset, Materials mats)
+            WeaponTuning weapon, CombatTuning combatTuning, SkillTuning skills, PartyTuning party, CharacterData character, Object inputAsset, Materials mats)
         {
             float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
             if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: MovementTuning capsule size is empty - fill it and run again");
@@ -517,6 +519,7 @@ namespace Moa.Editor.Setup
             Set(combat, "tuning", combatTuning);
             Set(combat, "skills", skills); // 2-4
             Set(combat, "party", party); // 2-6: 캐릭터마다 무기 · 스킬 · 색 (weapon · skills 칸은 파티가 없을 때)
+            Set(combat, "character", character); // 2-6: 파티가 없을 때 무기에 더하는 캐릭터 기본 공격력
 
             var pivot = new GameObject("SwordPivot").transform;
             pivot.SetParent(visual, false);

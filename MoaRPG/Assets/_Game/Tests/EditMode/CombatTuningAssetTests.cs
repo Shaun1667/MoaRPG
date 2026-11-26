@@ -15,6 +15,7 @@ namespace Moa.Tests
         const string CombatPath = "Assets/_Game/Data/Combat/CombatTuning.asset";
         const string DummyPath = "Assets/_Game/Data/Enemies/TrainingDummy.asset";
         const string MovementPath = "Assets/_Game/Data/Player/MovementTuning.asset";
+        const string HeroPath = "Assets/_Game/Data/Characters/SwordHero.asset"; // 2-6: 공격력 = 캐릭터 60 + 무기 40
         const float Eps = 1e-4f;
         const float FixedStep = 0.02f;
 
@@ -46,7 +47,7 @@ namespace Moa.Tests
         public void Sword_MatchesBalance6()
         {
             var w = Load<WeaponTuning>(SwordPath);
-            Assert.That(w.BaseAttack, Is.EqualTo(100f).Within(Eps));
+            Assert.That(w.BaseAttack, Is.EqualTo(40f).Within(Eps), "weapon attack; the hero adds 60 (BALANCE 12)");
             Assert.That(w.ComboResetTime, Is.EqualTo(0.5f).Within(Eps));
             Assert.That(w.AttackMoveFactor, Is.EqualTo(0f).Within(Eps));
             Assert.That(w.HitRange, Is.EqualTo(2.2f).Within(Eps));
@@ -133,6 +134,7 @@ namespace Moa.Tests
             var c = Load<CombatTuning>(CombatPath);
             var d = Load<DummyTuning>(DummyPath);
             var m = Load<MovementTuning>(MovementPath);
+            float atk = Load<CharacterData>(HeroPath).TotalAttack;
             float total = 0f;
             int damage = 0;
             for (int i = 0; i < w.ChargedSlashCount; i++)
@@ -146,7 +148,7 @@ namespace Moa.Tests
                     Assert.That(steps, Is.EqualTo((float)System.Math.Round(steps)).Within(1e-3f), at + ": times are whole fixed steps");
                 }
                 total += s.windup + s.active + s.recovery;
-                damage += DamageMath.Compute(w.BaseAttack, s.multiplier, d.Defense, c.DefenseConstant);
+                damage += DamageMath.Compute(atk, s.multiplier, d.Defense, c.DefenseConstant);
             }
             Assert.That(total, Is.EqualTo(0.84f).Within(1e-3f));
             Assert.That(damage, Is.EqualTo(45 + 58), "100 x 0.56 / 0.72 against defense 100");
@@ -158,8 +160,8 @@ namespace Moa.Tests
             Assert.That(c.PlungeHighHeight, Is.GreaterThan(m.JumpHeight));
             Assert.That(c.PlungeFallSpeed, Is.LessThanOrEqualTo(m.MaxFallSpeed));
             Assert.That(w.PlungeHighMultiplier, Is.GreaterThan(w.PlungeLowMultiplier));
-            Assert.That(DamageMath.Compute(w.BaseAttack, w.PlungeLowMultiplier, d.Defense, c.DefenseConstant), Is.EqualTo(102));
-            Assert.That(DamageMath.Compute(w.BaseAttack, w.PlungeHighMultiplier, d.Defense, c.DefenseConstant), Is.EqualTo(128));
+            Assert.That(DamageMath.Compute(atk, w.PlungeLowMultiplier, d.Defense, c.DefenseConstant), Is.EqualTo(102));
+            Assert.That(DamageMath.Compute(atk, w.PlungeHighMultiplier, d.Defense, c.DefenseConstant), Is.EqualTo(128));
             Assert.That(w.PlungeRange, Is.GreaterThan(w.HitRange), "landing area is wider than a swing");
         }
 
@@ -170,6 +172,7 @@ namespace Moa.Tests
             var c = Load<CombatTuning>(CombatPath);
             var d = Load<DummyTuning>(DummyPath);
             var m = Load<MovementTuning>(MovementPath);
+            float atk = Load<CharacterData>(HeroPath).TotalAttack;
             float total = 0f;
             int comboDamage = 0;
             for (int i = 0; i < w.StepCount; i++)
@@ -184,7 +187,7 @@ namespace Moa.Tests
                     Assert.That(steps, Is.EqualTo((float)System.Math.Round(steps)).Within(1e-3f), at + ": times are whole fixed steps");
                 }
                 total += s.windup + s.active + s.recovery;
-                comboDamage += DamageMath.Compute(w.BaseAttack, s.multiplier, d.Defense, c.DefenseConstant);
+                comboDamage += DamageMath.Compute(atk, s.multiplier, d.Defense, c.DefenseConstant);
             }
             // 원신 한손검 체감: 5타 약 2.5초, 허수아비는 2 ~ 3 콤보에 쓰러진다
             Assert.That(total, Is.EqualTo(2.48f).Within(1e-3f));

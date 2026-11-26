@@ -13,6 +13,7 @@ namespace Moa.Tests
     {
         const string SkillsPath = "Assets/_Game/Data/Skills/SwordHero.asset";
         const string SwordPath = "Assets/_Game/Data/Weapons/Sword.asset";
+        const string HeroPath = "Assets/_Game/Data/Characters/SwordHero.asset"; // 2-6: 공격력 = 캐릭터 + 무기
         const string CombatPath = "Assets/_Game/Data/Combat/CombatTuning.asset";
         const string DummyPath = "Assets/_Game/Data/Enemies/TrainingDummy.asset";
         const float Eps = 1e-4f;
@@ -97,7 +98,9 @@ namespace Moa.Tests
         public void SkillAndBurst_AreConsistent()
         {
             var t = Load<SkillTuning>(SkillsPath);
+            var hero = Load<CharacterData>(HeroPath);
             var w = Load<WeaponTuning>(SwordPath);
+            Assert.That(hero.Weapon, Is.SameAs(w));
             var c = Load<CombatTuning>(CombatPath);
             var d = Load<DummyTuning>(DummyPath);
             SkillRules sr = t.ToSkillRules();
@@ -112,7 +115,7 @@ namespace Moa.Tests
             Assert.That(br.Cooldown, Is.GreaterThan(sr.Hold.Cooldown));
 
             // 허수아비(방어 100)에 피해: 짧게 136 · 길게 96 + 160 · 궁극기 320
-            int Hit(float m) => DamageMath.Compute(w.BaseAttack, m, d.Defense, c.DefenseConstant);
+            int Hit(float m) => DamageMath.Compute(hero.TotalAttack, m, d.Defense, c.DefenseConstant);
             Assert.That(Hit(sr.Tap.Slash(0).Multiplier), Is.EqualTo(136));
             Assert.That(Hit(sr.Hold.Slash(0).Multiplier) + Hit(sr.Hold.Slash(1).Multiplier), Is.EqualTo(256));
             Assert.That(Hit(br.Slash(0).Multiplier), Is.EqualTo(320));

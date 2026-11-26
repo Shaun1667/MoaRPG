@@ -31,7 +31,7 @@ namespace Moa.Unity.Data
             public float poise;
         }
 
-        [Tooltip("Weapon attack (character attack is added later)")]
+        [Tooltip("Weapon base attack; the character base attack is added to it (CharacterData)")]
         [SerializeField] float baseAttack;
         [Tooltip("Normal attack combo, one row per hit")]
         [SerializeField] Step[] steps;

@@ -18,7 +18,7 @@ namespace Moa.Unity.Combat
     /// 레이어 추가 없이 자기 콜라이더는 뺀다. 같은 휘두르기 · 같은 낙하에 같은 대상은 한 번만(ID 기준).
     /// 몸 방향: 단계(베기)가 시작될 때 이동 입력이 있으면 그쪽, 없으면 autoAimRange 안의 가장 가까운 적, 그것도 없으면 지금 방향.
     /// 2-6 파티: party(PartyTuning)가 있으면 캐릭터마다 PlayerAttack을 따로 두고(Core Party), 교체 입력(1 ~ 4)으로 현재 캐릭터를 바꾼다 —
-    /// 무기 · 스킬 · 공격력은 현재 캐릭터 것(<see cref="Weapon"/> · <see cref="Skills"/> · <see cref="Attack"/>). 없으면 weapon · skills 칸 하나로(2-5까지와 같음).
+    /// 무기 · 스킬 · 공격력은 현재 캐릭터 것(<see cref="Weapon"/> · <see cref="Skills"/> · <see cref="Attack"/>). 없으면 weapon · skills 칸 하나로(2-5까지와 같음) + character 칸의 캐릭터 기본 공격력.
     /// GameRoot가 Bind · SetId로 연결한다.
     /// </summary>
     [RequireComponent(typeof(PlayerMotor))]
@@ -32,6 +32,8 @@ namespace Moa.Unity.Combat
         [SerializeField] SkillTuning skills;
         [Tooltip("Party of up to 4 characters (2-6). Empty = one character with the weapon / skills above")]
         [SerializeField] PartyTuning party;
+        [Tooltip("Character whose base attack is added to the weapon above when there is no party (2-5 way). Only its base attack is used")]
+        [SerializeField] CharacterData character;
 
         readonly Collider[] _overlap = new Collider[MaxOverlap];
         IPlayerInput _input;
@@ -86,6 +88,10 @@ namespace Moa.Unity.Combat
         /// <summary>지금 공격력 = (캐릭터 기본 공격력 + 무기 공격력) × 디버그 배수.</summary>
         public float Attack => Weapon != null ? (_baseAttack + Weapon.BaseAttack) * _attackScale : 0f;
         public float AttackScale { get => _attackScale; set => _attackScale = value > 0f ? value : 0f; }
+        /// <summary>현재 캐릭터 기본 공격력 (파티가 없으면 character 칸, Bind 전에는 0).</summary>
+        public float CharacterAttack => _baseAttack;
+        /// <summary>현재 무기 기본 공격력.</summary>
+        public float WeaponAttack => Weapon != null ? Weapon.BaseAttack : 0f;
         public HitReport LastHit { get; private set; }
         public int HitCount { get; private set; }
         /// <summary>마지막 낙하 착지 자리 (발) · 그때 맞힌 수.</summary>
@@ -148,7 +154,8 @@ namespace Moa.Unity.Combat
             _characters = new CharacterData[0];
             _weapon = weapon;
             _skills = skills;
-            _baseAttack = 0f;
+            if (character == null) Debug.LogWarning("PlayerCombat: no party and no character - attack is the weapon attack only");
+            _baseAttack = character != null ? character.BaseAttack : 0f;
             _attack = Build(weapon, skills, name);
         }
 

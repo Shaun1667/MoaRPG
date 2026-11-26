@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Moa.Core.Combat;
+using Moa.Unity.Combat;
 using Moa.Unity.Data;
 using NUnit.Framework;
 using UnityEditor;
@@ -15,6 +16,7 @@ namespace Moa.Tests
         const string PartyPath = "Assets/_Game/Data/Characters/Party.asset";
         const string SwordPath = "Assets/_Game/Data/Weapons/Sword.asset";
         const string HeroSkillsPath = "Assets/_Game/Data/Skills/SwordHero.asset";
+        const string HeroPath = "Assets/_Game/Data/Characters/SwordHero.asset";
         const string CombatPath = "Assets/_Game/Data/Combat/CombatTuning.asset";
         const string DummyPath = "Assets/_Game/Data/Enemies/TrainingDummy.asset";
         const float Eps = 1e-4f;
@@ -95,7 +97,8 @@ namespace Moa.Tests
             var hero = p.GetMember(0);
             Assert.That(hero.Weapon, Is.SameAs(Load<WeaponTuning>(SwordPath)));
             Assert.That(hero.Skills, Is.SameAs(Load<SkillTuning>(HeroSkillsPath)));
-            Assert.That(hero.BaseAttack, Is.EqualTo(0f), "attack = 0 + weapon 100, as before");
+            Assert.That(hero.BaseAttack, Is.EqualTo(60f).Within(Eps), "character 60 + weapon 40 = 100, as before");
+            Assert.That(hero.Weapon.BaseAttack, Is.EqualTo(40f).Within(Eps));
             Assert.That(hero.TotalAttack, Is.EqualTo(100f).Within(Eps));
             var w = hero.Weapon;
             var combo = new int[w.StepCount];
@@ -103,6 +106,59 @@ namespace Moa.Tests
             Assert.That(combo, Is.EqualTo(new[] { 36, 36, 48, 52, 68 }));
             Assert.That(Hit(hero.TotalAttack, hero.Skills.Tap.slashes[0].multiplier), Is.EqualTo(136));
             Assert.That(Hit(hero.TotalAttack, hero.Skills.GetBurstSlash(0).multiplier), Is.EqualTo(320));
+        }
+
+        [Test]
+        public void CharacterAndWeaponAttack_AreSeparate_TotalsAsBefore()
+        {
+            var p = Load<PartyTuning>(PartyPath);
+            Assert.That(Load<WeaponTuning>(SwordPath).BaseAttack, Is.EqualTo(40f).Within(Eps), "Sword weapon attack");
+            // 칸: 캐릭터 기본 공격력 → 합 (2-6 처음과 같은 100 · 100 · 110 · 100)
+            float[] character = { 60f, 60f, 70f, 60f };
+            float[] total = { 100f, 100f, 110f, 100f };
+            for (int i = 0; i < p.MemberCount; i++)
+            {
+                var c = p.GetMember(i);
+                Assert.That(c.BaseAttack, Is.EqualTo(character[i]).Within(Eps), c.name + " character attack");
+                Assert.That(c.TotalAttack, Is.EqualTo(c.BaseAttack + c.Weapon.BaseAttack).Within(Eps), c.name);
+                Assert.That(c.TotalAttack, Is.EqualTo(total[i]).Within(Eps), c.name + " total");
+            }
+        }
+
+        [Test]
+        public void PlayerCombat_WithoutParty_AddsCharacterAttack_LikeWithParty()
+        {
+            var go = new UnityEngine.GameObject("PartyAssetTests_Player");
+            try
+            {
+                var pc = go.AddComponent<PlayerCombat>();
+                var so = new SerializedObject(pc);
+                so.FindProperty("weapon").objectReferenceValue = Load<WeaponTuning>(SwordPath);
+                so.FindProperty("tuning").objectReferenceValue = Load<CombatTuning>(CombatPath);
+                so.FindProperty("skills").objectReferenceValue = Load<SkillTuning>(HeroSkillsPath);
+                so.FindProperty("character").objectReferenceValue = Load<CharacterData>(HeroPath);
+                so.ApplyModifiedPropertiesWithoutUndo();
+
+                // 파티 없음 (2-5 방식): 영웅 60 + 한손검 40
+                pc.Bind(null);
+                Assert.That(pc.Party, Is.Null);
+                Assert.That(pc.CharacterAttack, Is.EqualTo(60f).Within(Eps));
+                Assert.That(pc.WeaponAttack, Is.EqualTo(40f).Within(Eps));
+                Assert.That(pc.Attack, Is.EqualTo(100f).Within(Eps));
+                Assert.That(Hit(pc.Attack, pc.Weapon.GetStep(0).multiplier), Is.EqualTo(36));
+
+                // 파티 있음: 1번 영웅도 같은 100
+                so.FindProperty("party").objectReferenceValue = Load<PartyTuning>(PartyPath);
+                so.ApplyModifiedPropertiesWithoutUndo();
+                pc.Bind(null);
+                Assert.That(pc.Party, Is.Not.Null);
+                Assert.That(pc.Attack, Is.EqualTo(100f).Within(Eps));
+                Assert.That(pc.CharacterAttack, Is.EqualTo(60f).Within(Eps));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(go);
+            }
         }
 
         [Test]

@@ -24,6 +24,10 @@ namespace Moa.Editor.Debugging
                 EditorGUILayout.LabelField("현재", party != null
                     ? root.DebugPartyActiveSlot + "번 " + Name(root, root.DebugPartyActiveSlot) + " · 몸 색 " + root.DebugPartyBodyCharacter
                     : "-");
+                EditorGUILayout.LabelField("공격력", root != null
+                    ? "캐릭터 " + root.DebugCharacterAttack.ToString("0.#") + " + 무기 " + root.DebugWeaponAttack.ToString("0.#") + " = "
+                      + (root.DebugCharacterAttack + root.DebugWeaponAttack).ToString("0.#") + " (×" + root.DebugAttackScale.ToString("0.##") + " → " + root.DebugAttack.ToString("0.#") + ")"
+                    : "-");
                 EditorGUILayout.LabelField("교체 쿨", party != null
                     ? party.CooldownLeft.ToString("0.00") + " / " + party.Rules.SwitchCooldown.ToString("0.00") + "초 · 교체 " + party.SwitchCount
                       + "번 · 막힘 " + party.LastBlock + " · 끊은 공격 " + party.LastInterrupted
@@ -44,6 +48,10 @@ namespace Moa.Editor.Debugging
                         Rect r = EditorGUILayout.GetControlRect(false, EditorGUIUtility.singleLineHeight);
                         EditorGUI.ProgressBar(r, m.Energy.Ratio, "에너지 " + m.Energy.Current.ToString("0.#") + " / " + m.Energy.Max.ToString("0") + (m.Energy.Full ? " (가득)" : ""));
                     }
+                    var cd = root.DebugPartyCharacter(slot);
+                    if (cd != null)
+                        EditorGUILayout.LabelField("      공격력", "캐릭터 " + cd.BaseAttack.ToString("0.#") + " + 무기 " + (cd.Weapon != null ? cd.Weapon.BaseAttack.ToString("0.#") + " (" + cd.Weapon.name + ")" : "-")
+                            + " = " + cd.TotalAttack.ToString("0.#"));
                     EditorGUILayout.LabelField("      쿨", "E " + m.Skill.CooldownLeft.ToString("0.00") + "초 · Q " + m.Burst.CooldownLeft.ToString("0.00")
                         + "초 · 지금 " + m.Mode + " · 콤보 끝 " + m.Combo.LastEnd);
                 }

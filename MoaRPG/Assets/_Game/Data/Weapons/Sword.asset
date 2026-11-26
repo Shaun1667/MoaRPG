@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d3db7b7f5d4fa5e48b0cb652c0de798f, type: 3}
   m_Name: Sword
   m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.WeaponTuning
-  baseAttack: 100
+  baseAttack: 40
   steps:
   - multiplier: 0.45
     windup: 0.1

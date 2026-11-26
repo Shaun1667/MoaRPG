@@ -12,6 +12,7 @@ namespace Moa.Tests
     public class PoiseTuningAssetTests
     {
         const string SwordPath = "Assets/_Game/Data/Weapons/Sword.asset";
+        const string HeroPath = "Assets/_Game/Data/Characters/SwordHero.asset"; // 2-6: 공격력 = 캐릭터 + 무기
         const string CombatPath = "Assets/_Game/Data/Combat/CombatTuning.asset";
         const string DummyPath = "Assets/_Game/Data/Enemies/TrainingDummy.asset";
         const string AttackPath = "Assets/_Game/Data/Enemies/AttackingDummy.asset";
@@ -116,7 +117,7 @@ namespace Moa.Tests
             Assert.That(WholeSteps(d.GroggyDuration) && WholeSteps(d.PoiseRegenDelay), Is.True);
 
             // 그로기 허수아비에 한손검 1타: 36 → 47
-            Assert.That(DamageMath.Compute(w.BaseAttack, w.GetStep(0).multiplier * d.GroggyDamageTaken, d.Defense, c.DefenseConstant), Is.EqualTo(47));
+            Assert.That(DamageMath.Compute(Load<CharacterData>(HeroPath).TotalAttack, w.GetStep(0).multiplier * d.GroggyDamageTaken, d.Defense, c.DefenseConstant), Is.EqualTo(47));
         }
     }
 }
