@@ -28,6 +28,7 @@ namespace Moa.Editor.Debugging
             new SwitchComboSection(),
             new WeaponSection(),
             new GrowthSection(),
+            new ExplorationSection(), // 3-6
         };
 
         bool[] _open;

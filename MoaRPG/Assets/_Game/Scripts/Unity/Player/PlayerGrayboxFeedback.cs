@@ -38,6 +38,8 @@ namespace Moa.Unity.Player
         [SerializeField] Color knockdownColor;
         [Tooltip("Degrees the body capsule tips over while knocked down (visual only)")]
         [SerializeField] float knockdownTilt;
+        [Tooltip("Swimming (3-6), after climb / glide")]
+        [SerializeField] Color swimColor;
 
         [Tooltip("Glider visual, shown only while gliding (1-3)")]
         [SerializeField] GameObject wings;
@@ -53,7 +55,7 @@ namespace Moa.Unity.Player
         /// <summary>지금 몸 색을 정한 캐릭터 (2-6, 없으면 null) — 디버그 · 확인용.</summary>
         public Moa.Unity.Data.CharacterData ShownCharacter => _shownCharacter;
 
-        /// <summary>지금 보이는 상태 (0 보통 · 1 질주 · 2 지침 · 3 회피 · 4 무적 · 5 등반 · 6 활공 · 7 공격 · 8 강공격 · 9 낙하 · 10 스킬 · 11 궁극기) — 디버그 · 확인용.
+        /// <summary>지금 보이는 상태 (0 보통 · 1 질주 · 2 지침 · 3 회피 · 4 무적 · 5 등반 · 6 활공 · 7 공격 · 8 강공격 · 9 낙하 · 10 스킬 · 11 궁극기 · 12 피격 · 13 전멸 · 14 넘어짐 · 15 수영(3-6, 활공 다음)) — 디버그 · 확인용.
         /// 우선순위: 회피 무적 > 궁극기 > 회피 > 스킬 > 낙하 > 강공격 > 공격 > 등반 > 활공 > 지침 > 질주 (2-4).</summary>
         public int ShownState => _shown;
         public bool WingsShown => wings != null && wings.activeSelf;
@@ -90,7 +92,7 @@ namespace Moa.Unity.Player
                 }
             }
             // 3-1: 전멸 13 > 회피 무적 > 궁극기 > 넘어짐 14 (3-4) > 피격 경직 12 > 회피 > …
-            int state = _motor.Wiped ? 13 : _motor.Invulnerable ? 4 : _motor.Bursting ? 11 : _motor.KnockedDown ? 14 : _motor.HitStunned ? 12 : _motor.Dodging ? 3 : _motor.SkillActive ? 10 : _motor.Plunging ? 9 : _motor.ChargedAttacking ? 8 : _motor.Attacking ? 7 : _motor.Climbing ? 5 : _motor.Gliding ? 6
+            int state = _motor.Wiped ? 13 : _motor.Invulnerable ? 4 : _motor.Bursting ? 11 : _motor.KnockedDown ? 14 : _motor.HitStunned ? 12 : _motor.Dodging ? 3 : _motor.SkillActive ? 10 : _motor.Plunging ? 9 : _motor.ChargedAttacking ? 8 : _motor.Attacking ? 7 : _motor.Climbing ? 5 : _motor.Gliding ? 6 : _motor.Swimming ? 15
                 : _motor.Exhausted ? 2 : _motor.Sprinting ? 1 : 0;
             var character = _motor.Combat != null ? _motor.Combat.ActiveCharacter : null;
             if (character != _shownCharacter) { _shownCharacter = character; _shown = -1; } // 2-6: 교체하면 색을 다시
@@ -104,7 +106,7 @@ namespace Moa.Unity.Player
                 body.SetPropertyBlock(_block);
                 return;
             }
-            Color c = state == 14 ? knockdownColor : state == 13 ? downedColor : state == 12 ? hitColor : state == 4 ? invulnerableColor : state == 11 ? burstColor : state == 10 ? skillColor : state == 3 ? dodgeColor : state == 9 ? plungeColor : state == 8 ? chargedColor : state == 7 ? attackColor : state == 5 ? climbColor : state == 6 ? glideColor
+            Color c = state == 14 ? knockdownColor : state == 13 ? downedColor : state == 12 ? hitColor : state == 4 ? invulnerableColor : state == 11 ? burstColor : state == 10 ? skillColor : state == 3 ? dodgeColor : state == 9 ? plungeColor : state == 8 ? chargedColor : state == 7 ? attackColor : state == 5 ? climbColor : state == 6 ? glideColor : state == 15 ? swimColor
                 : state == 2 ? exhaustedColor : sprintColor;
             body.GetPropertyBlock(_block);
             _block.SetColor(BaseColorId, c);

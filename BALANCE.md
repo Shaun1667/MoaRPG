@@ -22,6 +22,7 @@
 | 15 | `Data/Weapons/Claymore.asset` · `Bow.asset` (+ Sword.asset 새 칸) + 캐릭터 무기 · 수호자 / 떠돌이 스킬 에셋 | `WeaponTuning` · `CharacterData` · `SkillTuning` | `Moa.Tests.WeaponKindAssetTests` |
 | 16 | `Data/Enemies/Archer.asset` · `Brute.asset` (+ Grunt.asset 공격 줄) | `Moa.Unity.Data.EnemyTuning` | `Moa.Tests.EnemyVarietyAssetTests` |
 | 17 | `Data/Growth/Growth.asset` + 적 에셋 `goldOnDefeat` · `expItemsOnDefeat` + 캐릭터 에셋 `saveId` | `Moa.Unity.Data.GrowthTuning` · `EnemyTuning` · `CharacterData` | `Moa.Tests.GrowthAssetTests` |
+| 18 | `Data/Player/SwimTuning.asset` · `Data/World/Exploration.asset` | `Moa.Unity.Data.SwimTuning` · `Moa.Unity.Data.ExplorationTuning` | `Moa.Tests.ExplorationAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -358,6 +359,20 @@
 - 예: 영웅 Lv 20 돌파 1(×1.60) → 공격 96 + 40 = 136, 1타 36 → 49, E Lv 2 136 → 199, 체력 1,600. Lv 21 + 무기 Lv 3(×1.10) → 99 + 44 = 143, 1타 51, E 209, 체력 1,650 · 방어 165(Grunt 한 대 100 → 88)
 - 검산: `GrowthTests` · `GrowthAssetTests`
 
+## 18. 탐험 — 수영 · 순간이동 지점 · 상자 (TASKS 3-6) — 정한 것 (Claude, 2026-11-26, 확인 필요 — GDD에는 "수영 · 순간이동"과 1차 범위 "순간이동 지점 4, 상자 30, 퍼즐 3종"만)
+| 항목 | 값 | 근거 |
+|---|---|---|
+| enterDepth · exitDepth · floatDepth | 1.2 · 1.0 · 1.3 m | 가슴께부터 수영, 사이를 두어 떨리지 않게, 머리는 물 위(키 1.8) |
+| floatSharpness · floatMaxSpeed | 6 /s · 3 m/s | 떨어져 들어와도 금방 떠오름 |
+| speed · sprintSpeed · acceleration | 3 · 5.5 m/s · 10 m/s² | 뛰기(5.5)보다 느리게, 질주 수영 = 뛰기 |
+| drainPerSecond · sprintDrainPerSecond | 6 · 20 /s | 가만히 있어도 듦. 가득에서 40초 · 질주 12초, 지침이면 바로 익사 |
+| drownHealthRatio · shoreMargin | 0.25 · 1.0 m | 필드 캐릭터 최대 체력 25%(올림, 1 남김). 가장 가까운 물 가장자리 1m 밖 땅으로, 스태미나 가득 |
+| waypointRadius · chestRadius · plateRadius · reachHeight | 3 · 1.5 · 0.9 · 1.5 m | 다가가면 반응 (키 없음) |
+| 상자 일반 · 고급 | 골드 300 · 모험 경험 2 / 골드 1000 · 모험 경험 5 | Grunt 3마리 · Brute 2마리 정도. 표 한 줄 = 등급 하나 |
+| teleportHealsParty | false | 원신처럼 회복은 회복 지점에서 |
+- 시험 지형: 지점 3(wp_start · wp_pond · wp_cliff) · 상자 4(일반 2 · 높은 바위 고급 · 압력판 퍼즐 고급) · 퍼즐 1(압력판 3). 1차 범위의 지점 4 · 상자 30 · 퍼즐 3종은 첫 지역 지형 때
+- 검산: `ExplorationTests` · `ExplorationAssetTests`
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
@@ -386,6 +401,7 @@
 - 무기 종류: 화살 30 m/s × 0.6 s = 18m · 한 발에 한 대상 · 풀 재사용, 조준 0.8 s(40스텝) 전 떼면 AimCancelled · 뒤면 1.60, 회전 40/s · 회전마다 다시 맞음 · 떼거나 바닥나면 마무리, 대검 64/68/80/108 · 활 26/26/33/35/46 · 141, DPS 1.21/1.23/0.96/1.07 → `WeaponKindTests` · `WeaponKindAssetTests`
 - 적 추가: 궁수 100스텝째 첫 발 · 다음 130 · 5m 안 2.5 m/s 물러남, 정예 내려찍기 100스텝 · 돌진 30스텝 7.2 m · 한 번만 맞힘 · 안 멈춤, 넘어짐 60스텝 · 회피 불가 · 밀려남 15스텝, 길찾기 없으면 2-5와 같음, 72 · 160 · 120 → `EnemyVarietyTests` · `EnemyVarietyAssetTests`
 - 성장: 새 계정 Lv10 배율 1 · 레벨업 1400 → 2개 · 남은 600 · 20에서 NeedAscension · 돌파 5000 → 1.60 · 40 → 15000 · 60 MaxLevel 3.70, 스킬 합 61,000 · 1.80, 무기 1개 = Lv3(340 남음) · 40 = 2.95, 모자라면 그대로, 저장 왕복 · 범위 고치기 · 깨진 파일 백업, 36 → 49 · 136 → 199 · 1600 → `GrowthTests` · `GrowthAssetTests`
+- 탐험: 수영 1.2m 시작 · 1.0 미만 끝 · 6/s(40초) · 20/s(12초) · 지침이면 바로 익사 · 떠 있는 깊이 1.3 · 익사 250(1000) · 213(850) · 1 남김, 지점 한 번만 활성화 · 꺼진 지점 NotActivated · 전멸 중 Busy, 상자 300/2 · 1000/5 한 번만, 퍼즐 판 켜진 채 · 셋이면 풀림 · 잠긴 상자 열림, 저장 형식 1 → 2(world 빈 것, 성장 그대로) · 왕복 · 다른 지역 id 보존 → `ExplorationTests` · `ExplorationAssetTests`
 - 10번 값: 136 · 96+160 · 320, 시간은 0.02 배수, 60+30+16 ≥ 100 → `SkillTuningAssetTests`
 
 ## 실험 기록
@@ -405,3 +421,4 @@
 | 2026-11-26 | TestField 코드 주입 플레이 (3-3) | 떠돌이 활 연사 26 · 26 · 33 · 35 · 46(풀 1개), 조준 48스텝 · 141, 수호자 대검 64 · 68 · 80 · 108, 회전 2.5초 5바퀴 · 92 소모 · 40/88, 등장 활 뒤로 2.00m 88 · 대검 128, Grunt 12.1m 원거리 명중, 영웅 36 · E 136 그대로 |
 | 2026-11-26 | TestField 코드 주입 플레이 (3-4) | Grunt 엄폐벽 돌아 70스텝째 100, 궁수 12m · 100스텝 첫 발 · 72 · 옆 회피 빗나감 · 0.88m Just, 3m면 물러남, 정예 내려찍기 160 · 넘어짐 60스텝 → 돌진 120, 그로기 동안 공격 0, 전원 쓰러짐 뒤 적 6 집 |
 | 2026-11-26 | TestField 코드 주입 플레이 (3-5) | 새 계정 체력 1000/1300/850/900 · 1타 36, Brute 처치 골드 500 · 경험 5, 레벨업 10 → 20 · 돌파 · 21, E · Q · 무기 올리기 → 영웅 체력 1650 · 공격 143 · 1타 51 · E 209 · Grunt 한 대 88, Play 다시 켜면 그대로 |
+| 2026-11-26 | TestField 코드 주입 플레이 (3-6) | 수영 깊이 1.32 시작 · 3.0 m/s · 6/s, 질주 5.5 m/s · 20/s, 벽 붙어 올라섬, 경사 0.99에서 걸어 나옴, 활공 · 낙하로 물에 들어감, 스태미나 3에서 익사 → 물가 · 1000 → 750, 지점 2.9m 활성화, 지도 순간이동(회복 없음), 상자 300/2 · 1000/5 · 1000/5, 퍼즐 1/3 · 2/3 · 풀림, Play 다시 켜도 그대로 |

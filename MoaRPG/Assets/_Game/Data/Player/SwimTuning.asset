@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 824451fc886d32a4d921deb0b75f1f9a, type: 3}
+  m_Name: SwimTuning
+  m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.SwimTuning
+  enterDepth: 1.2
+  exitDepth: 1
+  floatDepth: 1.3
+  floatSharpness: 6
+  floatMaxSpeed: 3
+  speed: 3
+  sprintSpeed: 5.5
+  acceleration: 10
+  drainPerSecond: 6
+  sprintDrainPerSecond: 20
+  drownHealthRatio: 0.25
+  shoreMargin: 1

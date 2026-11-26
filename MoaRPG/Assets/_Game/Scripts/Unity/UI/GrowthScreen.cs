@@ -96,7 +96,8 @@ namespace Moa.Unity.UI
 
         void Update()
         {
-            if (_input != null && _input.ConsumeCharacterMenu()) SetOpen(!Open);
+            // 3-6: 다른 메뉴(지도)가 열려 있으면 열지 않는다 — 열린 화면만 닫힌다
+            if (_input != null && _input.ConsumeCharacterMenu() && (Open || !_input.MenuOpen)) SetOpen(!Open);
         }
 
         void LateUpdate()
@@ -292,14 +293,14 @@ namespace Moa.Unity.UI
             return go;
         }
 
-        static void Stretch(RectTransform rt)
+        internal static void Stretch(RectTransform rt) // 3-6: 지도 화면도 쓴다
         {
             rt.anchorMin = Vector2.zero;
             rt.anchorMax = Vector2.one;
             rt.offsetMin = rt.offsetMax = Vector2.zero;
         }
 
-        static RectTransform Rect(RectTransform parent, string name, Vector2 anchor, Vector2 pos, Vector2 size)
+        internal static RectTransform Rect(RectTransform parent, string name, Vector2 anchor, Vector2 pos, Vector2 size)
         {
             var go = new GameObject(name, typeof(RectTransform));
             var rt = (RectTransform)go.transform;
@@ -311,7 +312,7 @@ namespace Moa.Unity.UI
             return rt;
         }
 
-        static UiText Label(RectTransform parent, string name, int size, Color color, Color outline, TextAnchor align, Vector2 anchor, Vector2 pos, Vector2 box)
+        internal static UiText Label(RectTransform parent, string name, int size, Color color, Color outline, TextAnchor align, Vector2 anchor, Vector2 pos, Vector2 box)
         {
             var rt = Rect(parent, name, anchor, pos, box);
             var t = rt.gameObject.AddComponent<UiText>();
@@ -332,7 +333,7 @@ namespace Moa.Unity.UI
             return t;
         }
 
-        static Button MakeButton(RectTransform parent, string name, Vector2 pos, Vector2 size, Color normal, Color disabled, int fontSize, Color text, Color outline, out UiText label)
+        internal static Button MakeButton(RectTransform parent, string name, Vector2 pos, Vector2 size, Color normal, Color disabled, int fontSize, Color text, Color outline, out UiText label)
         {
             var rt = Rect(parent, name, new Vector2(0f, 1f), pos, size);
             var img = rt.gameObject.AddComponent<Image>();

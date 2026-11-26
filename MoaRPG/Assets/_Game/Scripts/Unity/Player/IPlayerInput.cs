@@ -62,6 +62,12 @@ namespace Moa.Unity.Player
         /// </summary>
         bool MenuOpen { get; set; }
 
+        /// <summary>
+        /// 눌린 지도 화면 열기/닫기를 한 번 꺼낸다 (3-6, 화면이 Update에서). 메뉴가 열려 있으면 ESC도 (캐릭터 화면 키와 함께 — 열린 화면만 닫힌다).
+        /// MenuOpen이 바뀔 때 받아 둔 메뉴 키는 버린다. 입력 에셋에 Map이 없으면 주입만.
+        /// </summary>
+        bool ConsumeMap();
+
 
         // ---- 디버그 주입 ----
         bool DebugOverriding { get; }
@@ -85,6 +91,8 @@ namespace Moa.Unity.Player
         void DebugPressSwitch(int slot);
         /// <summary>캐릭터 화면 키를 누른다 (3-5).</summary>
         void DebugPressCharacterMenu();
+        /// <summary>지도 화면 키를 누른다 (3-6).</summary>
+        void DebugPressMap();
 
         void DebugClear();
     }

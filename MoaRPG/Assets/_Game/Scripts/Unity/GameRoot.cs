@@ -3,12 +3,14 @@ using Moa.Core.Growth;
 using Moa.Core.Ids;
 using Moa.Core.Localization;
 using Moa.Core.Rng;
+using Moa.Core.World;
 using Moa.Unity.Cameras;
 using Moa.Unity.Combat;
 using Moa.Unity.Data;
 using Moa.Unity.Player;
 using Moa.Unity.Save;
 using Moa.Unity.UI;
+using Moa.Unity.World;
 using UnityEngine;
 
 namespace Moa.Unity
@@ -68,6 +70,18 @@ namespace Moa.Unity
         [SerializeField] GrowthTuning growth;
         [Tooltip("Character screen (toggle with CharacterMenu)")]
         [SerializeField] GrowthScreen growthScreen;
+        [Header("Exploration (3-6, empty in scenes without a player)")]
+        [Tooltip("Reach radii, chest rewards, teleport heal (Data/World/Exploration.asset)")]
+        [SerializeField] ExplorationTuning exploration;
+        [Tooltip("Water areas the player swims in")]
+        [SerializeField] WaterVolume[] waterVolumes;
+        [SerializeField] Waypoint[] waypoints;
+        [SerializeField] Chest[] chests;
+        [SerializeField] PressurePlate[] plates;
+        [Tooltip("Map screen (toggle with Map)")]
+        [SerializeField] MapScreen mapScreen;
+        [Tooltip("One-line exploration message at the top of the HUD")]
+        [SerializeField] WorldToast worldToast;
 
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
@@ -97,6 +111,8 @@ namespace Moa.Unity
             _input = playerInput as IPlayerInput;
             if (_input == null) { Debug.LogError("GameRoot: playerInput does not implement IPlayerInput"); return; }
             playerMotor.Bind(_input, orbitCamera);
+            playerMotor.SetWater(waterVolumes); // 3-6
+            playerMotor.Drowned += OnDrowned;
             if (orbitCamera != null) orbitCamera.Bind(_input, playerMotor);
             if (staminaGauge != null) staminaGauge.Bind(playerMotor, orbitCamera != null ? orbitCamera.GetComponent<Camera>() : Camera.main);
             BindCombat();
@@ -176,8 +192,10 @@ namespace Moa.Unity
             catch (System.ArgumentException e) { Debug.LogError("GameRoot: growth not started - " + e.Message); _growth = null; return; }
             _growthIds = ids;
             _save = new SaveStore(SaveStore.DefaultPath);
+            BindWorld(); // 3-6: 저장을 읽기 전에 지점 · 상자 · 퍼즐을 등록
             LoadGrowth();
             _growth.Changed += OnGrowthChanged;
+            if (_world != null) _world.Changed += OnWorldChanged;
             playerCombat.Defeated += OnDefeated;
             if (growthScreen != null) growthScreen.Bind(_growth, playerCombat, playerVitals, _input, UiFont.Get(config));
         }
@@ -192,7 +210,9 @@ namespace Moa.Unity
             if (_loadStatus == SaveLoadStatus.Loaded)
             {
                 int fixes = _growth.Load(snap);
+                if (_world != null) fixes += _world.Load(snap.world); // 3-6
                 if (fixes > 0) Debug.LogWarning("GameRoot: save " + _save.FilePath + " had " + fixes + " out-of-range values - fixed");
+                if (_save.LastUpgradedFrom > 0) Debug.Log("GameRoot: save " + _save.FilePath + " upgraded from format " + _save.LastUpgradedFrom + " to " + SaveFormat.Version);
             }
             else if (_loadStatus == SaveLoadStatus.Broken)
                 Debug.LogWarning("GameRoot: save " + _save.FilePath + " was broken (" + _save.LastError + ") - moved to " + _save.LastBackupPath + ", starting from zero");
@@ -235,13 +255,97 @@ namespace Moa.Unity
         {
             if (_growth == null || _save == null) return;
             _saveDirty = false;
-            if (!_save.Save(_growth.ToSnapshot())) Debug.LogWarning("GameRoot: save failed - " + _save.LastError);
+            SaveSnapshot snap = _growth.ToSnapshot();
+            if (_world != null) snap.world = _world.ToSave(); // 3-6
+            if (!_save.Save(snap)) Debug.LogWarning("GameRoot: save failed - " + _save.LastError);
         }
 
         void OnDefeated(IHitTarget target)
         {
             if (_growth != null && target is IRewardDrop r) _growth.AddReward(r.GoldOnDefeat, r.ExpItemsOnDefeat);
         }
+
+        // ---- 3-6 탐험 (수영 · 순간이동 지점 · 상자 · 퍼즐) ----
+
+        WorldProgress _world;
+
+        /// <summary>3-6: 월드 진행(지갑 = 성장의 것) — 씬의 지점 · 상자 · 퍼즐(압력판 묶음)을 등록하고 오브젝트 · 지도 · 알림을 잇는다.</summary>
+        void BindWorld()
+        {
+            _world = null;
+            if (exploration == null || _growth == null || playerMotor == null) return;
+            var world = new WorldProgress(exploration.ToRules(), _growth.Wallet);
+            try
+            {
+                if (waypoints != null) foreach (var w in waypoints) if (w != null) world.RegisterWaypoint(w.Id);
+                if (chests != null) foreach (var c in chests) if (c != null) world.RegisterChest(c.Id, c.Tier, c.PuzzleId);
+                var plateCounts = new System.Collections.Generic.Dictionary<string, int>();
+                if (plates != null)
+                    foreach (var p in plates)
+                    {
+                        if (p == null || string.IsNullOrEmpty(p.PuzzleId)) continue;
+                        plateCounts.TryGetValue(p.PuzzleId, out int n);
+                        plateCounts[p.PuzzleId] = Mathf.Max(n, p.Index + 1);
+                    }
+                foreach (var kv in plateCounts) world.RegisterPuzzle(kv.Key, kv.Value);
+            }
+            catch (System.ArgumentException e) { Debug.LogError("GameRoot: exploration not started - " + e.Message); return; }
+            _world = world;
+            Transform player = playerMotor.transform;
+            if (waypoints != null) foreach (var w in waypoints) if (w != null) w.Bind(_world, player, exploration);
+            if (chests != null) foreach (var c in chests) if (c != null) c.Bind(_world, player, exploration);
+            if (plates != null) foreach (var p in plates) if (p != null) p.Bind(_world, player, exploration);
+            _world.WaypointActivated += OnWaypointActivated;
+            _world.ChestOpened += OnChestOpened;
+            _world.PlatePressed += OnPlatePressed;
+            if (worldToast != null) worldToast.Bind(UiFont.Get(config));
+            if (mapScreen != null) mapScreen.Bind(_world, waypoints, player, _input, TeleportToWaypoint, UiFont.Get(config));
+        }
+
+        void OnWorldChanged() => _saveDirty = true;
+
+        Waypoint FindWaypoint(string id)
+        {
+            if (waypoints == null) return null;
+            foreach (var w in waypoints) if (w != null && w.Id == id) return w;
+            return null;
+        }
+
+        /// <summary>
+        /// 3-6: 활성화된 지점으로 순간이동 (지도 버튼 · 디버그 공통). 규칙은 Core WorldProgress.TryTeleport (전원 쓰러짐 연출 중이면 Busy).
+        /// 회복은 ExplorationTuning.teleportHealsParty (지금 꺼짐 — 회복은 회복 지점에서). 되면 true, 안 되면 까닭은 DebugWorld.LastTeleportBlock.
+        /// </summary>
+        public bool TeleportToWaypoint(string id)
+        {
+            if (_world == null) return false;
+            bool busy = playerVitals != null && playerVitals.Wiping;
+            Waypoint w = FindWaypoint(id);
+            if (w == null || !_world.TryTeleport(id, busy)) return false;
+            DebugTeleportPlayer(w.ArrivalPosition);
+            if (_world.Rules.TeleportHealsParty && playerVitals != null) playerVitals.RestoreAll();
+            return true;
+        }
+
+        void OnWaypointActivated(string id)
+        {
+            Waypoint w = FindWaypoint(id);
+            Toast(Text.Get("ui.world.waypoint", w != null && !string.IsNullOrEmpty(w.NameKey) ? Text.Get(w.NameKey) : id));
+        }
+
+        void OnChestOpened(string id, ChestReward reward) => Toast(Text.Get("ui.world.chest", reward.Gold, reward.ExpItems));
+
+        void OnPlatePressed(string puzzleId, PlateResult result, int lit, int count) =>
+            Toast(result == PlateResult.Solved ? Text.Get("ui.world.solved") : Text.Get("ui.world.plate", lit, count));
+
+        void OnDrowned(Vector3 shore, int damage)
+        {
+            if (orbitCamera != null) orbitCamera.SnapToTarget();
+            if (playerDefense != null) playerDefense.Cancel();
+            Toast(Text.Get("ui.world.drowned", damage));
+        }
+
+        void Toast(string text) { if (worldToast != null) worldToast.Show(text); }
+
 
         void OnPlayerHurt(Moa.Core.Combat.PlayerHit hit, Vector3 at)
         {
@@ -902,6 +1006,39 @@ namespace Moa.Unity
 
         /// <summary>[상태 변경] 캐릭터 화면을 바로 열거나 닫는다.</summary>
         public void DebugSetGrowthScreenOpen(bool open) { if (growthScreen != null) growthScreen.SetOpen(open); }
+
+        // ---- 탐험 (3-6) ----
+
+        /// <summary>월드 진행 (Core, 없으면 null) · 씬 오브젝트.</summary>
+        public WorldProgress DebugWorld => _world;
+        public Waypoint[] DebugWaypoints => waypoints;
+        public Chest[] DebugChests => chests;
+        public PressurePlate[] DebugPlates => plates;
+        public WaterVolume[] DebugWaterVolumes => waterVolumes;
+        public MapScreen DebugMapScreen => mapScreen;
+        public WorldToast DebugWorldToast => worldToast;
+        public ExplorationTuning DebugExploration => exploration;
+        public bool DebugMapOpen => mapScreen != null && mapScreen.Open;
+        /// <summary>판을 시작할 때 읽은 저장이 옛 형식이었으면 그 번호 (없으면 0).</summary>
+        public int DebugSaveUpgradedFrom => _save != null ? _save.LastUpgradedFrom : 0;
+        public bool DebugSwimming => playerMotor != null && playerMotor.Swimming;
+        public Moa.Core.Motion.Swim DebugSwim => playerMotor != null ? playerMotor.Swim : null;
+        public float DebugWaterDepth => playerMotor != null ? playerMotor.WaterDepth : 0f;
+
+        /// <summary>[상태 변경] 지도 키 주입 (열기/닫기, 다음 프레임).</summary>
+        public void DebugInputMap() => _input?.DebugPressMap();
+
+        /// <summary>[상태 변경] 지도 화면을 바로 열거나 닫는다.</summary>
+        public void DebugSetMapOpen(bool open) { if (mapScreen != null) mapScreen.SetOpen(open); }
+
+        /// <summary>[상태 변경] 모든 순간이동 지점 활성화.</summary>
+        public void DebugWorldActivateAll() => _world?.ActivateAll();
+
+        /// <summary>[상태 변경] 모든 퍼즐을 풀고 모든 상자를 연다 (보상 포함). 연 수.</summary>
+        public int DebugWorldOpenAll() => _world != null ? _world.OpenAll() : 0;
+
+        /// <summary>[상태 변경] 지점 · 상자 · 퍼즐을 모두 처음으로 (재화는 그대로 — 성장 초기화는 GrowthSection).</summary>
+        public void DebugWorldReset() => _world?.ResetAll();
 
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()

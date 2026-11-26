@@ -31,3 +31,14 @@ ui.growth.upgrade_gold,올리기 · 골드 {0},Upgrade · {0} Gold
 ui.growth.upgrade_exp,올리기 · 모험 경험 {0},Upgrade · {0} EXP
 ui.growth.max,최대,MAX
 ui.growth.need_ascend,돌파 필요,Ascend first
+ui.map.title,지도,Map
+ui.map.hint,켜진 지점을 누르면 순간이동 · M 닫기,Click a lit waypoint to teleport · M to close
+ui.map.locked,{0} · 미발견,{0} · Not found
+world.waypoint.start,시작 들판,Starting Field
+world.waypoint.pond,연못,Pond
+world.waypoint.cliff,높은 바위,High Rock
+ui.world.waypoint,순간이동 지점 활성화 · {0},Waypoint unlocked · {0}
+ui.world.chest,상자 · 골드 +{0} · 모험 경험 +{1},Chest · Gold +{0} · Adventure EXP +{1}
+ui.world.plate,압력판 {0} / {1},Pressure plate {0} / {1}
+ui.world.solved,봉인이 풀렸다,The seal is broken
+ui.world.drowned,물에 빠졌다 · 체력 -{0},Nearly drowned · HP -{0}

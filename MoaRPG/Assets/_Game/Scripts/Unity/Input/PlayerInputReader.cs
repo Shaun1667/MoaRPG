@@ -26,6 +26,8 @@ namespace Moa.Unity.Input
         InputAction _characterMenu; // 3-5: 에셋에 없으면 null (주입만 받는다)
         bool _menuLatched;
         bool _menuOpen;
+        InputAction _worldMap; // 3-6: 에셋에 없으면 null (주입만 받는다)
+        bool _mapLatched;
         float _debugSkillHoldEnd = float.NegativeInfinity; // 주입한 스킬 길게 누르기가 끝나는 고정 스텝 시각 (2-4)
 
         bool _walkMode;
@@ -90,6 +92,7 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
             _skill = _map.FindAction(PlayerControls.Skill, false); // 2-4: 없으면 조용히 건너뛴다
             _burst = _map.FindAction(PlayerControls.Burst, false);
             _characterMenu = _map.FindAction(PlayerControls.CharacterMenu, false); // 3-5: 없으면 조용히 건너뛴다
+            _worldMap = _map.FindAction(PlayerControls.Map, false); // 3-6: 없으면 조용히 건너뛴다
             _party = new InputAction[PlayerControls.PartySlots.Length]; // 2-6: 없으면 조용히 건너뛴다
             for (int i = 0; i < _party.Length; i++) _party[i] = _map.FindAction(PlayerControls.PartySlots[i], false);
 
@@ -118,7 +121,9 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
             // 3-5: 메뉴가 열려 있으면 커서를 푼 채 메뉴 키(· ESC)만 받는다 — 클릭은 버튼(uGUI)에만
             if (_menuOpen)
             {
-                if ((_characterMenu != null && _characterMenu.WasPressedThisFrame()) || _releaseCursor.WasPressedThisFrame()) _menuLatched = true;
+                bool esc = _releaseCursor.WasPressedThisFrame(); // ESC는 두 화면 키 모두 — 열린 화면만 닫히고, 닫히면 MenuOpen이 나머지를 버린다 (3-6)
+                if ((_characterMenu != null && _characterMenu.WasPressedThisFrame()) || esc) _menuLatched = true;
+                if ((_worldMap != null && _worldMap.WasPressedThisFrame()) || esc) _mapLatched = true;
                 if (CursorCaptured) SetCursorCaptured(false);
                 _lookMouse = Vector2.zero;
                 _lookStickValue = Vector2.zero;
@@ -128,6 +133,7 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
                 return;
             }
             if (_characterMenu != null && _characterMenu.WasPressedThisFrame() && !_override) _menuLatched = true;
+            if (_worldMap != null && _worldMap.WasPressedThisFrame() && !_override) _mapLatched = true; // 3-6
 
             // 커서
             // 커서 · 공격 (2-1): 커서가 풀려 있을 때의 클릭은 잠금만, 잠겨 있을 때의 클릭은 공격
@@ -254,6 +260,15 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
 
         public void DebugPressCharacterMenu() { _menuLatched = true; }
 
+        public bool ConsumeMap()
+        {
+            bool m = _mapLatched;
+            _mapLatched = false;
+            return m;
+        }
+
+        public void DebugPressMap() { _mapLatched = true; }
+
         public bool MenuOpen
         {
             get => _menuOpen;
@@ -265,6 +280,7 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
                 _jumpLatched = _dodgeLatched = _attackLatched = _skillLatched = _burstLatched = false;
                 _switchLatched = 0;
                 _debugHoldEnd = _debugSkillHoldEnd = float.NegativeInfinity;
+                _menuLatched = _mapLatched = false; // 3-6: 한 화면이 열리거나 닫히면 같은 프레임의 다른 화면 키는 버린다
                 SetCursorCaptured(!value);
             }
         }

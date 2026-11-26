@@ -46,6 +46,8 @@ namespace Moa.Core.Motion
         Cancelled,
         /// <summary>낙하 공격으로 접힘 (2-2).</summary>
         Plunge,
+        /// <summary>물에 떨어져 접힘 → 수영 (3-6).</summary>
+        Water,
     }
 
     /// <summary>

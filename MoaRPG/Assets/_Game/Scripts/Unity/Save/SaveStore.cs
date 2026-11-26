@@ -40,11 +40,14 @@ namespace Moa.Unity.Save
         public string LastBackupPath { get; private set; }
         public string LastError { get; private set; }
         public int SaveCount { get; private set; }
+        /// <summary>마지막 Load가 옛 형식을 옮겼으면 그 원래 형식 번호 (없으면 0, 3-6).</summary>
+        public int LastUpgradedFrom { get; private set; }
 
         public SaveLoadStatus Load(out SaveSnapshot snapshot)
         {
             snapshot = null;
             LastError = null;
+            LastUpgradedFrom = 0;
             if (!File.Exists(FilePath)) return SaveLoadStatus.Missing;
             SaveSnapshot s = null;
             try
@@ -57,6 +60,7 @@ namespace Moa.Unity.Save
                 LastError = e.Message;
                 s = null;
             }
+            LastUpgradedFrom = SaveFormat.Upgrade(s); // 3-6: 옛 형식(1)이면 지금 형식으로 옮긴다 (파일은 다음 저장 때 새 형식)
             if (!SaveFormat.Validate(s, out string reason))
             {
                 if (LastError == null) LastError = reason;

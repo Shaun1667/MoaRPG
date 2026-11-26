@@ -26,6 +26,7 @@ namespace Moa.Unity.Input
         public const string Skill = "Skill"; // 2-4: 스킬(E)
         public const string Burst = "Burst"; // 2-4: 궁극기(Q)
         public const string CharacterMenu = "CharacterMenu"; // 3-5: 캐릭터(성장) 화면 열기/닫기 (C · 패드 View)
+        public const string Map = "Map"; // 3-6: 지도 화면 열기/닫기 (M · 패드 Menu)
         /// <summary>2-6: 파티 교체 칸 1 ~ 4 (키 1 · 2 · 3 · 4, 패드 십자 위 · 오른쪽 · 아래 · 왼쪽).</summary>
         public static readonly string[] PartySlots = { "Party1", "Party2", "Party3", "Party4" };
         static readonly string[] PartyKeys = { "<Keyboard>/1", "<Keyboard>/2", "<Keyboard>/3", "<Keyboard>/4" };
@@ -88,6 +89,10 @@ namespace Moa.Unity.Input
             // 3-5: 캐릭터 화면 — 에셋에 없으면 PlayerInputReader가 조용히 건너뛴다
             var menu = map.AddAction(CharacterMenu, InputActionType.Button, "<Keyboard>/c");
             menu.AddBinding("<Gamepad>/select");
+
+            // 3-6: 지도 화면 — 에셋에 없으면 PlayerInputReader가 조용히 건너뛴다
+            var worldMap = map.AddAction(Map, InputActionType.Button, "<Keyboard>/m");
+            worldMap.AddBinding("<Gamepad>/start");
 
             string json = asset.ToJson();
             Object.DestroyImmediate(asset);

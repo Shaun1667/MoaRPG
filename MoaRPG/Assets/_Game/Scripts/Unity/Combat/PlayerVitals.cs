@@ -152,6 +152,21 @@ namespace Moa.Unity.Combat
             return true;
         }
 
+        /// <summary>
+        /// 3-6: 익사 피해 — 필드 캐릭터 최대 체력 × ratio (Core Swim.DrownDamage, 1은 남김 — 익사로는 쓰러지지 않는다). 방어 없음 · 경직 없음, 보호막 · 무적은 그대로.
+        /// PlayerMotor가 익사할 때 부른다. 피해 숫자는 Hurt로.
+        /// </summary>
+        public PlayerHit TakeDrownDamage(float ratio)
+        {
+            if (_vitals == null) return PlayerHit.None(0);
+            Health h = _vitals.Active;
+            int amount = Moa.Core.Motion.Swim.DrownDamage(h.Max, h.Current, ratio);
+            if (amount <= 0) return PlayerHit.None(_vitals.ActiveIndex);
+            PlayerHit hit = _vitals.TakeDamage(amount, false);
+            AfterHit(hit, transform.position);
+            return hit;
+        }
+
         /// <summary>회복 지점 안에서 한 스텝 (HealingPoint가 부른다). 찬 양.</summary>
         public int HealTick(float dt)
         {
@@ -192,7 +207,10 @@ namespace Moa.Unity.Combat
         }
 
         /// <summary>[상태 변경] 전원 가득 · 되살리기.</summary>
-        public void DebugRestoreAll()
+        public void DebugRestoreAll() => RestoreAll();
+
+        /// <summary>전원 가득 · 되살리기 (3-6: 순간이동하면 회복하는 설정일 때 GameRoot가 부른다).</summary>
+        public void RestoreAll()
         {
             if (_vitals == null) return;
             _vitals.RestoreAll();

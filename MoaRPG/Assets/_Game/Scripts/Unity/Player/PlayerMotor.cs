@@ -3,6 +3,7 @@ using Moa.Core.Motion;
 using Moa.Unity.Cameras;
 using Moa.Unity.Combat;
 using Moa.Unity.Data;
+using Moa.Unity.World;
 using UnityEngine;
 
 namespace Moa.Unity.Player
@@ -28,6 +29,8 @@ namespace Moa.Unity.Player
         [SerializeField] StaminaTuning staminaTuning;
         [SerializeField] ClimbTuning climbTuning;
         [SerializeField] GlideTuning glideTuning;
+        [Tooltip("Swimming / drowning (3-6). Empty = no swimming")]
+        [SerializeField] SwimTuning swimTuning;
         [Tooltip("Visual root (graybox now, character model later). Interpolated between physics steps.")]
         [SerializeField] Transform visual;
 
@@ -64,6 +67,13 @@ namespace Moa.Unity.Player
         float _camYaw; // 3-3: 지난 고정 스텝의 카메라 요 (조준 중 몸 방향)
         PlayerVitals _vitals; // 3-1: 피격 경직 · 전멸 연출 (없으면 체력 없음)
 
+        Swim _swim; // 3-6: 수영 (swimTuning이 없으면 null)
+        WaterVolume[] _water = new WaterVolume[0];
+        WaterVolume _inWater;
+        float _waterDepth;
+        Vector3 _lastSafe;
+        bool _hasSafe;
+
         Vector3 _prevPos, _currPos;
         Quaternion _prevRot, _currRot;
 
@@ -71,6 +81,19 @@ namespace Moa.Unity.Player
         public StaminaTuning StaminaTuning => staminaTuning;
         public ClimbTuning ClimbTuning => climbTuning;
         public GlideTuning GlideTuning => glideTuning;
+        public SwimTuning SwimTuning => swimTuning;
+        /// <summary>수영 (Core 규칙, swimTuning이 없거나 Bind 전이면 null, 3-6).</summary>
+        public Swim Swim => _swim;
+        public bool Swimming => _swim != null && _swim.Active;
+        /// <summary>지난 고정 스텝의 발 자리 물 깊이 (m, 물 밖이면 0).</summary>
+        public float WaterDepth => _waterDepth;
+        /// <summary>마지막으로 물 밖 땅을 딛고 있던 자리 (익사했는데 물가를 못 찾으면 여기로).</summary>
+        public Vector3 LastSafeGround => _lastSafe;
+        /// <summary>마지막 익사 뒤 돌아간 자리 · 그때 잃은 체력.</summary>
+        public Vector3 LastDrownShore { get; private set; }
+        public int LastDrownDamage { get; private set; }
+        /// <summary>익사해 물가로 옮겨진 뒤 (옮긴 자리, 잃은 체력) — GameRoot가 카메라 · 알림.</summary>
+        public event System.Action<Vector3, int> Drowned;
         /// <summary>스태미나 (Core 규칙, Bind 전에는 null).</summary>
         public Stamina Stamina => _stamina;
         /// <summary>회피 (Core 규칙, Bind 전에는 null).</summary>
@@ -137,6 +160,7 @@ namespace Moa.Unity.Player
             _dodge = new Dodge(staminaTuning.ToDodgeRules());
             _climb = new Climb(climbTuning.ToRules());
             _glide = new Glide(glideTuning.ToRules());
+            _swim = swimTuning != null ? new Swim(swimTuning.ToRules()) : null; // 3-6: 없으면 물에 들어가도 수영 없음
             _combat = GetComponent<PlayerCombat>();
             _vitals = GetComponent<PlayerVitals>();
             _cc.height = tuning.CapsuleHeight;
@@ -168,7 +192,7 @@ namespace Moa.Unity.Player
         /// <summary>[상태 변경] 활공을 펼친다 (공중 · 높이 · 스태미나 조건은 그대로). 펼쳤으면 true.</summary>
         public bool OpenGlide()
         {
-            if (_glide == null || _climb.Active || Plunging) return false;
+            if (_glide == null || _climb.Active || Plunging || Swimming) return false;
             _heightAboveGround = MeasureHeight();
             return _glide.TryOpen(_stamina, _grounded, _heightAboveGround);
         }
@@ -188,6 +212,7 @@ namespace Moa.Unity.Player
             _dodge?.Cancel();
             _climb?.Cancel();
             _glide?.Cancel();
+            _swim?.Cancel();
             if (_combat != null) _combat.Cancel();
             _hitPending = false;
             _currPos = _prevPos = transform.position;
@@ -208,12 +233,15 @@ namespace Moa.Unity.Player
             Planar wish = MoveMath.CameraRelative(move.x, move.y, camYaw);
 
             _heightAboveGround = MeasureHeight();
+            UpdateWater(); // 3-6: 물 깊이 → 수영 시작 · 끝 (등반 중에는 시작하지 않음)
             if (!_climb.Active && !_dodge.Active && !Attacking && !Plunging && !HitStunned && !Wiped) TryAttachWall(wish); // 공격 · 낙하 중에는 벽에 안 붙는다
 
             // 등반 중에는 회복하지 않는다 (움직이지 않고 매달려 있어도, 1-3)
             bool climbStep = _climb.Active;
             if (climbStep) StepClimb(move, dt);
+            else if (Swimming) StepSwim(wish, dt);
             else StepFree(wish, dt);
+            if (_grounded && !_climb.Active && !Swimming && _waterDepth <= 0f) { _lastSafe = transform.position; _hasSafe = true; } // 3-6: 익사 뒤 돌아갈 자리 (물가를 못 찾을 때)
 
             _climb.Tick(dt);
             _stamina.Tick(dt, !climbStep);
@@ -391,6 +419,95 @@ namespace Moa.Unity.Player
             return _combat.Step(ctx, _stamina, dt);
         }
 
+        // ---- 수영 (3-6) ----
+
+        /// <summary>[상태 변경] 물 영역 (GameRoot가 넣는다, null이면 없음).</summary>
+        public void SetWater(WaterVolume[] water) => _water = water ?? new WaterVolume[0];
+
+        /// <summary>발 자리 물 깊이를 재고, 얕아지면 수영을 끝내고 깊으면 시작한다 (등반 중에는 시작하지 않음).</summary>
+        void UpdateWater()
+        {
+            _waterDepth = WaterVolume.Deepest(_water, transform.position, out _inWater);
+            if (_swim == null) return;
+            if (_swim.ShouldExit(_waterDepth)) _swim.End(SwimEnd.Exited);
+            if (!_climb.Active && _swim.ShouldEnter(_waterDepth)) EnterWater();
+        }
+
+        /// <summary>물에 들어감 — 활공을 접고(GlideEnd.Water) · 회피 · 공격 · 낙하를 멈춘다.</summary>
+        void EnterWater()
+        {
+            _swim.Enter();
+            if (_glide.Active) _glide.Close(GlideEnd.Water);
+            _dodge.Cancel();
+            if (_combat != null) _combat.Cancel();
+            _hitPending = false;
+            _sprinting = false;
+            _airSprint = false;
+            _grounded = false;
+            _onSteep = false;
+        }
+
+        /// <summary>
+        /// 수영 스텝: 물에 있는 동안 스태미나(가만히 있어도, 질주 수영은 더), 바닥나면 익사. 입력 방향(카메라 기준)으로 수영 속력,
+        /// 수직은 떠 있는 깊이로. 공격 · 스킬 · 궁극기 · 회피 · 점프(활공) 입력은 버린다. 파티 교체는 된다.
+        /// </summary>
+        void StepSwim(Planar wish, float dt)
+        {
+            _dodge.Advance(dt); // 쿨만 줄어든다
+            _input.ConsumeDodge();
+            _input.ConsumeJump();
+            CombatStep(new AttackContext(false, false, true, false), dt); // 수영 중 공격 입력은 버린다 (막힌 까닭은 Climbing으로 보인다)
+            _sprinting = false;
+            _airSprint = false;
+            _grounded = false;
+            _onSteep = false;
+            _hitPending = false;
+            bool wiping = Wiped;
+            if (wiping || HitStunned) wish = Planar.Zero;
+            float wishLen = wish.Length;
+            if (!wiping && !_swim.Hold(_stamina, _input.SprintHeld, wishLen > 0f, dt)) { Drown(); return; }
+
+            Planar target = wishLen > 0f ? wish.Normalized * _swim.TargetSpeed(wishLen) : Planar.Zero;
+            _planar = MoveMath.Approach(_planar, target, _swim.Rules.Acceleration, _swim.Rules.Acceleration, dt);
+            if (wishLen > 0f) _yaw = MoveMath.TurnTowards(_yaw, MoveMath.YawOf(wish), tuning.TurnSpeed, dt);
+            _vertical = _swim.Vertical(_waterDepth);
+            _bestGroundNormalY = -1f;
+            _groundNormal = Vector3.up;
+            _cc.Move(new Vector3(_planar.X, _vertical, _planar.Z) * dt);
+        }
+
+        /// <summary>익사: 필드 캐릭터 체력 일부(1은 남김) → 가까운 물가(없으면 마지막으로 딛은 땅)로 옮기고 스태미나를 채운다.</summary>
+        void Drown()
+        {
+            Vector3 shore = FindShore(transform.position);
+            float ratio = _swim.Rules.DrownHealthRatio;
+            Teleport(shore); // 먼저 옮기고 피해 (숫자가 물가에 뜬다)
+            int damage = _vitals != null ? _vitals.TakeDrownDamage(ratio).Applied : 0;
+            _stamina.Fill();
+            LastDrownShore = shore;
+            LastDrownDamage = damage;
+            Drowned?.Invoke(shore, damage);
+        }
+
+        /// <summary>가장 가까운 물 가장자리부터 shoreMargin 바깥을 위에서 아래로 쏴 걸을 수 있는 물 밖 땅. 없으면 마지막으로 딛은 땅, 그도 없으면 제자리.</summary>
+        Vector3 FindShore(Vector3 from)
+        {
+            if (_inWater != null && swimTuning != null)
+            {
+                float top = _inWater.SurfaceY + _cc.height * 2f;
+                float reach = top - (_inWater.BottomY - _cc.height);
+                foreach (Vector3 c in _inWater.ShoreCandidates(from, swimTuning.ShoreMargin))
+                {
+                    if (!Probe(new Vector3(c.x, top, c.z), Vector3.down, reach, out RaycastHit hit)) continue;
+                    if (!MoveMath.IsWalkable(hit.normal.y, tuning.SlopeLimit)) continue;
+                    if (WaterVolume.Deepest(_water, hit.point, out _) > 0f) continue;
+                    return hit.point + Vector3.up * _cc.skinWidth;
+                }
+            }
+            return _hasSafe ? _lastSafe : from;
+        }
+
+
         // ---- 등반 (1-3) ----
 
         /// <summary>입력 방향(활공 중이면 입력이 없어도 앞)으로 벽이 가까우면 붙는다. 조건은 Core Climb.</summary>
@@ -405,6 +522,7 @@ namespace Moa.Unity.Player
             float inputAngle = Climb.InputAngle(dir.x, dir.z, hit.normal.x, hit.normal.z);
             if (!_climb.TryAttach(_stamina, hit.normal.y, inputAngle)) return;
             if (_glide.Active) _glide.Close(GlideEnd.Wall);
+            if (Swimming) _swim.End(SwimEnd.Climbed); // 3-6: 물에서 벽에 붙어 기어오른다
             _sprinting = false;
             _airSprint = false;
             _planar = Planar.Zero;
@@ -469,6 +587,13 @@ namespace Moa.Unity.Player
             CollisionFlags flags = _cc.Move(delta);
             _planar = Planar.Zero;
             _vertical = 0f;
+
+            // 3-6: 내려가다 물에 잠기면(떠 있는 깊이만큼) 끝 — 다음 스텝부터 수영
+            if (upInput < 0f && _swim != null && WaterVolume.Deepest(_water, transform.position, out _) >= _swim.Rules.FloatDepth)
+            {
+                Drop(ClimbEnd.Landed);
+                return;
+            }
 
             // 내려가다 땅에 닿으면 끝
             if (upInput < 0f && (flags & CollisionFlags.Below) != 0 && MoveMath.IsWalkable(_groundNormal.y, tuning.SlopeLimit))

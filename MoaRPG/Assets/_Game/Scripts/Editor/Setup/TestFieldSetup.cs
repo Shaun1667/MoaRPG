@@ -46,6 +46,8 @@ namespace Moa.Editor.Setup
         public const string ArcherTuningPath = "Assets/_Game/Data/Enemies/Archer.asset";        // 3-4: 원거리 궁수 (EnemyTuning)
         public const string BruteTuningPath = "Assets/_Game/Data/Enemies/Brute.asset";          // 3-4: 정예 (EnemyTuning)
         public const string GrowthTuningPath = "Assets/_Game/Data/Growth/Growth.asset";        // 3-5: 레벨 · 돌파 · 스킬 · 무기 성장 곡선 (GrowthTuning)
+        public const string SwimTuningPath = "Assets/_Game/Data/Player/SwimTuning.asset";       // 3-6: 수영 · 익사 (SwimTuning)
+        public const string ExplorationPath = "Assets/_Game/Data/World/Exploration.asset";      // 3-6: 지점 · 상자 · 압력판 거리, 상자 보상 (ExplorationTuning)
         public const string NavMeshDataPath = "Assets/_Game/Scenes/TestField/NavMesh-Environment.asset"; // 3-4: Environment에서 구운 NavMesh (다시 굽으면 이 에셋을 고침)
 
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
@@ -56,7 +58,7 @@ namespace Moa.Editor.Setup
         const string TrailShader = "Sprites/Default";                       // 궤적 (정점 색 · 투명)
         const string TrailShaderFallback = "Universal Render Pipeline/Unlit";
 
-        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD", "Dummies", "Enemies", "EventSystem" };
+        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD", "Dummies", "Enemies", "EventSystem", "World" };
 
         // ---- 표현 표 (1-2, 게임 수치 아님) ----
         static readonly Color SprintColor = new Color(1.00f, 0.86f, 0.20f);      // 질주 중: 노랑
@@ -226,6 +228,37 @@ namespace Moa.Editor.Setup
         static readonly Color GrowthButtonColor = new Color(0.22f, 0.45f, 0.78f, 1f);
         static readonly Color GrowthButtonDisabledColor = new Color(0.30f, 0.30f, 0.33f, 0.9f); // 재화 모자람 · 상한 · 최대
 
+        // ---- 표현 표 (3-6 탐험, 게임 수치 아님) ----
+        static readonly Color SwimColor = new Color(0.25f, 0.55f, 0.95f);           // 수영 중 몸: 파랑 (활공 다음, 지침보다 앞)
+        static readonly Color WaterColor = new Color(0.20f, 0.50f, 0.90f, 0.55f);   // 물 표면 (반투명)
+        const float WaterSurfaceThickness = 0.05f;                                  // 표면 판 두께 (m, 충돌 없음)
+        static readonly Color WaypointOffColor = new Color(0.45f, 0.48f, 0.55f);    // 순간이동 지점: 꺼짐
+        static readonly Color WaypointOnColor = new Color(0.35f, 0.80f, 1.00f);     // 켜짐
+        static readonly Vector3 WaypointPillarSize = new Vector3(0.5f, 3.0f, 0.5f); // 가운데 기둥 (m, 충돌 없음)
+        const float WaypointBaseRadius = 1.2f, WaypointBaseThickness = 0.08f;
+        const float WaypointArrivalDistance = 1.8f;                                  // 순간이동하면 지점 앞(+Z) 이만큼에 선다 (m, 배치 값)
+        static readonly Color ChestCommonColor = new Color(0.62f, 0.42f, 0.22f);    // 일반 상자: 나무
+        static readonly Color ChestExquisiteColor = new Color(0.85f, 0.70f, 0.25f); // 고급 상자: 금색
+        static readonly Color ChestLockedColor = new Color(0.35f, 0.30f, 0.45f);    // 퍼즐이 안 풀림
+        static readonly Color ChestOpenColor = new Color(0.40f, 0.40f, 0.40f);      // 열림
+        static readonly Vector3 ChestBodySize = new Vector3(1.0f, 0.6f, 0.7f);      // m, 충돌 없음
+        static readonly Vector3 ChestLidSize = new Vector3(1.04f, 0.2f, 0.74f);
+        const float ChestLidOpenAngle = 110f;                                       // 열리면 뚜껑을 뒤로 젖힌다 (도)
+        static readonly Color PlateIdleColor = new Color(0.45f, 0.42f, 0.38f);      // 압력판: 꺼짐
+        static readonly Color PlateLitColor = new Color(1.00f, 0.80f, 0.30f);       // 켜짐
+        const float PlateThickness = 0.06f;                                          // 판 두께 (m, 충돌 없음 — 지름은 plateRadius)
+        const int MapSortingOrder = 100;                                             // 성장 화면과 같은 층 (한 번에 하나만 열린다)
+        const float MapPlaneSize = 720f, MapIconSize = 40f, MapHeader = 60f;         // px (1920×1080 기준)
+        static readonly Vector2 MapLabelSize = new Vector2(240f, 32f);
+        const int MapTitleFontSize = 36, MapLabelFontSize = 22;
+        static readonly Color MapPlaneColor = new Color(0.30f, 0.36f, 0.30f, 1f);    // 땅 (위에서 본 평면)
+        static readonly Color MapIconColor = new Color(0.35f, 0.80f, 1.00f, 1f);     // 켜진 지점 (= 지점 켜짐 색)
+        static readonly Color MapIconOffColor = new Color(0.35f, 0.35f, 0.38f, 0.9f);
+        static readonly Color MapPlayerColor = new Color(1.00f, 0.62f, 0.22f, 1f);   // 플레이어 표시 (= 플레이어 머티리얼 색)
+        const float ToastTop = 120f, ToastShowTime = 2.5f, ToastFadeTime = 0.5f;     // 알림: 화면 위에서 px · 보이는 초 · 사라지는 초
+        static readonly Vector2 ToastSize = new Vector2(900f, 48f);
+        const int ToastFontSize = 30;
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -267,6 +300,10 @@ namespace Moa.Editor.Setup
             ("HealPoint", new Vector3(5.8f, 0.05f, 2.0f)),     // 3-1: 회복 지점 원 안 (기둥 옆)
             ("Archers", new Vector3(-15.5f, 0.05f, 20.0f)),    // 3-4: 궁수 둘 앞 (가까운 Archer1까지 14.2m — 감지 거리 밖)
             ("Brute", new Vector3(18.0f, 0.05f, 21.0f)),       // 3-4: 정예 앞 (13m — 감지 거리 밖)
+            ("Pond", new Vector3(32.0f, 3.05f, -36.0f)),       // 3-6: 연못 남쪽 테두리 위 (+Z로 걸으면 물)
+            ("PondWater", new Vector3(32.0f, 1.3f, -28.0f)),   // 3-6: 연못 물 안 (바로 수영)
+            ("HighLedge", new Vector3(36.0f, 0.05f, -4.5f)),   // 3-6: 높은 바위 앞 (+Z로 붙어 오르면 고급 상자)
+            ("Puzzle", new Vector3(40.0f, 0.05f, 5.0f)),      // 3-6: 압력판 퍼즐 앞
         };
 
         // 2-1: 허수아비 배치 (발 위치, 바라보는 방향 도, 2-3: 예고 공격을 하는지) — 새 허수아비 = 줄 하나
@@ -294,6 +331,49 @@ namespace Moa.Editor.Setup
         {
             ("HealPoint", new Vector3(5.0f, 0f, 2.0f)),
         };
+        // 3-6: 연못 — 높이 3m 단(가운데 12×12 구멍) 안에 물 2.6m, 바깥 남쪽 경사로 오르고 안쪽 서쪽 경사로 걸어 나온다 (Environment = NavMesh에도 들어감)
+        static readonly (string name, Vector3 center, Vector3 size)[] PondBlocks =
+        {
+            ("PondNorth", new Vector3(32f, 1.5f, -20f), new Vector3(20f, 3f, 4f)),
+            ("PondSouth", new Vector3(32f, 1.5f, -36f), new Vector3(20f, 3f, 4f)),
+            ("PondWest", new Vector3(24f, 1.5f, -28f), new Vector3(4f, 3f, 12f)),
+            ("PondEast", new Vector3(40f, 1.5f, -28f), new Vector3(4f, 3f, 12f)),
+            ("HighLedge", new Vector3(36f, 5f, 0f), new Vector3(6f, 10f, 6f)), // 높은 바위 — 등반 또는 PillarTop에서 활공으로만 (위에 고급 상자)
+        };
+        // (이름, 아래 가장자리 가운데 x · 바닥 y · z, 각도, 오르는 높이, 너비) — +Z로 오른다
+        static readonly (string name, Vector3 bottom, float angle, float rise, float width)[] PondRamps =
+        {
+            ("PondRampOut", new Vector3(32f, 0f, -38f - 3f / Mathf.Tan(20f * Mathf.Deg2Rad)), 20f, 3f, 4f), // 바깥: 땅 → 남쪽 테두리 위
+            ("PondRampIn", new Vector3(28f, 0f, -22f - 3f / Mathf.Tan(20f * Mathf.Deg2Rad)), 20f, 3f, 4f),  // 안: 연못 바닥 → 북쪽 테두리 위 (걸어 나오기)
+        };
+        // 물 영역 (가운데, 크기 — 윗면 = 표면) — 새 물 = 줄 하나
+        static readonly (string name, Vector3 center, Vector3 size)[] Waters =
+        {
+            ("Pond", new Vector3(32f, 1.3f, -28f), new Vector3(12f, 2.6f, 12f)),
+        };
+        // 순간이동 지점 (저장 id, 이름 텍스트 키, 바닥 가운데) — 새 지점 = 줄 하나 (id는 바꾸지 않는다)
+        static readonly (string id, string nameKey, Vector3 position)[] WaypointTable =
+        {
+            ("wp_start", "world.waypoint.start", new Vector3(-4f, 0f, -2f)),
+            ("wp_pond", "world.waypoint.pond", new Vector3(32f, 0f, -50f)),
+            ("wp_cliff", "world.waypoint.cliff", new Vector3(44f, 0f, 0f)),
+        };
+        // 상자 (저장 id, 등급, 퍼즐 id — 빈 값 = 없음, 바닥 가운데, 바라보는 방향 도) — 새 상자 = 줄 하나
+        static readonly (string id, Moa.Core.World.ChestTier tier, string puzzleId, Vector3 position, float yaw)[] ChestTable =
+        {
+            ("chest_start", Moa.Core.World.ChestTier.Common, "", new Vector3(3f, 0f, -9f), 180f),
+            ("chest_pond", Moa.Core.World.ChestTier.Common, "", new Vector3(36f, 3f, -36f), 0f),
+            ("chest_high", Moa.Core.World.ChestTier.Exquisite, "", new Vector3(36f, 10f, 0f), 180f),   // 높은 바위 위
+            ("chest_puzzle", Moa.Core.World.ChestTier.Exquisite, "puzzle_plates", new Vector3(40f, 0f, 12f), 180f), // 압력판 셋을 모두 밟으면
+        };
+        // 압력판 (퍼즐 id, 판 번호 0부터, 바닥 가운데) — 퍼즐의 판 수 = 가장 큰 번호 + 1
+        static readonly (string puzzleId, int index, Vector3 position)[] PlateTable =
+        {
+            ("puzzle_plates", 0, new Vector3(37f, 0f, 9f)),
+            ("puzzle_plates", 1, new Vector3(43f, 0f, 9f)),
+            ("puzzle_plates", 2, new Vector3(40f, 0f, 16f)),
+        };
+
         const string RespawnPointName = "Spawn"; // 3-1: 전원 쓰러진 뒤 되살아나는 자리 = 디버그 지점 Spawn (시작 지점)
 
         [MenuItem(MenuPath)]
@@ -315,6 +395,7 @@ namespace Moa.Editor.Setup
             EnsureFolder("Assets/_Game/Data/Skills");
             EnsureFolder("Assets/_Game/Data/Characters");
             EnsureFolder("Assets/_Game/Data/Growth"); // 3-5
+            EnsureFolder("Assets/_Game/Data/World"); // 3-6
 
             EnsureFolder(GrayboxFolder);
             EnsureFolder("Assets/_Game/Scenes");
@@ -342,6 +423,8 @@ namespace Moa.Editor.Setup
             var hero = LoadOrCreate<CharacterData>(HeroCharacterPath); // 2-6: 파티 없이 쓸 때의 캐릭터 공격력
             var health = LoadOrCreate<PlayerHealthTuning>(PlayerHealthTuningPath); // 3-1
             var growth = LoadOrCreate<GrowthTuning>(GrowthTuningPath); // 3-5
+            var swimTuning = LoadOrCreate<SwimTuning>(SwimTuningPath); // 3-6
+            var exploration = LoadOrCreate<ExplorationTuning>(ExplorationPath);
 
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
@@ -361,6 +444,8 @@ namespace Moa.Editor.Setup
             var points = BuildDebugPoints();
             var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, skills, party, hero, inputAsset, mats);
             AddPlayerHealth(player, health); // 3-1
+            Set(player, "swimTuning", swimTuning); // 3-6
+            SetColor(player.GetComponent<PlayerGrayboxFeedback>(), "swimColor", SwimColor);
             var camera = BuildCamera(cam, player.transform);
             var gauge = BuildHud();
             var poiseBars = PoiseBars.CreateIn(gauge.transform.parent, PoiseBackColor, PoiseFillColor, PoiseGroggyColor, PoiseBarSize, PoiseBarHeight); // 숫자보다 먼저 = 아래에 그린다
@@ -376,12 +461,16 @@ namespace Moa.Editor.Setup
             SetColor(partyHud, "entryColor", PartyEntryColor); // 3-2
             var buffHud = BuffHud.CreateIn(gauge.transform.parent, BuffHudBottom, BuffIconSize, BuffBarHeight, BuffGap, BuffFontSize,
                 BuffBackColor, BuffBarColor, SkillTextColor, DamageOutlineColor); // 3-2: 체력 HUD보다 먼저 (검은 판이 위)
+            var toast = WorldToast.CreateIn(gauge.transform.parent, ToastTop, ToastSize, ToastFontSize, ToastShowTime, ToastFadeTime, SkillTextColor, DamageOutlineColor); // 3-6: 체력 HUD보다 먼저 (검은 판이 위)
             var healthHud = HealthHud.CreateIn(gauge.transform.parent, HealthBarSize, HealthBarBottom, HealthBarBorder, HealthBackColor, HealthFillColor, HealthLowColor,
                 HealthLowRatio, FadeColor); // 3-1: HUD 마지막 자식 — 검은 판이 맨 위
             var growthScreen = GrowthScreen.CreateIn(gauge.transform.parent, GrowthSortingOrder, GrowthWindowSize, GrowthPad, GrowthGap, GrowthRow, GrowthHeader,
                 GrowthTitleFontSize, GrowthBodyFontSize, GrowthButtonFontSize, GrowthDimColor, GrowthWindowColor, GrowthColumnColor, GrowthButtonColor, GrowthButtonDisabledColor,
                 SkillTextColor, DamageOutlineColor); // 3-5: 자기 Canvas(정렬 덮어쓰기)라 검은 판보다 위
             GrowthScreen.CreateEventSystem("EventSystem"); // 3-5: 버튼 클릭
+            var mapScreen = MapScreen.CreateIn(gauge.transform.parent, MapSortingOrder, WaypointTable.Length, MapPlaneSize, MapIconSize, MapLabelSize, MapHeader,
+                MapTitleFontSize, MapLabelFontSize, Vector2.zero, GroundSize, GrowthDimColor, GrowthWindowColor, MapPlaneColor, MapIconColor, MapIconOffColor, MapPlayerColor,
+                SkillTextColor, DamageOutlineColor); // 3-6: 자기 Canvas, 위에서 본 땅 = 시험 지형 땅 전체
             var dummies = BuildDummies(dummyTuning, attackTuning, mats);
             var enemies = BuildEnemies(enemyTunings, mats); // 2-5 · 3-4
             var root = BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies, partyHud);
@@ -390,6 +479,14 @@ namespace Moa.Editor.Setup
             Set(root, "buffHud", buffHud); // 3-2
             Set(root, "growth", growth); // 3-5
             Set(root, "growthScreen", growthScreen);
+            var world = BuildWorld(exploration, mats); // 3-6
+            Set(root, "exploration", exploration);
+            SetArray(root, "waterVolumes", world.waters);
+            SetArray(root, "waypoints", world.waypoints);
+            SetArray(root, "chests", world.chests);
+            SetArray(root, "plates", world.plates);
+            Set(root, "mapScreen", mapScreen);
+            Set(root, "worldToast", toast);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -557,6 +654,19 @@ namespace Moa.Editor.Setup
 
             foreach (var w in Walls) Box(env, w.name, w.center, Quaternion.identity, w.size, mats.Wall);
             Box(env, Pillar.name, Pillar.center, Quaternion.identity, Pillar.size, mats.Pillar);
+
+            // 3-6: 연못 단 · 높은 바위 · 경사 (NavMesh에도 들어간다)
+            foreach (var b in PondBlocks) Box(env, b.name, b.center, Quaternion.identity, b.size, mats.Pillar);
+            foreach (var r in PondRamps)
+            {
+                float a = r.angle * Mathf.Deg2Rad;
+                float length = r.rise / Mathf.Sin(a);
+                // 윗면의 아래 가장자리가 bottom에 오도록 (1-1 경사와 같은 식)
+                var center = new Vector3(r.bottom.x,
+                    r.bottom.y - Mathf.Cos(a) * RampThickness * 0.5f + Mathf.Sin(a) * length * 0.5f,
+                    r.bottom.z + Mathf.Sin(a) * RampThickness * 0.5f + Mathf.Cos(a) * length * 0.5f);
+                Box(env, r.name, center, Quaternion.Euler(-r.angle, 0f, 0f), new Vector3(r.width, RampThickness, length), mats.Ramp);
+            }
             return env;
         }
 
@@ -1052,6 +1162,124 @@ namespace Moa.Editor.Setup
             return result;
         }
 
+        /// <summary>
+        /// 3-6: 탐험 루트 World — 물 영역(WaterVolume + 반투명 표면 판) · 순간이동 지점(바닥 원판 + 기둥) · 상자(몸 + 뚜껑) · 압력판. 모두 충돌 없음 (반응은 거리 검사).
+        /// 배치는 Waters · WaypointTable · ChestTable · PlateTable 표, 크기 · 색은 표현 표, 압력판 지름 = ExplorationTuning.plateRadius.
+        /// </summary>
+        static (Moa.Unity.World.WaterVolume[] waters, Moa.Unity.World.Waypoint[] waypoints, Moa.Unity.World.Chest[] chests, Moa.Unity.World.PressurePlate[] plates)
+            BuildWorld(ExplorationTuning tuning, Materials mats)
+        {
+            if (tuning.PlateRadius <= 0f) Debug.LogWarning("TestFieldSetup: " + ExplorationPath + " is empty - fill it from BALANCE.md and run again");
+            var root = new GameObject("World").transform;
+            Material water = GetTransparent("Water", WaterColor);
+            Material mark = Materials.Get("Waypoint", WaypointOffColor, null, Vector2.one);
+            Material chestMat = Materials.Get("Chest", ChestCommonColor, null, Vector2.one);
+            Material plateMat = Materials.Get("PressurePlate", PlateIdleColor, null, Vector2.one);
+
+            var waters = new Moa.Unity.World.WaterVolume[Waters.Length];
+            for (int i = 0; i < Waters.Length; i++)
+            {
+                var go = new GameObject("Water_" + Waters[i].name);
+                go.transform.SetParent(root, false);
+                go.transform.position = Waters[i].center;
+                var v = go.AddComponent<Moa.Unity.World.WaterVolume>();
+                SetVector(v, "size", Waters[i].size);
+                Vector3 s = Waters[i].size;
+                Primitive(PrimitiveType.Cube, go.transform, "Surface", new Vector3(0f, s.y * 0.5f - WaterSurfaceThickness * 0.5f, 0f), Quaternion.identity,
+                    new Vector3(s.x, WaterSurfaceThickness, s.z), water).GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+                waters[i] = v;
+            }
+
+            var points = new Moa.Unity.World.Waypoint[WaypointTable.Length];
+            for (int i = 0; i < WaypointTable.Length; i++)
+            {
+                var row = WaypointTable[i];
+                var go = new GameObject("Waypoint_" + row.id);
+                go.transform.SetParent(root, false);
+                go.transform.position = row.position;
+                var disc = Primitive(PrimitiveType.Cylinder, go.transform, "Base", new Vector3(0f, WaypointBaseThickness * 0.5f, 0f), Quaternion.identity,
+                    new Vector3(WaypointBaseRadius * 2f, WaypointBaseThickness * 0.5f, WaypointBaseRadius * 2f), mark);
+                var pillar = Primitive(PrimitiveType.Cube, go.transform, "Pillar", new Vector3(0f, WaypointPillarSize.y * 0.5f, 0f), Quaternion.identity, WaypointPillarSize, mark);
+                var w = go.AddComponent<Moa.Unity.World.Waypoint>();
+                SetString(w, "id", row.id);
+                SetString(w, "nameKey", row.nameKey);
+                SetRenderers(w, "marks", disc.GetComponent<MeshRenderer>(), pillar.GetComponent<MeshRenderer>());
+                SetColor(w, "inactiveColor", WaypointOffColor);
+                SetColor(w, "activeColor", WaypointOnColor);
+                SetFloat(w, "arrivalDistance", WaypointArrivalDistance);
+                points[i] = w;
+            }
+
+            var chests = new Moa.Unity.World.Chest[ChestTable.Length];
+            for (int i = 0; i < ChestTable.Length; i++)
+            {
+                var row = ChestTable[i];
+                var go = new GameObject("Chest_" + row.id);
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(row.position, Quaternion.Euler(0f, row.yaw, 0f));
+                var body = Primitive(PrimitiveType.Cube, go.transform, "Body", new Vector3(0f, ChestBodySize.y * 0.5f, 0f), Quaternion.identity, ChestBodySize, chestMat);
+                var hinge = new GameObject("Lid").transform; // 뒤 윗모서리가 경첩
+                hinge.SetParent(go.transform, false);
+                hinge.localPosition = new Vector3(0f, ChestBodySize.y, -ChestBodySize.z * 0.5f);
+                var lid = Primitive(PrimitiveType.Cube, hinge, "Top", new Vector3(0f, ChestLidSize.y * 0.5f, ChestLidSize.z * 0.5f), Quaternion.identity, ChestLidSize, chestMat);
+                var c = go.AddComponent<Moa.Unity.World.Chest>();
+                SetString(c, "id", row.id);
+                SetEnum(c, "tier", (int)row.tier);
+                SetString(c, "puzzleId", row.puzzleId);
+                Set(c, "lid", hinge);
+                SetRenderers(c, "paint", body.GetComponent<MeshRenderer>(), lid.GetComponent<MeshRenderer>());
+                SetColor(c, "closedColor", row.tier == Moa.Core.World.ChestTier.Exquisite ? ChestExquisiteColor : ChestCommonColor);
+                SetColor(c, "lockedColor", ChestLockedColor);
+                SetColor(c, "openColor", ChestOpenColor);
+                SetFloat(c, "openLidAngle", ChestLidOpenAngle);
+                chests[i] = c;
+            }
+
+            var plates = new Moa.Unity.World.PressurePlate[PlateTable.Length];
+            float pr = Mathf.Max(0.1f, tuning.PlateRadius);
+            for (int i = 0; i < PlateTable.Length; i++)
+            {
+                var row = PlateTable[i];
+                var go = new GameObject("Plate_" + row.puzzleId + "_" + row.index);
+                go.transform.SetParent(root, false);
+                go.transform.position = row.position;
+                var disc = Primitive(PrimitiveType.Cylinder, go.transform, "Disc", new Vector3(0f, PlateThickness * 0.5f, 0f), Quaternion.identity,
+                    new Vector3(pr * 2f, PlateThickness * 0.5f, pr * 2f), plateMat);
+                var p = go.AddComponent<Moa.Unity.World.PressurePlate>();
+                SetString(p, "puzzleId", row.puzzleId);
+                SetInt(p, "index", row.index);
+                SetRenderers(p, "paint", disc.GetComponent<MeshRenderer>());
+                SetColor(p, "idleColor", PlateIdleColor);
+                SetColor(p, "litColor", PlateLitColor);
+                plates[i] = p;
+            }
+            return (waters, points, chests, plates);
+        }
+
+        /// <summary>3-6: 반투명 URP Lit 머티리얼 (물 표면, 없을 때만 만든다).</summary>
+        static Material GetTransparent(string name, Color color)
+        {
+            string path = GrayboxFolder + "/" + name + ".mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m != null) return m;
+            m = new Material(Shader.Find(LitShader)) { name = name };
+            m.SetColor("_BaseColor", color);
+            m.SetFloat("_Surface", 1f);
+            m.SetFloat("_Blend", 0f);
+            m.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            m.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            m.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+            m.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
+            m.SetFloat("_ZWrite", 0f);
+            m.SetFloat("_Smoothness", 0.8f);
+            m.SetOverrideTag("RenderType", "Transparent");
+            m.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            m.renderQueue = (int)RenderQueue.Transparent;
+            AssetDatabase.CreateAsset(m, path);
+            return m;
+        }
+
+
         /// <summary>3-1: GameRoot에 체력 · 체력 HUD · 부활 지점(디버그 지점 Spawn) · 회복 지점을 잇는다.</summary>
         static void ConnectHealth(GameRoot root, PlayerMotor motor, HealthHud healthHud, Transform[] points, HealingPoint[] heals)
         {
@@ -1130,5 +1358,45 @@ namespace Moa.Editor.Setup
             p.objectReferenceValue = value;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
+
+        static void SetString(Object target, string property, string value)
+        {
+            var so = new SerializedObject(target);
+            var p = so.FindProperty(property);
+            if (p == null) { Debug.LogError("TestFieldSetup: no field '" + property + "' on " + target.GetType().Name); return; }
+            p.stringValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static void SetInt(Object target, string property, int value)
+        {
+            var so = new SerializedObject(target);
+            var p = so.FindProperty(property);
+            if (p == null) { Debug.LogError("TestFieldSetup: no field '" + property + "' on " + target.GetType().Name); return; }
+            p.intValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static void SetEnum(Object target, string property, int value)
+        {
+            var so = new SerializedObject(target);
+            var p = so.FindProperty(property);
+            if (p == null) { Debug.LogError("TestFieldSetup: no field '" + property + "' on " + target.GetType().Name); return; }
+            p.enumValueIndex = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        static void SetRenderers(Object target, string property, params Renderer[] values) => SetArray(target, property, values);
+
+        static void SetArray<T>(Object target, string property, T[] values) where T : Object
+        {
+            var so = new SerializedObject(target);
+            var p = so.FindProperty(property);
+            if (p == null || !p.isArray) { Debug.LogError("TestFieldSetup: no array field '" + property + "' on " + target.GetType().Name); return; }
+            p.arraySize = values.Length;
+            for (int i = 0; i < values.Length; i++) p.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
     }
 }

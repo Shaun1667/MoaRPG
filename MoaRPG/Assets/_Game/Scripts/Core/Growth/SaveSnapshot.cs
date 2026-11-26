@@ -12,6 +12,17 @@ namespace Moa.Core.Growth
         public int version;
         public CurrencySave[] wallet = new CurrencySave[0];
         public MemberSave[] characters = new MemberSave[0];
+        /// <summary>3-6 (형식 2부터): 월드 진행 — 순간이동 지점 · 상자 · 퍼즐. 형식 1 파일은 <see cref="SaveFormat.Upgrade"/>가 빈 것으로 채운다.</summary>
+        public WorldSave world = new WorldSave();
+    }
+
+    /// <summary>월드 진행 (3-6): 활성화한 순간이동 지점 · 연 상자 · 푼 퍼즐의 id (Core WorldProgress). 압력판 하나하나는 저장하지 않는다.</summary>
+    [Serializable]
+    public sealed class WorldSave
+    {
+        public string[] waypoints = new string[0];
+        public string[] chests = new string[0];
+        public string[] puzzles = new string[0];
     }
 
     [Serializable]
@@ -39,11 +50,27 @@ namespace Moa.Core.Growth
         public MemberSave Clone() => (MemberSave)MemberwiseClone();
     }
 
-    /// <summary>저장 형식 (3-5). 새 상태 = 스냅샷 필드 + <see cref="Version"/> 올림 + 왕복 테스트 (MY_DEV_GUIDE).</summary>
+    /// <summary>저장 형식 (3-5). 새 상태 = 스냅샷 필드 + <see cref="Version"/> 올림 + 옛 형식 옮기기(<see cref="Upgrade"/>) + 왕복 테스트 (MY_DEV_GUIDE).</summary>
     public static class SaveFormat
     {
-        /// <summary>지금 형식 번호.</summary>
-        public const int Version = 1;
+        /// <summary>지금 형식 번호. 1 = 3-5 (재화 · 캐릭터), 2 = 3-6 (+ world).</summary>
+        public const int Version = 2;
+
+        /// <summary>
+        /// 옛 형식을 지금 형식으로 옮긴다 (읽은 직후, Validate 전에). 옮겼으면 원래 형식 번호, 옮길 것이 없으면(지금 형식 · 모르는 번호 · null) 0.
+        /// 1 → 2: world가 없으면 빈 것 (지점 · 상자 · 퍼즐 없음).
+        /// </summary>
+        public static int Upgrade(SaveSnapshot s)
+        {
+            if (s == null || s.version < 1 || s.version >= Version) return 0;
+            int from = s.version;
+            if (s.version == 1)
+            {
+                if (s.world == null) s.world = new WorldSave();
+                s.version = 2;
+            }
+            return from;
+        }
 
         /// <summary>읽은 스냅샷을 쓸 수 있는지 — 형식 번호가 1 ~ 지금이고 배열이 있어야. 값의 범위는 Progression.Load가 고친다.</summary>
         public static bool Validate(SaveSnapshot s, out string reason)
@@ -52,6 +79,7 @@ namespace Moa.Core.Growth
             if (s.version < 1) { reason = "no version"; return false; }
             if (s.version > Version) { reason = "version " + s.version + " is newer than " + Version; return false; }
             if (s.wallet == null || s.characters == null) { reason = "missing arrays"; return false; }
+            if (s.version >= 2 && (s.world == null || s.world.waypoints == null || s.world.chests == null || s.world.puzzles == null)) { reason = "missing world"; return false; }
             foreach (var m in s.characters)
                 if (m == null || string.IsNullOrEmpty(m.id)) { reason = "character without id"; return false; }
             reason = null;
