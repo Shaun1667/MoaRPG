@@ -23,6 +23,9 @@ namespace Moa.Unity.Input
         bool _burstLatched;
         InputAction[] _party = new InputAction[0]; // 2-6: Party1 ~ 4, 에셋에 없는 칸은 null
         int _switchLatched; // 1 ~ 4, 0 = 없음
+        InputAction _characterMenu; // 3-5: 에셋에 없으면 null (주입만 받는다)
+        bool _menuLatched;
+        bool _menuOpen;
         float _debugSkillHoldEnd = float.NegativeInfinity; // 주입한 스킬 길게 누르기가 끝나는 고정 스텝 시각 (2-4)
 
         bool _walkMode;
@@ -40,7 +43,7 @@ namespace Moa.Unity.Input
         bool _ovSprint;
         float _debugHoldEnd = float.NegativeInfinity; // 주입한 길게 누르기가 끝나는 고정 스텝 시각 (2-2)
 
-        public Vector2 Move => _override ? Vector2.ClampMagnitude(_ovMove, 1f) : (_move != null ? Vector2.ClampMagnitude(_move.ReadValue<Vector2>(), 1f) : Vector2.zero);
+        public Vector2 Move => _menuOpen ? Vector2.zero : _override ? Vector2.ClampMagnitude(_ovMove, 1f) : (_move != null ? Vector2.ClampMagnitude(_move.ReadValue<Vector2>(), 1f) : Vector2.zero);
         public bool WalkMode => _walkMode;
         public Vector2 LookMouseDelta => _lookMouse;
         public Vector2 LookStick => _lookStickValue;
@@ -48,15 +51,16 @@ namespace Moa.Unity.Input
         public bool CursorCaptured => Cursor.lockState == CursorLockMode.Locked;
         public bool DebugOverriding => _override;
         /// <summary>스킬 버튼을 누르고 있는지 (2-4). 주입 중에는 DebugHoldSkill만.</summary>
-        public bool SkillHeld => Time.fixedTime <= _debugSkillHoldEnd || (!_override && _skill != null && _skill.IsPressed());
+        public bool SkillHeld => !_menuOpen && (Time.fixedTime <= _debugSkillHoldEnd || (!_override && _skill != null && _skill.IsPressed()));
         
-public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.IsPressed());
+public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != null && _sprint.IsPressed()));
 
         /// <summary>공격 버튼을 누르고 있는지 (2-2). 마우스는 커서가 잠겨 있을 때만, 주입 중에는 DebugHoldAttack만.</summary>
         public bool AttackHeld
         {
             get
             {
+                if (_menuOpen) return false;
                 if (Time.fixedTime <= _debugHoldEnd) return true;
                 if (_override || _map == null) return false;
                 if (_attack != null)
@@ -85,6 +89,7 @@ public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.Is
             _attack = _map.FindAction(PlayerControls.Attack, false);
             _skill = _map.FindAction(PlayerControls.Skill, false); // 2-4: 없으면 조용히 건너뛴다
             _burst = _map.FindAction(PlayerControls.Burst, false);
+            _characterMenu = _map.FindAction(PlayerControls.CharacterMenu, false); // 3-5: 없으면 조용히 건너뛴다
             _party = new InputAction[PlayerControls.PartySlots.Length]; // 2-6: 없으면 조용히 건너뛴다
             for (int i = 0; i < _party.Length; i++) _party[i] = _map.FindAction(PlayerControls.PartySlots[i], false);
 
@@ -109,6 +114,20 @@ public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.Is
         void Update()
         {
             if (_map == null) return;
+
+            // 3-5: 메뉴가 열려 있으면 커서를 푼 채 메뉴 키(· ESC)만 받는다 — 클릭은 버튼(uGUI)에만
+            if (_menuOpen)
+            {
+                if ((_characterMenu != null && _characterMenu.WasPressedThisFrame()) || _releaseCursor.WasPressedThisFrame()) _menuLatched = true;
+                if (CursorCaptured) SetCursorCaptured(false);
+                _lookMouse = Vector2.zero;
+                _lookStickValue = Vector2.zero;
+                _zoomValue = 0f;
+                _ovLookPending = Vector2.zero;
+                _ovZoomPending = 0f;
+                return;
+            }
+            if (_characterMenu != null && _characterMenu.WasPressedThisFrame() && !_override) _menuLatched = true;
 
             // 커서
             // 커서 · 공격 (2-1): 커서가 풀려 있을 때의 클릭은 잠금만, 잠겨 있을 때의 클릭은 공격
@@ -225,6 +244,30 @@ public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.Is
         }
 
         public void DebugPressSwitch(int slot) { _switchLatched = slot; }
+
+        public bool ConsumeCharacterMenu()
+        {
+            bool m = _menuLatched;
+            _menuLatched = false;
+            return m;
+        }
+
+        public void DebugPressCharacterMenu() { _menuLatched = true; }
+
+        public bool MenuOpen
+        {
+            get => _menuOpen;
+            set
+            {
+                if (_menuOpen == value) return;
+                _menuOpen = value;
+                // 열고 닫을 때 받아 둔 게임 입력은 버린다
+                _jumpLatched = _dodgeLatched = _attackLatched = _skillLatched = _burstLatched = false;
+                _switchLatched = 0;
+                _debugHoldEnd = _debugSkillHoldEnd = float.NegativeInfinity;
+                SetCursorCaptured(!value);
+            }
+        }
 
 
         public void DebugClear()

@@ -16,6 +16,8 @@ MonoBehaviour:
   maxHealth: 1600
   defense: 100
   energyOnDefeat: 10
+  goldOnDefeat: 500
+  expItemsOnDefeat: 5
   capsuleHeight: 2.6
   capsuleRadius: 0.75
   eyeHeight: 2

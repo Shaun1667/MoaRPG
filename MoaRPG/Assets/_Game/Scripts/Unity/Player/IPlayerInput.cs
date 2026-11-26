@@ -53,6 +53,15 @@ namespace Moa.Unity.Player
         /// <summary>눌린 파티 교체를 한 번 꺼낸다 (FixedUpdate에서 소비, 2-6): 1 ~ 4 = 칸 번호, 0 = 없음. 같은 프레임에 여럿이면 마지막 것. 입력 에셋에 Party1 ~ 4가 없으면 주입만.</summary>
         int ConsumeSwitch();
 
+        /// <summary>눌린 캐릭터 화면 열기/닫기를 한 번 꺼낸다 (3-5, 화면이 Update에서). 화면이 열려 있으면 ESC도 닫기. 입력 에셋에 CharacterMenu가 없으면 주입만.</summary>
+        bool ConsumeCharacterMenu();
+
+        /// <summary>
+        /// 메뉴(캐릭터 화면)가 열려 있는지 (3-5, 화면이 정한다). 열려 있으면 커서를 풀고, 클릭은 버튼에만 —
+        /// 이동 · 시점 · 줌 · 점프 · 회피 · 공격 · 스킬 · 교체 입력은 0 (메뉴 키만 받는다). 닫으면 커서를 다시 잠근다.
+        /// </summary>
+        bool MenuOpen { get; set; }
+
 
         // ---- 디버그 주입 ----
         bool DebugOverriding { get; }
@@ -74,6 +83,8 @@ namespace Moa.Unity.Player
         void DebugPressBurst();
         /// <summary>파티 교체를 누른다 (slot 1 ~ 4, 2-6).</summary>
         void DebugPressSwitch(int slot);
+        /// <summary>캐릭터 화면 키를 누른다 (3-5).</summary>
+        void DebugPressCharacterMenu();
 
         void DebugClear();
     }

@@ -34,7 +34,7 @@ namespace Moa.Unity.Combat
     /// </summary>
     [DefaultExecutionOrder(100)]
     [RequireComponent(typeof(CharacterController))]
-    public sealed class EnemyAgent : MonoBehaviour, IHitTarget, IPoiseTarget, IEnergyDrop, IEnemyPath
+    public sealed class EnemyAgent : MonoBehaviour, IHitTarget, IPoiseTarget, IEnergyDrop, IEnemyPath, IRewardDrop
     {
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         const int MaxRayHits = 16;
@@ -106,6 +106,9 @@ namespace Moa.Unity.Combat
         public bool Groggy => _poise != null && _poise.Groggy;
         public float DamageTakenMultiplier => _poise != null ? _poise.DamageTakenMultiplier : 1f;
         public float EnergyOnDefeat => tuning != null ? tuning.EnergyOnDefeat : 0f;
+        /// <summary>3-5: 처치 보상 (적 표).</summary>
+        public int GoldOnDefeat => tuning != null ? tuning.GoldOnDefeat : 0;
+        public int ExpItemsOnDefeat => tuning != null ? tuning.ExpItemsOnDefeat : 0;
         public EnemyState State => _brain != null ? _brain.State : EnemyState.Idle;
         public Vector3 Home => _home;
         public bool Bound => _target != null;

@@ -1,4 +1,5 @@
 using System.Text;
+using Moa.Core.Growth;
 using Moa.Core.Ids;
 using Moa.Core.Localization;
 using Moa.Core.Rng;
@@ -6,6 +7,7 @@ using Moa.Unity.Cameras;
 using Moa.Unity.Combat;
 using Moa.Unity.Data;
 using Moa.Unity.Player;
+using Moa.Unity.Save;
 using Moa.Unity.UI;
 using UnityEngine;
 
@@ -61,6 +63,11 @@ namespace Moa.Unity
         [Header("Switch combo (3-2, empty in scenes without a player)")]
         [Tooltip("Handoff buff icon and time left above the health bar")]
         [SerializeField] BuffHud buffHud;
+        [Header("Growth (3-5, empty in scenes without a player)")]
+        [Tooltip("Level / ascension / skill / weapon curves (Data/Growth/Growth.asset)")]
+        [SerializeField] GrowthTuning growth;
+        [Tooltip("Character screen (toggle with CharacterMenu)")]
+        [SerializeField] GrowthScreen growthScreen;
 
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
@@ -108,6 +115,7 @@ namespace Moa.Unity
             if (skillHud != null) skillHud.Bind(playerCombat, UiFont.Get(config)); // 2-4
             if (partyHud != null) partyHud.Bind(playerCombat, UiFont.Get(config)); // 2-6
             if (buffHud != null) buffHud.Bind(playerCombat, UiFont.Get(config)); // 3-2
+            BindGrowth(); // 3-5: 체력(BindVitals) 뒤 — 성장이 최대 체력을 바꾼다
         }
 
         /// <summary>2-3: 저스트 회피(플레이어 쪽) · 공격 허수아비의 대상 · 경직 막대.</summary>
@@ -142,6 +150,97 @@ namespace Moa.Unity
             playerVitals.Respawned += OnRespawned;
             if (healthHud != null) healthHud.Bind(playerVitals);
             if (healingPoints != null) foreach (var h in healingPoints) if (h != null) h.Bind(playerVitals);
+        }
+
+        // ---- 3-5 성장 · 저장 ----
+
+        Progression _growth;
+        SaveStore _save;
+        SaveLoadStatus _loadStatus;
+        string[] _growthIds = new string[0];
+
+        /// <summary>3-5: 성장(캐릭터마다) + 재화 — 저장 파일에서 읽고, 바뀔 때마다 능력치를 다시 넣고 저장한다. 적 처치 보상 · 캐릭터 화면.</summary>
+        void BindGrowth()
+        {
+            if (growth == null || playerCombat == null || !playerCombat.Bound) return;
+            int n = playerCombat.Party != null ? playerCombat.CharacterCount : 1;
+            var ids = new string[n];
+            for (int i = 0; i < n; i++)
+            {
+                CharacterData c = GrowthCharacter(i);
+                if (c == null) { Debug.LogError("GameRoot: no character in slot " + (i + 1) + " - no growth"); return; }
+                ids[i] = !string.IsNullOrEmpty(c.SaveId) ? c.SaveId : c.name;
+                if (string.IsNullOrEmpty(c.SaveId)) Debug.LogWarning("GameRoot: character " + c.name + " has no saveId - saving under the asset name");
+            }
+            try { _growth = new Progression(growth.ToRules(), ids); }
+            catch (System.ArgumentException e) { Debug.LogError("GameRoot: growth not started - " + e.Message); _growth = null; return; }
+            _growthIds = ids;
+            _save = new SaveStore(SaveStore.DefaultPath);
+            LoadGrowth();
+            _growth.Changed += OnGrowthChanged;
+            playerCombat.Defeated += OnDefeated;
+            if (growthScreen != null) growthScreen.Bind(_growth, playerCombat, playerVitals, _input, UiFont.Get(config));
+        }
+
+        CharacterData GrowthCharacter(int i) => playerCombat.Party != null ? playerCombat.GetCharacter(i) : playerCombat.SoloCharacter;
+
+        /// <summary>저장 파일을 읽는다 — 없으면 새 계정, 깨졌으면 백업으로 옮기고 새 계정. 능력치를 넣는다.</summary>
+        void LoadGrowth()
+        {
+            _loadStatus = _save.Load(out SaveSnapshot snap);
+            // Missing: 새 계정 (시작 레벨 · 재화 0)
+            if (_loadStatus == SaveLoadStatus.Loaded)
+            {
+                int fixes = _growth.Load(snap);
+                if (fixes > 0) Debug.LogWarning("GameRoot: save " + _save.FilePath + " had " + fixes + " out-of-range values - fixed");
+            }
+            else if (_loadStatus == SaveLoadStatus.Broken)
+                Debug.LogWarning("GameRoot: save " + _save.FilePath + " was broken (" + _save.LastError + ") - moved to " + _save.LastBackupPath + ", starting from zero");
+            ApplyGrowth();
+        }
+
+        /// <summary>칸마다 성장 배율을 공격(PlayerCombat) · 체력 · 방어(PlayerVitals)에 넣는다.</summary>
+        void ApplyGrowth()
+        {
+            if (_growth == null) return;
+            for (int i = 0; i < _growth.Count; i++)
+            {
+                MemberStats s = _growth.Stats(i);
+                playerCombat.SetGrowth(i, s);
+                CharacterData c = GrowthCharacter(i);
+                if (playerVitals != null && playerVitals.Bound && c != null) playerVitals.SetMemberStats(i, s.ScaleHealth(c.MaxHealth), s.ScaleDefense(c.Defense));
+            }
+        }
+
+        bool _saveDirty;
+
+        /// <summary>능력치는 바로, 저장은 프레임 끝에 한 번 (처치 한 번에 골드 · 경험이 함께 와도 파일은 한 번).</summary>
+        void OnGrowthChanged(int slot)
+        {
+            ApplyGrowth();
+            _saveDirty = true;
+        }
+
+        void LateUpdate()
+        {
+            if (_saveDirty) SaveGrowth();
+        }
+
+        void OnDisable()
+        {
+            if (_saveDirty) SaveGrowth(); // 플레이를 멈추거나 끝내도 남는다
+        }
+
+        void SaveGrowth()
+        {
+            if (_growth == null || _save == null) return;
+            _saveDirty = false;
+            if (!_save.Save(_growth.ToSnapshot())) Debug.LogWarning("GameRoot: save failed - " + _save.LastError);
+        }
+
+        void OnDefeated(IHitTarget target)
+        {
+            if (_growth != null && target is IRewardDrop r) _growth.AddReward(r.GoldOnDefeat, r.ExpItemsOnDefeat);
         }
 
         void OnPlayerHurt(Moa.Core.Combat.PlayerHit hit, Vector3 at)
@@ -743,6 +842,66 @@ namespace Moa.Unity
 
         /// <summary>[상태 변경] 현재 캐릭터를 데이터의 무기로 되돌린다.</summary>
         public bool DebugResetWeapon() => DebugHasCombat && playerCombat.DebugResetWeapon();
+
+        // ---- 성장 · 저장 (3-5) ----
+
+        public bool DebugHasGrowth => _growth != null;
+        /// <summary>칸마다 저장 id (CharacterData.saveId).</summary>
+        public string[] DebugGrowthIds => _growthIds;
+        /// <summary>성장 규칙 · 상태 (Core, 없으면 null).</summary>
+        public Progression DebugGrowth => _growth;
+        public GrowthScreen DebugGrowthScreen => growthScreen;
+        public string DebugGrowthSavePath => _save != null ? _save.FilePath : SaveStore.DefaultPath;
+        /// <summary>판을 시작할 때 저장 파일 읽은 결과 (Missing · Loaded · Broken) · 깨졌을 때 옮긴 자리 · 이번 판에 저장한 수.</summary>
+        public string DebugGrowthLoadStatus => _save != null ? _loadStatus.ToString() : "-";
+        public string DebugGrowthBackupPath => _save != null ? _save.LastBackupPath : null;
+        public int DebugGrowthSaveCount => _save != null ? _save.SaveCount : 0;
+        public string DebugGrowthLastError => _save != null ? _save.LastError : null;
+        public bool DebugGrowthScreenOpen => growthScreen != null && growthScreen.Open;
+
+        /// <summary>[상태 변경] 재화 +amount (음수면 빼기, 0 아래로는 안 감).</summary>
+        public void DebugGrowthAddCurrency(Currency currency, int amount)
+        {
+            if (_growth == null) return;
+            if (amount >= 0) _growth.Wallet.Add(currency, amount);
+            else _growth.Wallet.Set(currency, _growth.Wallet.Get(currency) + amount);
+        }
+
+        /// <summary>[상태 변경] 칸(1 ~ 4, 0 = 모두)의 캐릭터 레벨을 정한다 (돌파는 그 레벨에 맞게).</summary>
+        public void DebugGrowthSetLevel(int slot, int level)
+        {
+            if (_growth == null) return;
+            for (int i = 0; i < _growth.Count; i++) if (slot == 0 || slot == i + 1) _growth.SetLevel(i, level);
+        }
+
+        /// <summary>[상태 변경] 칸(1 ~ 4, 0 = 모두)의 스킬 E · 궁극기 Q · 무기 레벨을 정한다 (0이면 그대로).</summary>
+        public void DebugGrowthSetLevels(int slot, int skillLevel, int burstLevel, int weaponLevel)
+        {
+            if (_growth == null) return;
+            for (int i = 0; i < _growth.Count; i++)
+            {
+                if (slot != 0 && slot != i + 1) continue;
+                if (skillLevel > 0) _growth.SetSkillLevel(i, GrowthAction.SkillUp, skillLevel);
+                if (burstLevel > 0) _growth.SetSkillLevel(i, GrowthAction.BurstUp, burstLevel);
+                if (weaponLevel > 0) _growth.SetWeaponLevel(i, weaponLevel);
+            }
+        }
+
+        /// <summary>[상태 변경] 칸(1 ~ 4)의 성장 동작 (화면 버튼과 같은 규칙). 되면 true, 안 되면 까닭은 DebugGrowth.LastBlock.</summary>
+        public bool DebugGrowthTry(int slot, GrowthAction action) =>
+            growthScreen != null ? growthScreen.Press(slot - 1, action) : _growth != null && _growth.Try(slot - 1, action);
+
+        /// <summary>[상태 변경] 성장 · 재화를 모두 처음으로 (새 계정 — 저장 파일도 그 상태로).</summary>
+        public void DebugGrowthReset() { if (_growth != null) _growth.ResetAll(); }
+
+        /// <summary>[상태 변경] 지금 상태를 바로 저장한다.</summary>
+        public void DebugGrowthSaveNow() => SaveGrowth();
+
+        /// <summary>[상태 변경] 캐릭터 화면 키 주입 (열기/닫기, 다음 프레임).</summary>
+        public void DebugInputCharacterMenu() => _input?.DebugPressCharacterMenu();
+
+        /// <summary>[상태 변경] 캐릭터 화면을 바로 열거나 닫는다.</summary>
+        public void DebugSetGrowthScreenOpen(bool open) { if (growthScreen != null) growthScreen.SetOpen(open); }
 
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()

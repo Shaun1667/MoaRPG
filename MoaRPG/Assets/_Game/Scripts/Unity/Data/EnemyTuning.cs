@@ -69,6 +69,10 @@ namespace Moa.Unity.Data
         [SerializeField] float defense;
         [Tooltip("Burst (Q) energy the player gains when this enemy is defeated")]
         [SerializeField] float energyOnDefeat;
+        [Tooltip("Gold the player gains when this enemy is defeated (3-5)")]
+        [SerializeField] int goldOnDefeat;
+        [Tooltip("Exp material (Adventure EXP) the player gains when this enemy is defeated (3-5)")]
+        [SerializeField] int expItemsOnDefeat;
         [Tooltip("m, capsule height (feet to top)")]
         [SerializeField] float capsuleHeight;
         [Tooltip("m, capsule radius")]
@@ -141,6 +145,8 @@ namespace Moa.Unity.Data
         public int MaxHealth => maxHealth;
         public float Defense => defense;
         public float EnergyOnDefeat => energyOnDefeat;
+        public int GoldOnDefeat => goldOnDefeat;
+        public int ExpItemsOnDefeat => expItemsOnDefeat;
         public float CapsuleHeight => capsuleHeight;
         public float CapsuleRadius => capsuleRadius;
         public float EyeHeight => eyeHeight;

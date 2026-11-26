@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71f04fcd3905df34ca102ee6ede7931f, type: 3}
   m_Name: SwordHero
   m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.CharacterData
+  saveId: sword_hero
   nameKey: character.sword_hero.name
   color: {r: 1, g: 0.62, b: 0.22, a: 1}
   weapon: {fileID: 11400000, guid: 735eb6454e776364b9b10501d0ed4641, type: 2}

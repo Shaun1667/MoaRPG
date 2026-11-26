@@ -88,6 +88,13 @@ namespace Moa.Unity.Combat
             _vitals = new PartyVitals(tuning.ToRules(), max, defense, party);
         }
 
+        /// <summary>[상태 변경] 칸의 최대 체력 · 방어 (3-5 성장, GameRoot가 부른다 — 늘면 지금 체력도 그만큼).</summary>
+        public void SetMemberStats(int index, int maxHealth, float defense)
+        {
+            if (_vitals == null || index < 0 || index >= _vitals.Count) return;
+            _vitals.SetStats(index, maxHealth, defense);
+        }
+
         float DefenseConstant => _combat != null && _combat.Tuning != null ? _combat.Tuning.DefenseConstant : 0f;
 
         /// <summary>땅 위에서만 경직 · 밀려남 (등반 · 활공 · 낙하 중 · 공중은 피해만).</summary>

@@ -1,5 +1,6 @@
 using System;
 using Moa.Core.Combat;
+using Moa.Core.Growth;
 using Moa.Core.Ids;
 using Moa.Core.Motion;
 using Moa.Unity.Data;
@@ -49,6 +50,7 @@ namespace Moa.Unity.Combat
         int _appliedIndex;      // 3-1: ApplyActive를 마지막으로 한 칸 (쓰러져 강제 교체됐는지 SyncActive가 본다)
         EntityId _id;
         float _attackScale = 1f; // 디버그 공격력 배수 (1 = 그대로)
+        MemberStats[] _growth = { MemberStats.Identity }; // 3-5: 칸마다 성장 배율 (GameRoot가 SetGrowth, 없으면 1 = 데이터 값 그대로)
 
         // 2-6: 현재 캐릭터 (파티가 없으면 weapon · skills 칸)
         Party _party;
@@ -94,12 +96,12 @@ namespace Moa.Unity.Combat
         public AttackMode Mode => _attack != null ? _attack.Mode : AttackMode.None;
         public EntityId Id => _id;
         /// <summary>지금 공격력 = (캐릭터 기본 공격력 + 무기 공격력) × 디버그 배수.</summary>
-        public float Attack => Weapon != null ? (_baseAttack + Weapon.BaseAttack) * _attackScale : 0f;
+        public float Attack => Weapon != null ? (_baseAttack * ActiveGrowth.Character + Weapon.BaseAttack * ActiveGrowth.Weapon) * _attackScale : 0f;
         public float AttackScale { get => _attackScale; set => _attackScale = value > 0f ? value : 0f; }
         /// <summary>현재 캐릭터 기본 공격력 (파티가 없으면 character 칸, Bind 전에는 0).</summary>
-        public float CharacterAttack => _baseAttack;
+        public float CharacterAttack => _baseAttack * ActiveGrowth.Character;
         /// <summary>현재 무기 기본 공격력.</summary>
-        public float WeaponAttack => Weapon != null ? Weapon.BaseAttack : 0f;
+        public float WeaponAttack => Weapon != null ? Weapon.BaseAttack * ActiveGrowth.Weapon : 0f;
         public HitReport LastHit { get; private set; }
         public int HitCount { get; private set; }
         /// <summary>마지막 낙하 착지 자리 (발) · 그때 맞힌 수.</summary>
@@ -135,6 +137,32 @@ namespace Moa.Unity.Combat
         public event Action<float, bool> EnergyGained;
         /// <summary>캐릭터를 바꿨을 때 (나간 칸, 들어온 칸) (2-6).</summary>
         public event Action<int, int> Switched;
+        /// <summary>플레이어의 한 방으로 대상이 쓰러졌을 때 (3-5 처치 보상).</summary>
+        public event Action<IHitTarget> Defeated;
+
+        // ---- 3-5 성장 ----
+
+        MemberStats ActiveGrowth => ActiveIndex < _growth.Length ? _growth[ActiveIndex] : MemberStats.Identity;
+
+        /// <summary>칸(0부터, 파티가 없으면 0)의 성장 배율.</summary>
+        public MemberStats Growth(int slot) => slot >= 0 && slot < _growth.Length ? _growth[slot] : MemberStats.Identity;
+
+        /// <summary>[상태 변경] 칸의 성장 배율을 정한다 (3-5, GameRoot가 성장이 바뀔 때마다) — 캐릭터 공격력 · 무기 공격력 · E · Q 배율.</summary>
+        public void SetGrowth(int slot, MemberStats stats)
+        {
+            if (slot >= 0 && slot < _growth.Length) _growth[slot] = stats;
+        }
+
+        /// <summary>칸의 합 공격력 (캐릭터 × 성장 + 지금 끼운 무기 × 성장, 디버그 배수 없이) — 성장 화면용.</summary>
+        public float MemberAttack(int slot)
+        {
+            MemberStats g = Growth(slot);
+            if (_party == null) return slot == 0 && Weapon != null ? _baseAttack * g.Character + Weapon.BaseAttack * g.Weapon : 0f;
+            CharacterData c = GetCharacter(slot);
+            if (c == null) return 0f;
+            WeaponTuning w = slot < _equipped.Length && _equipped[slot] != null ? _equipped[slot] : c.Weapon;
+            return c.BaseAttack * g.Character + (w != null ? w.BaseAttack * g.Weapon : 0f);
+        }
 
         public void Bind(IPlayerInput input)
         {
@@ -165,6 +193,8 @@ namespace Moa.Unity.Combat
                 _equipped = new WeaponTuning[n];
                 for (int i = 0; i < n; i++) _equipped[i] = characters[i].Weapon != null ? characters[i].Weapon : weapon;
                 _party = new Party(party.ToRules(), attacks, handoffs);
+                _growth = new MemberStats[n];
+                for (int i = 0; i < n; i++) _growth[i] = MemberStats.Identity;
                 ApplyActive();
                 return;
             }
@@ -173,6 +203,7 @@ namespace Moa.Unity.Combat
             _party = null;
             _characters = new CharacterData[0];
             _equipped = new[] { weapon };
+            _growth = new[] { MemberStats.Identity };
             _weapon = weapon;
             _skills = skills;
             if (character == null) Debug.LogWarning("PlayerCombat: no party and no character - attack is the weapon attack only");
@@ -332,6 +363,8 @@ namespace Moa.Unity.Combat
                 if (halfAngle < 180f && to.sqrMagnitude > 1e-6f && Vector3.Angle(forward, to) > halfAngle) continue;
                 if (!_attack.TryHitSwing(t.Id)) continue; // 이번 휘두르기에 이미 맞음
                 float multiplier = _attack.CurrentSwing.Multiplier;
+                if (kind == AttackMode.Burst) multiplier *= ActiveGrowth.Burst; // 3-5: 궁극기 · 스킬 레벨 배율 (레벨 1 = 1)
+                else if (kind == AttackMode.Skill) multiplier *= ActiveGrowth.Skill;
                 switch (kind)
                 {
                     case AttackMode.Burst:
@@ -406,6 +439,7 @@ namespace Moa.Unity.Combat
             int applied = t.ReceiveHit(damage, feet);
             // 2-4: 이 한 방으로 쓰러뜨렸으면 적 표의 처치 에너지 (궁극기 중에는 안 찬다)
             // 2-6: 파티면 현재 캐릭터는 그대로, 대기 캐릭터는 × benchEnergyRatio
+            if (wasAlive && !t.Alive) Defeated?.Invoke(t); // 3-5: 처치 보상 (GameRoot → 성장 지갑)
             if (wasAlive && !t.Alive && t is IEnergyDrop drop)
             {
                 float bench = 0f;

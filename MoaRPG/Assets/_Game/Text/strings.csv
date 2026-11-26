@@ -15,3 +15,19 @@ character.sword_sage.name,현자,Sage
 ui.buff.damage,피해 +{0:0}%,DMG +{0:0}%
 ui.buff.poise,경직 +{0:0}%,Poise +{0:0}%
 ui.buff.shield,보호막 {0},Shield {0}
+ui.growth.title,캐릭터,Characters
+ui.growth.wallet,골드 {0} · 모험 경험 {1},Gold {0} · Adventure EXP {1}
+ui.growth.close,C 닫기,C to close
+ui.growth.level,Lv. {0} / {1},Lv. {0} / {1}
+ui.growth.exp,경험치 {0} / {1},EXP {0} / {1}
+ui.growth.exp_max,경험치 최대,EXP MAX
+ui.growth.stats,체력 {0} · 공격 {1} · 방어 {2},HP {0} · ATK {1} · DEF {2}
+ui.growth.skill,스킬 E Lv. {0},Skill E Lv. {0}
+ui.growth.burst,궁극기 Q Lv. {0},Burst Q Lv. {0}
+ui.growth.weapon,무기 Lv. {0} / {1} · 공격 {2},Weapon Lv. {0} / {1} · ATK {2}
+ui.growth.level_up,레벨업 · 모험 경험 {0},Level Up · {0} EXP
+ui.growth.ascend,돌파 · 골드 {0},Ascend · {0} Gold
+ui.growth.upgrade_gold,올리기 · 골드 {0},Upgrade · {0} Gold
+ui.growth.upgrade_exp,올리기 · 모험 경험 {0},Upgrade · {0} EXP
+ui.growth.max,최대,MAX
+ui.growth.need_ascend,돌파 필요,Ascend first

@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 71f04fcd3905df34ca102ee6ede7931f, type: 3}
   m_Name: SwordSage
   m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.CharacterData
+  saveId: sword_sage
   nameKey: character.sword_sage.name
   color: {r: 0.85, g: 0.25, b: 0.6, a: 1}
   weapon: {fileID: 11400000, guid: 735eb6454e776364b9b10501d0ed4641, type: 2}

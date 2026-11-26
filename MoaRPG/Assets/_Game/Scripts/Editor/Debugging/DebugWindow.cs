@@ -27,6 +27,7 @@ namespace Moa.Editor.Debugging
             new PlayerHealthSection(),
             new SwitchComboSection(),
             new WeaponSection(),
+            new GrowthSection(),
         };
 
         bool[] _open;

@@ -1,0 +1,247 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 06742fcb73520eb4a8de0f12c8cf8657, type: 3}
+  m_Name: Growth
+  m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.GrowthTuning
+  characterLevels:
+  - expToNext: 500
+    multiplier: 0.55
+  - expToNext: 600
+    multiplier: 0.6
+  - expToNext: 700
+    multiplier: 0.65
+  - expToNext: 800
+    multiplier: 0.7
+  - expToNext: 900
+    multiplier: 0.75
+  - expToNext: 1000
+    multiplier: 0.8
+  - expToNext: 1100
+    multiplier: 0.85
+  - expToNext: 1200
+    multiplier: 0.9
+  - expToNext: 1300
+    multiplier: 0.95
+  - expToNext: 1400
+    multiplier: 1
+  - expToNext: 1500
+    multiplier: 1.05
+  - expToNext: 1600
+    multiplier: 1.1
+  - expToNext: 1700
+    multiplier: 1.15
+  - expToNext: 1800
+    multiplier: 1.2
+  - expToNext: 1900
+    multiplier: 1.25
+  - expToNext: 2000
+    multiplier: 1.3
+  - expToNext: 2100
+    multiplier: 1.35
+  - expToNext: 2200
+    multiplier: 1.4
+  - expToNext: 2300
+    multiplier: 1.45
+  - expToNext: 2400
+    multiplier: 1.5
+  - expToNext: 2500
+    multiplier: 1.55
+  - expToNext: 2600
+    multiplier: 1.6
+  - expToNext: 2700
+    multiplier: 1.65
+  - expToNext: 2800
+    multiplier: 1.7
+  - expToNext: 2900
+    multiplier: 1.75
+  - expToNext: 3000
+    multiplier: 1.8
+  - expToNext: 3100
+    multiplier: 1.85
+  - expToNext: 3200
+    multiplier: 1.9
+  - expToNext: 3300
+    multiplier: 1.95
+  - expToNext: 3400
+    multiplier: 2
+  - expToNext: 3500
+    multiplier: 2.05
+  - expToNext: 3600
+    multiplier: 2.1
+  - expToNext: 3700
+    multiplier: 2.15
+  - expToNext: 3800
+    multiplier: 2.2
+  - expToNext: 3900
+    multiplier: 2.25
+  - expToNext: 4000
+    multiplier: 2.3
+  - expToNext: 4100
+    multiplier: 2.35
+  - expToNext: 4200
+    multiplier: 2.4
+  - expToNext: 4300
+    multiplier: 2.45
+  - expToNext: 4400
+    multiplier: 2.5
+  - expToNext: 4500
+    multiplier: 2.55
+  - expToNext: 4600
+    multiplier: 2.6
+  - expToNext: 4700
+    multiplier: 2.65
+  - expToNext: 4800
+    multiplier: 2.7
+  - expToNext: 4900
+    multiplier: 2.75
+  - expToNext: 5000
+    multiplier: 2.8
+  - expToNext: 5100
+    multiplier: 2.85
+  - expToNext: 5200
+    multiplier: 2.9
+  - expToNext: 5300
+    multiplier: 2.95
+  - expToNext: 5400
+    multiplier: 3
+  - expToNext: 5500
+    multiplier: 3.05
+  - expToNext: 5600
+    multiplier: 3.1
+  - expToNext: 5700
+    multiplier: 3.15
+  - expToNext: 5800
+    multiplier: 3.2
+  - expToNext: 5900
+    multiplier: 3.25
+  - expToNext: 6000
+    multiplier: 3.3
+  - expToNext: 6100
+    multiplier: 3.35
+  - expToNext: 6200
+    multiplier: 3.4
+  - expToNext: 6300
+    multiplier: 3.45
+  - expToNext: 0
+    multiplier: 3.5
+  ascensions:
+  - levelCap: 20
+    goldCost: 5000
+    statBonus: 0.1
+  - levelCap: 40
+    goldCost: 15000
+    statBonus: 0.1
+  characterStartLevel: 10
+  weaponLevels:
+  - expToNext: 300
+    multiplier: 1
+  - expToNext: 360
+    multiplier: 1.05
+  - expToNext: 420
+    multiplier: 1.1
+  - expToNext: 480
+    multiplier: 1.15
+  - expToNext: 540
+    multiplier: 1.2
+  - expToNext: 600
+    multiplier: 1.25
+  - expToNext: 660
+    multiplier: 1.3
+  - expToNext: 720
+    multiplier: 1.35
+  - expToNext: 780
+    multiplier: 1.4
+  - expToNext: 840
+    multiplier: 1.45
+  - expToNext: 900
+    multiplier: 1.5
+  - expToNext: 960
+    multiplier: 1.55
+  - expToNext: 1020
+    multiplier: 1.6
+  - expToNext: 1080
+    multiplier: 1.65
+  - expToNext: 1140
+    multiplier: 1.7
+  - expToNext: 1200
+    multiplier: 1.75
+  - expToNext: 1260
+    multiplier: 1.8
+  - expToNext: 1320
+    multiplier: 1.85
+  - expToNext: 1380
+    multiplier: 1.9
+  - expToNext: 1440
+    multiplier: 1.95
+  - expToNext: 1500
+    multiplier: 2
+  - expToNext: 1560
+    multiplier: 2.05
+  - expToNext: 1620
+    multiplier: 2.1
+  - expToNext: 1680
+    multiplier: 2.15
+  - expToNext: 1740
+    multiplier: 2.2
+  - expToNext: 1800
+    multiplier: 2.25
+  - expToNext: 1860
+    multiplier: 2.3
+  - expToNext: 1920
+    multiplier: 2.35
+  - expToNext: 1980
+    multiplier: 2.4
+  - expToNext: 2040
+    multiplier: 2.45
+  - expToNext: 2100
+    multiplier: 2.5
+  - expToNext: 2160
+    multiplier: 2.55
+  - expToNext: 2220
+    multiplier: 2.6
+  - expToNext: 2280
+    multiplier: 2.65
+  - expToNext: 2340
+    multiplier: 2.7
+  - expToNext: 2400
+    multiplier: 2.75
+  - expToNext: 2460
+    multiplier: 2.8
+  - expToNext: 2520
+    multiplier: 2.85
+  - expToNext: 2580
+    multiplier: 2.9
+  - expToNext: 0
+    multiplier: 2.95
+  weaponStartLevel: 1
+  skillLevels:
+  - multiplier: 1
+    goldToNext: 1000
+  - multiplier: 1.075
+    goldToNext: 2000
+  - multiplier: 1.15
+    goldToNext: 3000
+  - multiplier: 1.25
+    goldToNext: 4000
+  - multiplier: 1.325
+    goldToNext: 6000
+  - multiplier: 1.4
+    goldToNext: 8000
+  - multiplier: 1.5
+    goldToNext: 10000
+  - multiplier: 1.6
+    goldToNext: 12000
+  - multiplier: 1.7
+    goldToNext: 15000
+  - multiplier: 1.8
+    goldToNext: 0
+  expPerItem: 1000

@@ -149,6 +149,13 @@ namespace Moa.Core.Combat
         /// <summary>[상태 변경] 플레이어 무적 (디버그): 맞아도 체력이 줄지 않고 경직도 없다.</summary>
         public bool Invulnerable { get; set; }
 
+        /// <summary>[상태 변경] 칸의 최대 체력 · 방어를 바꾼다 (3-5 성장 — Health.SetMax 규칙: 늘면 지금 체력도 그만큼).</summary>
+        public void SetStats(int index, int maxHealth, float defense)
+        {
+            _health[index].SetMax(maxHealth < 1 ? 1 : maxHealth);
+            _defense[index] = defense > 0f ? defense : 0f;
+        }
+
         /// <summary>남은 경직 (초, 넘어짐 포함).</summary>
         public float StunLeft { get; private set; }
         public bool Stunned => StunLeft > 0f;

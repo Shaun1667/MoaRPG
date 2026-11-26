@@ -15,7 +15,7 @@ namespace Moa.Core.Combat
             Current = max;
         }
 
-        public int Max { get; }
+        public int Max { get; private set; }
         public int Current { get; private set; }
         public bool IsDead => Current <= 0;
         public bool Invulnerable { get; set; }
@@ -47,6 +47,19 @@ namespace Moa.Core.Combat
             int applied = amount < room ? amount : room;
             Current += applied;
             return applied;
+        }
+
+        /// <summary>
+        /// [상태 변경] 최대 체력을 바꾼다 (3-5 성장). 살아 있으면 늘어난 만큼 지금 체력도 늘고, 줄면 새 최대까지만. 쓰러져 있으면 그대로 0.
+        /// </summary>
+        public void SetMax(int max)
+        {
+            if (max < 1) throw new ArgumentOutOfRangeException(nameof(max), "max must be >= 1");
+            int delta = max - Max;
+            Max = max;
+            if (IsDead) return;
+            int v = delta > 0 ? Current + delta : Current;
+            Current = v > Max ? Max : v < 1 ? 1 : v;
         }
 
         /// <summary>쓰러져 있으면 value(1 ~ 최대)로 되살린다 (3-1). 살아 있으면 그대로.</summary>

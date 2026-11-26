@@ -45,6 +45,7 @@ namespace Moa.Editor.Setup
         public const string PlayerHealthTuningPath = "Assets/_Game/Data/Player/PlayerHealthTuning.asset"; // 3-1: 피격 · 전멸 · 회복 지점 (PlayerHealthTuning)
         public const string ArcherTuningPath = "Assets/_Game/Data/Enemies/Archer.asset";        // 3-4: 원거리 궁수 (EnemyTuning)
         public const string BruteTuningPath = "Assets/_Game/Data/Enemies/Brute.asset";          // 3-4: 정예 (EnemyTuning)
+        public const string GrowthTuningPath = "Assets/_Game/Data/Growth/Growth.asset";        // 3-5: 레벨 · 돌파 · 스킬 · 무기 성장 곡선 (GrowthTuning)
         public const string NavMeshDataPath = "Assets/_Game/Scenes/TestField/NavMesh-Environment.asset"; // 3-4: Environment에서 구운 NavMesh (다시 굽으면 이 에셋을 고침)
 
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
@@ -55,7 +56,7 @@ namespace Moa.Editor.Setup
         const string TrailShader = "Sprites/Default";                       // 궤적 (정점 색 · 투명)
         const string TrailShaderFallback = "Universal Render Pipeline/Unlit";
 
-        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD", "Dummies", "Enemies" };
+        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD", "Dummies", "Enemies", "EventSystem" };
 
         // ---- 표현 표 (1-2, 게임 수치 아님) ----
         static readonly Color SprintColor = new Color(1.00f, 0.86f, 0.20f);      // 질주 중: 노랑
@@ -213,6 +214,18 @@ namespace Moa.Editor.Setup
         static readonly Vector3 ArrowShaftSize = new Vector3(0.04f, 0.04f, 0.80f);  // 날아가는 화살 막대 (앞끝 = 투사체 자리)
         static readonly Vector3 ArrowHeadSize = new Vector3(0.09f, 0.09f, 0.12f);
 
+        // ---- 표현 표 (3-5 성장 화면, 게임 수치 아님) ----
+        const int GrowthSortingOrder = 100;                                        // HUD 위에 (전멸 검은 판보다도 위)
+        static readonly Vector2 GrowthWindowSize = new Vector2(1680f, 860f);       // 가운데 창 (px, 1920×1080 기준)
+        const float GrowthPad = 40f, GrowthGap = 20f, GrowthHeader = 100f;         // 창 안 여백 · 칸 사이 · 제목 줄 높이
+        static readonly Vector2 GrowthRow = new Vector2(44f, 8f);                  // 줄 높이 · 줄 사이
+        const int GrowthTitleFontSize = 40, GrowthBodyFontSize = 24, GrowthButtonFontSize = 22;
+        static readonly Color GrowthDimColor = new Color(0f, 0f, 0f, 0.75f);       // 뒤 가림
+        static readonly Color GrowthWindowColor = new Color(0.08f, 0.09f, 0.12f, 1f); // 불투명 (리니어 색 공간에서는 0.96도 뒤 HUD가 비친다)
+        static readonly Color GrowthColumnColor = new Color(1f, 1f, 1f, 0.06f);
+        static readonly Color GrowthButtonColor = new Color(0.22f, 0.45f, 0.78f, 1f);
+        static readonly Color GrowthButtonDisabledColor = new Color(0.30f, 0.30f, 0.33f, 0.9f); // 재화 모자람 · 상한 · 최대
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -301,6 +314,7 @@ namespace Moa.Editor.Setup
             EnsureFolder("Assets/_Game/Data/Enemies");
             EnsureFolder("Assets/_Game/Data/Skills");
             EnsureFolder("Assets/_Game/Data/Characters");
+            EnsureFolder("Assets/_Game/Data/Growth"); // 3-5
 
             EnsureFolder(GrayboxFolder);
             EnsureFolder("Assets/_Game/Scenes");
@@ -327,6 +341,7 @@ namespace Moa.Editor.Setup
             var party = LoadOrCreate<PartyTuning>(PartyPath); // 2-6
             var hero = LoadOrCreate<CharacterData>(HeroCharacterPath); // 2-6: 파티 없이 쓸 때의 캐릭터 공격력
             var health = LoadOrCreate<PlayerHealthTuning>(PlayerHealthTuningPath); // 3-1
+            var growth = LoadOrCreate<GrowthTuning>(GrowthTuningPath); // 3-5
 
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
@@ -363,12 +378,18 @@ namespace Moa.Editor.Setup
                 BuffBackColor, BuffBarColor, SkillTextColor, DamageOutlineColor); // 3-2: 체력 HUD보다 먼저 (검은 판이 위)
             var healthHud = HealthHud.CreateIn(gauge.transform.parent, HealthBarSize, HealthBarBottom, HealthBarBorder, HealthBackColor, HealthFillColor, HealthLowColor,
                 HealthLowRatio, FadeColor); // 3-1: HUD 마지막 자식 — 검은 판이 맨 위
+            var growthScreen = GrowthScreen.CreateIn(gauge.transform.parent, GrowthSortingOrder, GrowthWindowSize, GrowthPad, GrowthGap, GrowthRow, GrowthHeader,
+                GrowthTitleFontSize, GrowthBodyFontSize, GrowthButtonFontSize, GrowthDimColor, GrowthWindowColor, GrowthColumnColor, GrowthButtonColor, GrowthButtonDisabledColor,
+                SkillTextColor, DamageOutlineColor); // 3-5: 자기 Canvas(정렬 덮어쓰기)라 검은 판보다 위
+            GrowthScreen.CreateEventSystem("EventSystem"); // 3-5: 버튼 클릭
             var dummies = BuildDummies(dummyTuning, attackTuning, mats);
             var enemies = BuildEnemies(enemyTunings, mats); // 2-5 · 3-4
             var root = BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies, partyHud);
             var heals = BuildHealingPoints(env, health, mats); // 3-1
             ConnectHealth(root, player, healthHud, points, heals);
             Set(root, "buffHud", buffHud); // 3-2
+            Set(root, "growth", growth); // 3-5
+            Set(root, "growthScreen", growthScreen);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);

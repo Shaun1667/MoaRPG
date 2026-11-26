@@ -11,6 +11,8 @@ namespace Moa.Unity.Data
     [CreateAssetMenu(menuName = "MoaRPG/Data/Character", fileName = "Character")]
     public sealed class CharacterData : ScriptableObject
     {
+        [Tooltip("Save id (3-5): growth in the save file is stored under this - never change it once players have saves")]
+        [SerializeField] string saveId;
         [Tooltip("Text table key of the character name")]
         [SerializeField] string nameKey;
         [Tooltip("Graybox body color and party HUD color")]
@@ -26,6 +28,7 @@ namespace Moa.Unity.Data
         [Tooltip("Defense against enemy hits (3-1): damage x (1 - defense / (defense + defense constant))")]
         [SerializeField] float defense;
 
+        public string SaveId => saveId;
         public string NameKey => nameKey;
         public Color Color => color;
         public WeaponTuning Weapon => weapon;
