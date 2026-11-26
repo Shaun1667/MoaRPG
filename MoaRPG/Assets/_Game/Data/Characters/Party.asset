@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aecd629857461f4448e52aeee398b5c0, type: 3}
+  m_Name: Party
+  m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.PartyTuning
+  switchCooldown: 1
+  benchEnergyRatio: 0.6
+  members:
+  - {fileID: 11400000, guid: 0bce7bb7ba3f3634ba40f34f5d04635c, type: 2}
+  - {fileID: 11400000, guid: e700e37aef7376246a9c4a41b3db7bc2, type: 2}
+  - {fileID: 11400000, guid: 7c54208e8b16d364799e0c808646ed2c, type: 2}
+  - {fileID: 11400000, guid: 37f9736f8b705a04491008569f5a9acd, type: 2}

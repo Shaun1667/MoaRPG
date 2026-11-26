@@ -25,6 +25,10 @@ namespace Moa.Unity.Input
         public const string Attack = "Attack";
         public const string Skill = "Skill"; // 2-4: 스킬(E)
         public const string Burst = "Burst"; // 2-4: 궁극기(Q)
+        /// <summary>2-6: 파티 교체 칸 1 ~ 4 (키 1 · 2 · 3 · 4, 패드 십자 위 · 오른쪽 · 아래 · 왼쪽).</summary>
+        public static readonly string[] PartySlots = { "Party1", "Party2", "Party3", "Party4" };
+        static readonly string[] PartyKeys = { "<Keyboard>/1", "<Keyboard>/2", "<Keyboard>/3", "<Keyboard>/4" };
+        static readonly string[] PartyPads = { "<Gamepad>/dpad/up", "<Gamepad>/dpad/right", "<Gamepad>/dpad/down", "<Gamepad>/dpad/left" };
 
 
         /// <summary>기본 키: WASD · 방향키 / 왼쪽 스틱 이동, 마우스 · 오른쪽 스틱 시점, 휠 줌, Space · A(South) 점프, 왼쪽 Ctrl · 왼쪽 스틱 누르기 걷기 전환, ESC 커서 풀기, 왼쪽 클릭 커서 잠그기, 왼쪽 Shift · RT 누르는 동안 질주, 오른쪽 클릭 · B(East) 회피 (1-2), 왼쪽 클릭(커서가 잠겼을 때) · X(West) 일반 공격 (2-1).</summary>
@@ -71,6 +75,13 @@ namespace Moa.Unity.Input
             skill.AddBinding("<Gamepad>/rightShoulder");
             var burst = map.AddAction(Burst, InputActionType.Button, "<Keyboard>/q");
             burst.AddBinding("<Gamepad>/buttonNorth");
+
+            // 2-6: 파티 교체 — 에셋에 없으면 PlayerInputReader가 조용히 건너뛴다
+            for (int i = 0; i < PartySlots.Length; i++)
+            {
+                var slot = map.AddAction(PartySlots[i], InputActionType.Button, PartyKeys[i]);
+                slot.AddBinding(PartyPads[i]);
+            }
 
 
             string json = asset.ToJson();

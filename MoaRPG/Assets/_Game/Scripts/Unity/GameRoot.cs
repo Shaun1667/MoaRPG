@@ -43,6 +43,9 @@ namespace Moa.Unity
         [Header("Skill / burst / energy (2-4, empty in scenes without a player)")]
         [Tooltip("E cooldown and Q energy slots on the HUD canvas")]
         [SerializeField] SkillHud skillHud;
+        [Header("Party (2-6, empty in scenes without a player)")]
+        [Tooltip("Four party slots on the right of the HUD canvas")]
+        [SerializeField] PartyHud partyHud;
         [Header("Enemies (2-5, empty in scenes without enemies)")]
         [Tooltip("Melee enemies (EnemyAgent) that chase and attack the player")]
         [SerializeField] EnemyAgent[] enemies;
@@ -90,6 +93,7 @@ namespace Moa.Unity
                 damageNumbers.Bind(playerCombat.Tuning, view, UiFont.Get(config));
             BindPoise(view);
             if (skillHud != null) skillHud.Bind(playerCombat, UiFont.Get(config)); // 2-4
+            if (partyHud != null) partyHud.Bind(playerCombat, UiFont.Get(config)); // 2-6
         }
 
         /// <summary>2-3: 저스트 회피(플레이어 쪽) · 공격 허수아비의 대상 · 경직 막대.</summary>
@@ -447,6 +451,69 @@ namespace Moa.Unity
             if (!DebugHasCombat) return;
             playerCombat.Skill.ResetCooldown();
             playerCombat.Burst.ResetCooldown();
+        }
+
+        // ---- 파티 4인 교체 (2-6) ----
+
+        public bool DebugHasParty => DebugHasCombat && playerCombat.Party != null;
+        public Moa.Core.Combat.Party DebugParty => DebugHasCombat ? playerCombat.Party : null;
+        public int DebugPartyCount => DebugHasCombat ? playerCombat.CharacterCount : 0;
+        /// <summary>현재 칸, 1부터 (0 = 파티 없음).</summary>
+        public int DebugPartyActiveSlot => DebugHasParty ? playerCombat.ActiveIndex + 1 : 0;
+        /// <summary>칸의 캐릭터 (slot 1 ~ 4, 없으면 null).</summary>
+        public CharacterData DebugPartyCharacter(int slot) => playerCombat != null ? playerCombat.GetCharacter(slot - 1) : null;
+        /// <summary>칸의 공격 조정 (스킬 · 궁극기 쿨 · 에너지, slot 1 ~ 4, 없으면 null).</summary>
+        public Moa.Core.Combat.PlayerAttack DebugPartyMember(int slot) => playerCombat != null ? playerCombat.MemberAttacks(slot - 1) : null;
+        public float DebugPartyCooldown => DebugHasParty ? playerCombat.Party.CooldownLeft : 0f;
+        public int DebugPartySwitchCount => DebugHasParty ? playerCombat.Party.SwitchCount : 0;
+        /// <summary>마지막 교체가 막힌 까닭 (None · NoMember · SameMember · Cooldown · Burst · Plunge · Gliding).</summary>
+        public string DebugPartyLastBlock => DebugHasParty ? playerCombat.Party.LastBlock.ToString() : "-";
+        /// <summary>마지막 교체로 끊은 공격 (None = 끊은 것 없음).</summary>
+        public string DebugPartyLastInterrupted => DebugHasParty ? playerCombat.Party.LastInterrupted.ToString() : "-";
+        public float DebugPartyBenchEnergyFromDefeat => playerCombat != null ? playerCombat.BenchEnergyFromDefeat : 0f;
+        public float DebugPartyLastBenchEnergyGain => playerCombat != null ? playerCombat.LastBenchEnergyGain : 0f;
+        public PartyHud DebugPartyHud => partyHud;
+        public string DebugPartyBodyCharacter
+        {
+            get
+            {
+                var f = playerMotor != null ? playerMotor.GetComponent<PlayerGrayboxFeedback>() : null;
+                return f != null && f.ShownCharacter != null ? f.ShownCharacter.name : "-";
+            }
+        }
+
+        /// <summary>[상태 변경] 교체 입력 주입 (slot 1 ~ 4, 다음 고정 스텝에 소비 — 쿨 · 막힘 규칙 그대로).</summary>
+        public void DebugPartySwitch(int slot) => _input?.DebugPressSwitch(slot);
+
+        /// <summary>[상태 변경] 교체 쿨을 없앤다.</summary>
+        public void DebugPartyResetCooldown() { if (DebugHasParty) playerCombat.Party.ResetCooldown(); }
+
+        /// <summary>[상태 변경] 칸의 에너지를 가득 (slot 0 = 모두).</summary>
+        public void DebugPartyEnergyFill(int slot)
+        {
+            if (!DebugHasParty) return;
+            for (int i = 0; i < playerCombat.CharacterCount; i++)
+                if (slot == 0 || slot == i + 1) playerCombat.MemberAttacks(i).Energy.Fill();
+        }
+
+        /// <summary>[상태 변경] 칸의 에너지 값 정하기 (slot 0 = 모두).</summary>
+        public void DebugPartyEnergySet(int slot, float value)
+        {
+            if (!DebugHasParty) return;
+            for (int i = 0; i < playerCombat.CharacterCount; i++)
+                if (slot == 0 || slot == i + 1) playerCombat.MemberAttacks(i).Energy.Set(value);
+        }
+
+        /// <summary>[상태 변경] 모든 캐릭터의 스킬 · 궁극기 쿨과 교체 쿨을 없앤다.</summary>
+        public void DebugPartyResetAllCooldowns()
+        {
+            if (!DebugHasParty) return;
+            for (int i = 0; i < playerCombat.CharacterCount; i++)
+            {
+                playerCombat.MemberAttacks(i).Skill.ResetCooldown();
+                playerCombat.MemberAttacks(i).Burst.ResetCooldown();
+            }
+            playerCombat.Party.ResetCooldown();
         }
 
         // ---- 적 AI (2-5) ----

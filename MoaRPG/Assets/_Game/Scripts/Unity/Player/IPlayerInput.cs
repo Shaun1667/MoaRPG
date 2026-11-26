@@ -50,6 +50,9 @@ namespace Moa.Unity.Player
         /// <summary>눌린 궁극기(Q)를 한 번 꺼낸다 (FixedUpdate에서 소비, 2-4). 입력 에셋에 Burst 액션이 없으면 주입만.</summary>
         bool ConsumeBurst();
 
+        /// <summary>눌린 파티 교체를 한 번 꺼낸다 (FixedUpdate에서 소비, 2-6): 1 ~ 4 = 칸 번호, 0 = 없음. 같은 프레임에 여럿이면 마지막 것. 입력 에셋에 Party1 ~ 4가 없으면 주입만.</summary>
+        int ConsumeSwitch();
+
 
         // ---- 디버그 주입 ----
         bool DebugOverriding { get; }
@@ -69,6 +72,8 @@ namespace Moa.Unity.Player
         void DebugHoldSkill(float seconds);
         /// <summary>궁극기를 누른다 (2-4).</summary>
         void DebugPressBurst();
+        /// <summary>파티 교체를 누른다 (slot 1 ~ 4, 2-6).</summary>
+        void DebugPressSwitch(int slot);
 
         void DebugClear();
     }

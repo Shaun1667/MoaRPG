@@ -7,3 +7,8 @@ ui.skill.key,E,E
 ui.burst.key,Q,Q
 ui.skill.cooldown,{0:0.0},{0:0.0}
 ui.burst.energy,{0:0}/{1:0},{0:0}/{1:0}
+ui.party.slot,{0},{0}
+character.sword_hero.name,영웅,Hero
+character.sword_guardian.name,수호자,Guardian
+character.sword_wanderer.name,떠돌이,Wanderer
+character.sword_sage.name,현자,Sage

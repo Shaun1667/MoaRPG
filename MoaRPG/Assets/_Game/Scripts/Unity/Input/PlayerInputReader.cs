@@ -21,6 +21,8 @@ namespace Moa.Unity.Input
         InputAction _skill, _burst; // 2-4: 에셋에 없으면 null (주입만 받는다)
         bool _skillLatched;
         bool _burstLatched;
+        InputAction[] _party = new InputAction[0]; // 2-6: Party1 ~ 4, 에셋에 없는 칸은 null
+        int _switchLatched; // 1 ~ 4, 0 = 없음
         float _debugSkillHoldEnd = float.NegativeInfinity; // 주입한 스킬 길게 누르기가 끝나는 고정 스텝 시각 (2-4)
 
         bool _walkMode;
@@ -83,6 +85,8 @@ public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.Is
             _attack = _map.FindAction(PlayerControls.Attack, false);
             _skill = _map.FindAction(PlayerControls.Skill, false); // 2-4: 없으면 조용히 건너뛴다
             _burst = _map.FindAction(PlayerControls.Burst, false);
+            _party = new InputAction[PlayerControls.PartySlots.Length]; // 2-6: 없으면 조용히 건너뛴다
+            for (int i = 0; i < _party.Length; i++) _party[i] = _map.FindAction(PlayerControls.PartySlots[i], false);
 
             if (_attack == null)
                 Debug.LogWarning("PlayerInputReader: action '" + PlayerControls.Attack + "' is missing in " + actions.name + " - left click (CaptureCursor) attacks while the cursor is locked, no gamepad attack. Add Attack (see PlayerControls.BuildDefaultJson).");
@@ -122,6 +126,9 @@ public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.Is
             if (_walkToggle.WasPressedThisFrame()) _walkMode = !_walkMode;
             if (_skill != null && _skill.WasPressedThisFrame() && !_override) _skillLatched = true; // 2-4
             if (_burst != null && _burst.WasPressedThisFrame() && !_override) _burstLatched = true;
+            if (!_override)
+                for (int i = 0; i < _party.Length; i++)
+                    if (_party[i] != null && _party[i].WasPressedThisFrame()) _switchLatched = i + 1; // 2-6
 
 
             if (_override)
@@ -209,6 +216,15 @@ public bool SprintHeld => _override ? _ovSprint : (_sprint != null && _sprint.Is
         }
 
         public void DebugPressBurst() { _burstLatched = true; }
+
+        public int ConsumeSwitch()
+        {
+            int s = _switchLatched;
+            _switchLatched = 0;
+            return s;
+        }
+
+        public void DebugPressSwitch(int slot) { _switchLatched = slot; }
 
 
         public void DebugClear()

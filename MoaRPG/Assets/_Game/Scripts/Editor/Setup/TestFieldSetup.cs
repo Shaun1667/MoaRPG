@@ -37,6 +37,7 @@ namespace Moa.Editor.Setup
         public const string AttackingDummyPath = "Assets/_Game/Data/Enemies/AttackingDummy.asset"; // 2-3: 예고 공격 (EnemyAttackTuning)
         public const string SkillTuningPath = "Assets/_Game/Data/Skills/SwordHero.asset";       // 2-4: 지금 캐릭터(한손검)의 스킬 · 궁극기 (SkillTuning)
         public const string GruntTuningPath = "Assets/_Game/Data/Enemies/Grunt.asset";          // 2-5: 근접 졸병 (EnemyTuning)
+        public const string PartyPath = "Assets/_Game/Data/Characters/Party.asset";             // 2-6: 교체 수치 + 시작 파티 (PartyTuning, 캐릭터는 같은 폴더)
 
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
@@ -143,6 +144,15 @@ namespace Moa.Editor.Setup
         const float FanWidth = 0.08f, FanHitFlashTime = 0.16f, FanHeight = 0.05f;  // 예고 부채꼴 선 두께(m) · 닿은 뒤 보이는 시간(초) · 바닥 위 높이(m)
 
 
+        // ---- 표현 표 (2-6 파티 HUD, 게임 수치 아님) ----
+        static readonly Vector2 PartyRowSize = new Vector2(240f, 56f);            // 칸 하나 (px, 1920×1080 기준)
+        const float PartyRowGap = 8f, PartySwatchWidth = 8f, PartyDotSize = 22f;   // 칸 사이 · 색 띠 너비 · Q 준비 고리
+        static readonly Vector2 PartyHudMargin = new Vector2(24f, 60f);           // 화면 오른쪽에서 · 가운데에서 위로
+        const int PartyNumberFontSize = 28, PartyNameFontSize = 24;
+        static readonly Color PartySlotColor = new Color(0f, 0f, 0f, 0.45f);
+        static readonly Color PartyActiveColor = new Color(0.95f, 0.85f, 0.55f, 0.55f); // 현재 캐릭터 칸 바탕
+        static readonly Color PartyCooldownCover = new Color(0f, 0f, 0f, 0.5f);
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -217,6 +227,7 @@ namespace Moa.Editor.Setup
             EnsureFolder("Assets/_Game/Data/Combat");
             EnsureFolder("Assets/_Game/Data/Enemies");
             EnsureFolder("Assets/_Game/Data/Skills");
+            EnsureFolder("Assets/_Game/Data/Characters");
 
             EnsureFolder(GrayboxFolder);
             EnsureFolder("Assets/_Game/Scenes");
@@ -238,6 +249,7 @@ namespace Moa.Editor.Setup
             var attackTuning = LoadOrCreate<EnemyAttackTuning>(AttackingDummyPath);
             var skills = LoadOrCreate<SkillTuning>(SkillTuningPath);
             var grunt = LoadOrCreate<EnemyTuning>(GruntTuningPath); // 2-5
+            var party = LoadOrCreate<PartyTuning>(PartyPath); // 2-6
 
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
@@ -254,7 +266,7 @@ namespace Moa.Editor.Setup
             BuildLight();
             BuildEnvironment(mats);
             var points = BuildDebugPoints();
-            var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, skills, inputAsset, mats);
+            var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, skills, party, inputAsset, mats);
             var camera = BuildCamera(cam, player.transform);
             var gauge = BuildHud();
             var poiseBars = PoiseBars.CreateIn(gauge.transform.parent, PoiseBackColor, PoiseFillColor, PoiseGroggyColor, PoiseBarSize, PoiseBarHeight); // 숫자보다 먼저 = 아래에 그린다
@@ -263,9 +275,11 @@ namespace Moa.Editor.Setup
             SetColor(numbers, "groggyColor", GroggyTextColor);
             var skillHud = SkillHud.CreateIn(gauge.transform.parent, EnsureRing(), SkillSlotSize, SkillSlotGap, SkillHudMargin, SkillKeyFontSize, SkillNumberFontSize,
                 SkillSlotColor, SkillPressingColor, SkillCastingColor, SkillCooldownCover, EnergyColor, EnergyFullColor, SkillTextColor, DamageOutlineColor); // 2-4
+            var partyHud = PartyHud.CreateIn(gauge.transform.parent, EnsureRing(), PartyRowSize, PartyRowGap, PartyHudMargin, PartySwatchWidth, PartyDotSize,
+                PartyNumberFontSize, PartyNameFontSize, PartySlotColor, PartyActiveColor, PartyCooldownCover, EnergyFullColor, SkillTextColor, DamageOutlineColor); // 2-6
             var dummies = BuildDummies(dummyTuning, attackTuning, mats);
             var enemies = BuildEnemies(grunt, mats); // 2-5
-            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies);
+            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies, partyHud);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -445,7 +459,7 @@ namespace Moa.Editor.Setup
         }
 
         static PlayerMotor BuildPlayer(MovementTuning tuning, StaminaTuning stamina, ClimbTuning climb, GlideTuning glide,
-            WeaponTuning weapon, CombatTuning combatTuning, SkillTuning skills, Object inputAsset, Materials mats)
+            WeaponTuning weapon, CombatTuning combatTuning, SkillTuning skills, PartyTuning party, Object inputAsset, Materials mats)
         {
             float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
             if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: MovementTuning capsule size is empty - fill it and run again");
@@ -502,6 +516,7 @@ namespace Moa.Editor.Setup
             Set(combat, "weapon", weapon);
             Set(combat, "tuning", combatTuning);
             Set(combat, "skills", skills); // 2-4
+            Set(combat, "party", party); // 2-6: 캐릭터마다 무기 · 스킬 · 색 (weapon · skills 칸은 파티가 없을 때)
 
             var pivot = new GameObject("SwordPivot").transform;
             pivot.SetParent(visual, false);
@@ -744,7 +759,7 @@ namespace Moa.Editor.Setup
         }
 
         static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge,
-            DamageNumbers numbers, TrainingDummy[] dummies, PoiseBars poiseBars, SkillHud skillHud, EnemyAgent[] enemies)
+            DamageNumbers numbers, TrainingDummy[] dummies, PoiseBars poiseBars, SkillHud skillHud, EnemyAgent[] enemies, PartyHud partyHud)
         {
             var go = new GameObject("GameRoot");
             var root = go.AddComponent<GameRoot>();
@@ -759,6 +774,7 @@ namespace Moa.Editor.Setup
             so.FindProperty("playerDefense").objectReferenceValue = motor.GetComponent<PlayerDefense>();
             so.FindProperty("poiseBars").objectReferenceValue = poiseBars;
             so.FindProperty("skillHud").objectReferenceValue = skillHud;
+            so.FindProperty("partyHud").objectReferenceValue = partyHud; // 2-6
 
             var dummyArr = so.FindProperty("trainingDummies");
             dummyArr.arraySize = dummies.Length;

@@ -111,6 +111,8 @@ namespace Moa.Core.Combat
         Skill,
         /// <summary>궁극기(Q)로 넘어갔다 (2-4).</summary>
         Burst,
+        /// <summary>캐릭터를 바꿨다 (2-6).</summary>
+        Switch,
     }
 
     public enum ComboPhase

@@ -23,6 +23,7 @@ namespace Moa.Editor.Debugging
             new PoiseSection(),
             new SkillSection(),
             new EnemySection(),
+            new PartySection(),
         };
 
         bool[] _open;

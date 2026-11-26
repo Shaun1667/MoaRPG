@@ -281,5 +281,13 @@ namespace Moa.Core.Combat
             Skill.Interrupt(AttackEnd.Cancelled);
             Burst.Cancel();
         }
+
+        /// <summary>대기 캐릭터의 한 고정 스텝 (2-6, Party가 부른다): 스킬 · 궁극기 쿨만 돈다 (교체로 끊겨 베기는 없다).</summary>
+        public void AdvanceBench(float dt)
+        {
+            Skill.Advance(dt);
+            Burst.Advance(dt);
+        }
+
     }
 }

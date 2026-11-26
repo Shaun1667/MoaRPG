@@ -1,7 +1,7 @@
 # TASKS — MoaRPG
 
 ## 진행 요약 (2026-11-24 기준 — 새 세션은 여기부터 읽는다)
-**최신 (2026-11-26): Phase 2 2-5 적 AI 1종(근접 졸병 Grunt) 구현 — 순찰 · 시야 감지(120° · 10m · 뒤 3m) · 추적 3.5 m/s · 예고 0.8초 공격(저스트 회피 그대로) · 경직 · 그로기 · 복귀 · 5초 뒤 다시 남, NavMesh 없이 곧장 쫓기 · BALANCE 11번. 브랜치 `phase2-combat`. **EditMode 217개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 · 2-2 · 2-3 · 2-4 · 2-5. 다음: 플레이 확인 → 2-6 파티 4인 교체. 물을 것: NavMesh 쓰기(asmdef 참조 추가) · 콤보 중 적이 계속 경직되는 체감.**
+**최신 (2026-11-26): Phase 2 2-6 파티 4인 교체 구현 — 영웅 · 수호자 · 떠돌이 · 현자(모두 한손검), 키 1~4 · 패드 십자, 교체 쿨 1초, 스킬 · 궁극기 쿨 · 에너지는 캐릭터마다(대기 중에도 쿨이 돎, 대기 처치 에너지 ×0.6), 파티 HUD, BALANCE 12번. 2-5 적 AI 1종(근접 졸병 Grunt)까지 커밋. 브랜치 `phase2-combat`. 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6. 다음: 플레이 확인 → Phase 2 다음 항목. 물을 것: NavMesh 쓰기(asmdef 참조 추가) · 콤보 중 적이 계속 경직되는 체감 · 공격력을 캐릭터 · 무기로 나눌지(지금 영웅 0 + 무기 100).**
 
 ## Phase 0. 세팅
 - [x] **0-0. 문서 3종 + 기획서** (2026-11-24 사용자 "원신 라이크 기획서 노션에", "MY_DEV_GUIDE 대입") — CLAUDE.md · GDD.md · TASKS.md, Notion 기획서
@@ -107,7 +107,14 @@
   - 테스트: 새 `EnemyBrainTests`(18) · `EnemyTuningAssetTests`(2). EditMode 217개 모두 통과
   - 캡처: `Assets/Screenshots/p2_5_telegraph.png` · `p2_5_just_dodge.png` · `p2_5_groggy.png` · `p2_5_groggy-1.png` · `p2_5_return.png`
   - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 디버그 창 "적 AI" [지점 Enemies로] → 앞으로 걸어가면 초록 캡슐이 쫓아와 몸이 빨개지고 바닥 부채꼴 → 닿기 직전 옆으로 회피하면 "저스트 회피!" → 콤보로 노랗게 그로기 → 쓰러뜨리면 5초 뒤 제자리에 다시 남 → 엄폐벽 뒤에 숨으면 2초 뒤 집으로 돌아감
-- [ ] 2-6. 파티 4인 교체
+- [x] **2-6. 파티 4인 교체** (2026-11-26 사용자 "모아 2-6 진행해줘") — 플레이 확인 대기
+  - 구현: Core `Party`(PartyRules · SwitchBlock · TrySwitch · Advance 대기 쿨 · GainDefeatEnergy) · `PlayerAttack.AdvanceBench` · `AttackEnd.Switch` / Unity `CharacterData` · `PartyTuning`(`Data/Characters/`) · PlayerCombat 파티 · 입력 Party1~4 · PlayerGrayboxFeedback 캐릭터 색 · `PartyHud` · `GameRoot.DebugParty*` · 디버그 창 `PartySection` · TestFieldSetup. 입력 액션 Party1~4 · strings 5줄은 감독이 넣음
+  - 정한 것 (Claude, 확인 필요): 교체 쿨 1초 · 공격 · 스킬 · 착지 경직은 끊고 바꿈 · 궁극기 · 낙하로 떨어지는 중 · 활공 중 막힘 · 회피 · 등반 · 공중은 그대로 이어짐 · 대기 처치 에너지 ×0.6 · 스킬 에너지는 현재 캐릭터만 · 들어오는 캐릭터는 처음 자세 · 키 1~4 / 패드 십자 위 · 오른쪽 · 아래 · 왼쪽 · 캐릭터 4명(영웅 · 수호자 · 떠돌이 · 현자, 모두 한손검) · 공격력 = 캐릭터 + 무기(영웅 0 + 100) · 수치 BALANCE 12번
+  - 확인(TestField, 일시정지 + Step, 입력 주입): 영웅 E 136 → 콤보 중 2번 교체(콤보 끊김 Switch · 수호자 파랑 · 쿨 0.98) → 쿨 중 3번 막힘 → 수호자 E 112 · 영웅 에너지 10 그대로 · 대기 영웅 E 쿨이 줄어 Ready, 떠돌이 콤보 40 · 40 · 53 · 57 · 75, 처치 에너지 현재 5 · 대기 3, 뛰는 중 교체 속도 · 위치 · 카메라 이어짐, 궁극기 · 활공 · 낙하로 떨어지는 중 막힘, 착지 경직 · 등반 · 회피 중 교체, HUD 현재 칸 · 쿨 덮개 · Q 준비 고리. 2-1 ~ 2-5 값 그대로
+  - 확인 못 함: 실제 키 · 패드 입력, 디버그 창 새 섹션 화면, 영어 표시, 실제 프레임레이트 체감
+  - 테스트: 새 `PartyTests`(15) · `PartyAssetTests`(4). EditMode 236개
+  - 캡처: `Assets/Screenshots/p2_6_switch_guardian.png` · `p2_6_wanderer_cooldown.png` · `p2_6_hero_bench_ready.png`
+  - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 지점 Dummies → E → 2 키 → 몸이 파랑, 오른쪽 칸 2가 밝아지고 나머지 칸에 1초 쿨 → 바로 3 키는 안 됨 → 영웅 E 쿨은 대기 중에도 줄어듦 → 허수아비 처치 시 현재 +5 · 대기 +3
 
 ## 다른 PC에서 할 일
 - Claude Hand 패키지(manifest.json)는 PC마다 `unity-install`로 넣는다.
