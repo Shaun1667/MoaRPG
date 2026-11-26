@@ -61,6 +61,7 @@ namespace Moa.Unity.Player
 
         PlayerCombat _combat;
         bool _hitPending;
+        float _camYaw; // 3-3: 지난 고정 스텝의 카메라 요 (조준 중 몸 방향)
         PlayerVitals _vitals; // 3-1: 피격 경직 · 전멸 연출 (없으면 체력 없음)
 
         Vector3 _prevPos, _currPos;
@@ -201,6 +202,7 @@ namespace Moa.Unity.Player
 
             Vector2 move = _input.Move;
             float camYaw = _view != null ? _view.Yaw : _yaw;
+            _camYaw = camYaw; // 3-3: 조준 방향
             Planar wish = MoveMath.CameraRelative(move.x, move.y, camYaw);
 
             _heightAboveGround = MeasureHeight();
@@ -218,6 +220,7 @@ namespace Moa.Unity.Player
 
             // 판정 구간이면 이동이 끝난 자리에서 겹침 검사 (2-1)
             if (_hitPending) { _hitPending = false; _combat.CheckHits(transform.position, _yaw); }
+            if (_combat != null && _combat.Bound) _combat.AdvanceProjectiles(dt); // 3-3: 날아가는 투사체 (쏜 스텝부터)
             _velocity = (transform.position - before) / dt;
 
             _prevPos = _currPos; _prevRot = _currRot;
@@ -267,6 +270,7 @@ namespace Moa.Unity.Player
             bool gliding = _glide.Active && _glide.Hold(_stamina, dt);
             ComboTick attack = attackTick.Swing;
             if (attack.StepStarted && _combat.PickFacing(transform.position, wish, out float attackYaw)) _yaw = attackYaw;
+            if (_combat != null && _combat.Aiming) _yaw = _camYaw; // 3-3: 조준 중에는 카메라가 보는 쪽으로 (떼면 그 방향으로 쏜다)
             bool attacking = Attacking || attack.Lunge > 0f;
             bool plungeFalling = PlungeFalling;
             bool plunging = Plunging;

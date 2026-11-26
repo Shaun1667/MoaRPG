@@ -172,6 +172,14 @@ namespace Moa.Unity.Combat
                 return;
             }
 
+            // 3-3: 투사체로 맞히는 동작(활)은 휘두르지 않는다 — 화살은 ProjectileShooter, 활 모델은 WeaponGrayboxVisual
+            if (combat.CurrentDelivery == HitDelivery.Projectile)
+            {
+                pivot.localRotation = rest;
+                SetTrail(false, 0);
+                return;
+            }
+
             ComboStepRules s;
             Quaternion start, end;
             float t;

@@ -20,6 +20,9 @@ namespace Moa.Unity.Combat
     /// 2-6 파티: party(PartyTuning)가 있으면 캐릭터마다 PlayerAttack을 따로 두고(Core Party), 교체 입력(1 ~ 4)으로 현재 캐릭터를 바꾼다 —
     /// 무기 · 스킬 · 공격력은 현재 캐릭터 것(<see cref="Weapon"/> · <see cref="Skills"/> · <see cref="Attack"/>). 없으면 weapon · skills 칸 하나로(2-5까지와 같음) + character 칸의 캐릭터 기본 공격력.
     /// GameRoot가 Bind · SetId로 연결한다.
+    /// 3-3 무기 종류: 동작(콤보 · 강공격 · 등장)마다 무기 표의 판정 방식(WeaponTuning.Delivery) — 근접이면 위 부채꼴, 투사체면 판정 구간이 열리는 스텝에
+    /// 한 발(같은 ProjectileShooter). 맞으면 같은 Report(피해 · 경직 · 처치 에너지 · 버프). 무기 종류별 분기는 이 판정 방식 하나뿐.
+    /// 조준형 강공격 중에는 자동 조준을 하지 않는다(몸은 PlayerMotor가 카메라 쪽으로).
     /// </summary>
     [RequireComponent(typeof(PlayerMotor))]
     public sealed class PlayerCombat : MonoBehaviour
@@ -40,6 +43,9 @@ namespace Moa.Unity.Combat
         PlayerAttack _attack;
         PlayerDefense _defense; // 2-3: 저스트 회피 반격 보너스 (없으면 ×1)
         PlayerVitals _vitals;   // 3-1: 피격 경직 · 전멸 연출 중에는 입력을 버린다
+        ProjectileShooter _shooter; // 3-3: 투사체 (없으면 투사체 동작은 안 나감)
+        WeaponTuning[] _equipped = new WeaponTuning[0]; // 3-3: 칸마다 지금 끼운 무기 (디버그 바꿔 끼기)
+        long _lastShotKey = -1;  // 3-3: 이번 휘두르기에 이미 쏘는지
         int _appliedIndex;      // 3-1: ApplyActive를 마지막으로 한 칸 (쓰러져 강제 교체됐는지 SyncActive가 본다)
         EntityId _id;
         float _attackScale = 1f; // 디버그 공격력 배수 (1 = 그대로)
@@ -136,6 +142,8 @@ namespace Moa.Unity.Combat
             if (tuning == null) { Debug.LogError("PlayerCombat: CombatTuning is not assigned"); enabled = false; return; }
             _defense = GetComponent<PlayerDefense>();
             _vitals = GetComponent<PlayerVitals>();
+            _shooter = GetComponent<ProjectileShooter>();
+            if (_shooter != null) { _shooter.Hit -= OnProjectileHit; _shooter.Hit += OnProjectileHit; }
 
             if (party != null && party.MemberCount > 0)
             {
@@ -154,6 +162,8 @@ namespace Moa.Unity.Combat
                     handoffs[i] = c.Skills != null ? c.Skills.ToHandoffRules() : HandoffRules.None;
                 }
                 _characters = characters;
+                _equipped = new WeaponTuning[n];
+                for (int i = 0; i < n; i++) _equipped[i] = characters[i].Weapon != null ? characters[i].Weapon : weapon;
                 _party = new Party(party.ToRules(), attacks, handoffs);
                 ApplyActive();
                 return;
@@ -162,6 +172,7 @@ namespace Moa.Unity.Combat
             if (weapon == null) { Debug.LogError("PlayerCombat: WeaponTuning is not assigned"); enabled = false; return; }
             _party = null;
             _characters = new CharacterData[0];
+            _equipped = new[] { weapon };
             _weapon = weapon;
             _skills = skills;
             if (character == null) Debug.LogWarning("PlayerCombat: no party and no character - attack is the weapon attack only");
@@ -174,6 +185,7 @@ namespace Moa.Unity.Combat
             if (w.StepCount == 0) Debug.LogError("PlayerCombat: weapon " + w.name + " has no combo steps");
             if (w.ChargedSlashCount == 0) Debug.LogWarning("PlayerCombat: weapon " + w.name + " has no charged attack slashes");
             if (s == null) Debug.LogWarning("PlayerCombat: " + who + " has no SkillTuning - no skill (E) / burst (Q)");
+            if (w.UsesProjectiles && GetComponent<ProjectileShooter>() == null) Debug.LogWarning("PlayerCombat: weapon " + w.name + " shoots projectiles but there is no ProjectileShooter - those attacks hit nothing");
             var plunge = new PlungeRules(tuning.PlungeMinHeight, tuning.PlungeHighHeight, w.PlungeLowMultiplier, w.PlungeHighMultiplier,
                 tuning.PlungeFallSpeed, tuning.PlungeLandRecovery);
             return new PlayerAttack(w.ToRules(), w.ToChargedRules(), plunge, tuning.ChargeHoldTime,
@@ -185,7 +197,7 @@ namespace Moa.Unity.Combat
         {
             CharacterData c = _characters[_party.ActiveIndex];
             _attack = _party.Active;
-            _weapon = c.Weapon != null ? c.Weapon : weapon;
+            _weapon = _party.ActiveIndex < _equipped.Length && _equipped[_party.ActiveIndex] != null ? _equipped[_party.ActiveIndex] : (c.Weapon != null ? c.Weapon : weapon);
             _skills = c.Skills;
             _baseAttack = c.BaseAttack;
             _appliedIndex = _party.ActiveIndex;
@@ -245,16 +257,22 @@ namespace Moa.Unity.Combat
         public void InterruptSwing(AttackEnd reason) => _attack?.InterruptSwing(reason);
 
         /// <summary>[상태 변경] 공격을 처음으로 (순간이동 등).</summary>
-        public void Cancel() => _attack?.Cancel();
+        public void Cancel()
+        {
+            _attack?.Cancel();
+            if (_shooter != null) _shooter.Clear(); // 3-3: 날아가는 투사체도 지운다
+        }
 
         /// <summary>새 단계의 몸 방향: 이동 입력 → 가장 가까운 적 → 그대로(false).</summary>
         public bool PickFacing(Vector3 feet, Planar wish, out float yaw)
         {
             yaw = 0f;
             if (wish.Length > 0f) { yaw = MoveMath.YawOf(wish); return true; }
-            if (tuning == null || tuning.AutoAimRange <= 0f) return false;
+            if (_attack != null && _attack.Charged.Active && _attack.Charged.Rules.Aimed) return false; // 3-3: 조준해 쏜 한 발은 조준 방향 그대로
+            float aimRange = Weapon != null && Weapon.AutoAimRange > 0f ? Weapon.AutoAimRange : (tuning != null ? tuning.AutoAimRange : 0f); // 3-3: 활은 멀리
+            if (tuning == null || aimRange <= 0f) return false;
             Vector3 center = feet + Vector3.up * Weapon.HitHeight;
-            int n = Physics.OverlapSphereNonAlloc(center, tuning.AutoAimRange, _overlap, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            int n = Physics.OverlapSphereNonAlloc(center, aimRange, _overlap, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
             float best = float.MaxValue;
             bool found = false;
             for (int i = 0; i < n; i++)
@@ -287,6 +305,8 @@ namespace Moa.Unity.Combat
                 : AttackMode.None;
             if (kind == AttackMode.None) return 0; // 스킬을 누르는 중 (아직 베지 않음)
             WeaponTuning w = Weapon;
+            // 3-3: 투사체로 맞히는 동작이면 겹침 검사 대신 이번 휘두르기에 한 발
+            if (w.Delivery(kind) == HitDelivery.Projectile) { FireOnce(kind, feet, yawDegrees); return 0; }
             float range, angle;
             switch (kind)
             {
@@ -367,7 +387,11 @@ namespace Moa.Unity.Combat
         /// 한 대상에 피해 · 경직 (2-3): 피해 = 공격력 × 배율 × 대상의 받는 피해 배율(그로기면 큼) → 방어.
         /// 그 뒤 경직 = 표 값 × 반격 보너스(저스트 회피 뒤) — 이 한 방으로 그로기가 되어도 이 피해에는 배율이 안 든다.
         /// </summary>
-        void Report(IHitTarget t, float multiplier, float poise, Vector3 feet, AttackMode kind, int step, int swing)
+        void Report(IHitTarget t, float multiplier, float poise, Vector3 feet, AttackMode kind, int step, int swing) =>
+            Report(t, Attack, multiplier, poise, feet, kind, step, swing);
+
+        /// <summary>3-3: 공격력을 주는 쪽 (투사체는 쏜 때의 공격력).</summary>
+        void Report(IHitTarget t, float attack, float multiplier, float poise, Vector3 feet, AttackMode kind, int step, int swing)
         {
             var pt = t as IPoiseTarget;
             bool onGroggy = pt != null && pt.Groggy;
@@ -377,7 +401,7 @@ namespace Moa.Unity.Combat
             bool entryGroggy = kind == AttackMode.Entry && onGroggy && _party != null && _party.Rules.EntryGroggyBonus != 1f;
             float bonus = entryGroggy ? _party.Rules.EntryGroggyBonus : 1f;
             if (kind == AttackMode.Entry) { EntryHitCount++; if (entryGroggy) EntryGroggyHitCount++; }
-            int damage = DamageMath.Compute(Attack, multiplier * taken * buff * bonus, t.Defense, tuning.DefenseConstant);
+            int damage = DamageMath.Compute(attack, multiplier * taken * buff * bonus, t.Defense, tuning.DefenseConstant);
             bool wasAlive = t.Alive;
             int applied = t.ReceiveHit(damage, feet);
             // 2-4: 이 한 방으로 쓰러뜨렸으면 적 표의 처치 에너지 (궁극기 중에는 안 찬다)
@@ -402,6 +426,87 @@ namespace Moa.Unity.Combat
             LastHit = report;
             HitCount++;
             HitLanded?.Invoke(report);
+        }
+
+        // ---- 3-3 투사체 ----
+
+        /// <summary>지금 동작이 맞히는 방식 (휘두르는 중이 아니면 Melee).</summary>
+        public HitDelivery CurrentDelivery => _attack != null && Weapon != null ? Weapon.Delivery(_attack.Mode) : HitDelivery.Melee;
+        /// <summary>조준형 강공격으로 조준 중 (몸은 카메라 방향).</summary>
+        public bool Aiming => _attack != null && _attack.Aiming;
+        public ProjectileShooter Shooter => _shooter;
+        /// <summary>투사체가 맞힌 수 · 쏜 수 (이 플레이어 기준, 디버그 · 확인용).</summary>
+        public int ProjectileHitCount { get; private set; }
+        public int ShotsFired { get; private set; }
+        public int ActiveProjectiles => _shooter != null ? _shooter.ActiveCount : 0;
+
+        /// <summary>고정 스텝마다 날아가는 투사체를 진행 (PlayerMotor가 이동 · 판정 뒤에 부른다 — 교체 · 등반 중에도).</summary>
+        public void AdvanceProjectiles(float dt) { if (_shooter != null) _shooter.Step(dt); }
+
+        /// <summary>이번 휘두르기(콤보 단계 · 강공격 베기 · 등장)에 아직 안 나갔으면 한 발. 몸 가운데 높이에서 몸 앞으로.</summary>
+        void FireOnce(AttackMode kind, Vector3 feet, float yawDegrees)
+        {
+            int counter, step, swing;
+            float poise;
+            WeaponTuning w = Weapon;
+            switch (kind)
+            {
+                case AttackMode.Charged:
+                    counter = _attack.Charged.Count * 1024 + _attack.Charged.SlashIndex;
+                    step = _attack.Charged.SlashIndex + 1; swing = _attack.Charged.Count;
+                    poise = w.ChargedPoise(_attack.Charged.SlashIndex);
+                    break;
+                case AttackMode.Entry:
+                    counter = _attack.Entry.Count;
+                    step = 1; swing = _attack.Entry.Count;
+                    poise = w.EntryPoise;
+                    break;
+                default:
+                    counter = _attack.Combo.SwingCount;
+                    step = _attack.Combo.StepIndex + 1; swing = _attack.Combo.SwingCount;
+                    poise = w.ComboPoise(_attack.Combo.StepIndex);
+                    break;
+            }
+            long key = ((long)kind << 40) ^ ((long)ActiveIndex << 36) ^ counter;
+            if (key == _lastShotKey) return; // 판정 구간이 여러 스텝이어도 한 발
+            _lastShotKey = key;
+            if (_shooter == null) return;
+            float r = yawDegrees * Mathf.Deg2Rad;
+            Vector3 dir = new Vector3(Mathf.Sin(r), 0f, Mathf.Cos(r));
+            var shot = new ProjectileShot(Attack, _attack.CurrentSwing.Multiplier, poise, kind, step, swing);
+            if (_shooter.Fire(w.ToProjectileRules(), shot, feet + Vector3.up * w.HitHeight, dir, feet) >= 0) ShotsFired++;
+        }
+
+        void OnProjectileHit(IHitTarget t, ProjectileShot shot, Vector3 shooterFeet)
+        {
+            if (!Bound || t == null || !t.Alive) return;
+            ProjectileHitCount++;
+            Report(t, shot.Attack, shot.Multiplier, shot.Poise, shooterFeet, shot.Kind, shot.Step, shot.Swing);
+        }
+
+        /// <summary>
+        /// [상태 변경] 현재 캐릭터의 무기를 바꾼다 (3-3, 디버그 바꿔 끼기 — 에셋은 그대로, 판을 다시 시작하면 원래대로).
+        /// 콤보 · 강공격 · 낙하 · 등장 공격 · 무기 공격력이 새 무기 것, 스킬 · 궁극기 · 에너지는 그대로. 바꿨으면 true.
+        /// </summary>
+        public bool DebugSetWeapon(WeaponTuning w)
+        {
+            if (!Bound || w == null || tuning == null) return false;
+            var plunge = new PlungeRules(tuning.PlungeMinHeight, tuning.PlungeHighHeight, w.PlungeLowMultiplier, w.PlungeHighMultiplier,
+                tuning.PlungeFallSpeed, tuning.PlungeLandRecovery);
+            _attack.ChangeWeapon(w.ToRules(), w.ToChargedRules(), plunge, w.ToEntrySlashes());
+            int slot = ActiveIndex;
+            if (slot < _equipped.Length) _equipped[slot] = w;
+            _weapon = w;
+            _lastShotKey = -1;
+            return true;
+        }
+
+        /// <summary>[상태 변경] 현재 캐릭터를 데이터의 무기로 되돌린다.</summary>
+        public bool DebugResetWeapon()
+        {
+            CharacterData c = _party != null ? ActiveCharacter : null;
+            WeaponTuning w = c != null && c.Weapon != null ? c.Weapon : weapon;
+            return DebugSetWeapon(w);
         }
 
         IHitTarget TargetOf(Collider c)

@@ -1,0 +1,92 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3db7b7f5d4fa5e48b0cb652c0de798f, type: 3}
+  m_Name: Bow
+  m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.WeaponTuning
+  kind: 3
+  baseAttack: 40
+  steps:
+  - multiplier: 0.3
+    windup: 0.08
+    active: 0.02
+    recovery: 0.2
+    inputOpen: 0.08
+    lunge: 0
+    poise: 5
+  - multiplier: 0.3
+    windup: 0.08
+    active: 0.02
+    recovery: 0.22
+    inputOpen: 0.08
+    lunge: 0
+    poise: 5
+  - multiplier: 0.38
+    windup: 0.1
+    active: 0.02
+    recovery: 0.26
+    inputOpen: 0.1
+    lunge: 0
+    poise: 6
+  - multiplier: 0.4
+    windup: 0.1
+    active: 0.02
+    recovery: 0.28
+    inputOpen: 0.1
+    lunge: 0
+    poise: 7
+  - multiplier: 0.52
+    windup: 0.14
+    active: 0.02
+    recovery: 0.42
+    inputOpen: 0.14
+    lunge: 0
+    poise: 9
+  comboResetTime: 0.5
+  attackMoveFactor: 0
+  hitRange: 0
+  hitAngle: 0
+  hitHeight: 1
+  chargedStaminaCost: 0
+  chargedSlashes:
+  - multiplier: 1.6
+    windup: 0.02
+    active: 0.02
+    recovery: 0.3
+    inputOpen: 0
+    lunge: 0
+    poise: 30
+  chargedHitRange: 0
+  chargedHitAngle: 0
+  plungeLowMultiplier: 1.1
+  plungeHighMultiplier: 1.4
+  plungeRange: 2.2
+  plungeLowPoise: 15
+  plungeHighPoise: 25
+  entrySlash:
+    multiplier: 1
+    windup: 0.06
+    active: 0.02
+    recovery: 0.32
+    inputOpen: 0
+    lunge: -2
+    poise: 20
+  entryHitRange: 0
+  entryHitAngle: 0
+  comboDelivery: 1
+  chargedDelivery: 1
+  entryDelivery: 1
+  projectileSpeed: 30
+  projectileLifetime: 0.6
+  projectileRadius: 0.15
+  autoAimRange: 15
+  chargedAimTime: 0.8
+  chargedSpinDrainPerSecond: 0

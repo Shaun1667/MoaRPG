@@ -183,6 +183,19 @@ namespace Moa.Editor.Setup
         static readonly Color BuffBackColor = new Color(0f, 0f, 0f, 0.55f);
         static readonly Color BuffBarColor = new Color(1.00f, 0.85f, 0.30f);
 
+        // ---- 표현 표 (3-3 무기 종류, 게임 수치 아님) ----
+        static readonly Color ClaymoreColor = new Color(0.50f, 0.54f, 0.62f);      // 대검 칼날: 짙은 강철
+        static readonly Vector3 ClaymoreBladeSize = new Vector3(0.16f, 0.05f, 1.50f); // 큰 상자 (m)
+        const float ClaymoreBladeOffset = 0.90f;                                     // 회전 중심에서 칼날 가운데까지 (로컬 +Z)
+        static readonly Vector3 ClaymoreGuardSize = new Vector3(0.42f, 0.08f, 0.08f);
+        static readonly Color BowColor = new Color(0.55f, 0.36f, 0.18f);           // 활 상자: 나무
+        static readonly Color ArrowColor = new Color(0.95f, 0.92f, 0.78f);         // 화살 막대
+        static readonly Vector3 BowPosition = new Vector3(-0.30f, 1.15f, 0.30f);   // 활 (발 기준, m) — 왼손 앞
+        static readonly Vector3 BowSize = new Vector3(0.05f, 1.20f, 0.08f);
+        static readonly Vector3 NockedArrowSize = new Vector3(0.03f, 0.03f, 0.70f); // 시위에 건 화살 (활에서 몸 쪽으로)
+        static readonly Vector3 ArrowShaftSize = new Vector3(0.04f, 0.04f, 0.80f);  // 날아가는 화살 막대 (앞끝 = 투사체 자리)
+        static readonly Vector3 ArrowHeadSize = new Vector3(0.09f, 0.09f, 0.12f);
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -370,6 +383,7 @@ namespace Moa.Editor.Setup
         sealed class Materials
         {
             public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings, Dummy, Sword, Hilt, SwordTrail, AttackDummy, Grunt, GruntClub, HealPoint;
+            public readonly Material Claymore, Bow, Arrow; // 3-3
 
             public Materials()
             {
@@ -392,6 +406,9 @@ namespace Moa.Editor.Setup
                 Grunt = Get("Grunt", GruntColor, null, Vector2.one);             // 2-5
                 GruntClub = Get("GruntClub", GruntClubColor, null, Vector2.one);
                 HealPoint = Get("HealPoint", HealPointColor, null, Vector2.one); // 3-1
+                Claymore = Get("Claymore", ClaymoreColor, null, Vector2.one);    // 3-3
+                Bow = Get("Bow", BowColor, null, Vector2.one);
+                Arrow = Get("Arrow", ArrowColor, null, Vector2.one);
             }
 
             static Material Get(string name, Color color, Texture tex, Vector2 tiling)
@@ -576,8 +593,22 @@ namespace Moa.Editor.Setup
             pivot.SetParent(visual, false);
             pivot.localPosition = SwordPivot;
             pivot.localRotation = Quaternion.Euler(SwordRest);
-            Primitive(PrimitiveType.Cube, pivot, "Blade", new Vector3(0f, 0f, BladeOffset), Quaternion.identity, BladeSize, mats.Sword);
-            Primitive(PrimitiveType.Cube, pivot, "Hilt", new Vector3(0f, 0f, BladeOffset - BladeSize.z * 0.5f), Quaternion.identity, HiltSize, mats.Hilt);
+            // 3-3: 무기 종류마다 모델 묶음 하나 (WeaponGrayboxVisual이 현재 무기 종류 것만 보인다)
+            var swordModel = new GameObject("Sword").transform;
+            swordModel.SetParent(pivot, false);
+            Primitive(PrimitiveType.Cube, swordModel, "Blade", new Vector3(0f, 0f, BladeOffset), Quaternion.identity, BladeSize, mats.Sword);
+            Primitive(PrimitiveType.Cube, swordModel, "Hilt", new Vector3(0f, 0f, BladeOffset - BladeSize.z * 0.5f), Quaternion.identity, HiltSize, mats.Hilt);
+            var claymoreModel = new GameObject("Claymore").transform; // 대검: 큰 상자 (같은 회전 중심으로 휘두른다)
+            claymoreModel.SetParent(pivot, false);
+            Primitive(PrimitiveType.Cube, claymoreModel, "Blade", new Vector3(0f, 0f, ClaymoreBladeOffset), Quaternion.identity, ClaymoreBladeSize, mats.Claymore);
+            Primitive(PrimitiveType.Cube, claymoreModel, "Guard", new Vector3(0f, 0f, ClaymoreBladeOffset - ClaymoreBladeSize.z * 0.5f), Quaternion.identity, ClaymoreGuardSize, mats.Hilt);
+            var bowModel = new GameObject("Bow").transform; // 활: 활 상자 + 시위에 건 화살 막대 (휘두르지 않는다 — Visual 아래)
+            bowModel.SetParent(visual, false);
+            bowModel.localPosition = BowPosition;
+            Primitive(PrimitiveType.Cube, bowModel, "Limb", Vector3.zero, Quaternion.identity, BowSize, mats.Bow);
+            var nocked = Primitive(PrimitiveType.Cube, bowModel, "NockedArrow", new Vector3(0.08f, 0f, -NockedArrowSize.z * 0.5f + 0.05f), Quaternion.identity, NockedArrowSize, mats.Arrow);
+            claymoreModel.gameObject.SetActive(false);
+            bowModel.gameObject.SetActive(false);
             var tip = new GameObject("Tip").transform;
             tip.SetParent(pivot, false);
             tip.localPosition = new Vector3(0f, 0f, BladeOffset + BladeSize.z * 0.5f);
@@ -628,6 +659,36 @@ namespace Moa.Editor.Setup
             SetColor(swing, "burstRingColor", BurstRingColor);
             SetFloat(swing, "burstRingTime", BurstRingTime);
             SetColor(swing, "entryTrailColor", EntryTrailColor); // 3-2
+
+            // 3-3: 무기 모델 고르기 (표 한 줄 = 종류 하나) · 투사체 (화살 템플릿을 풀에서 다시 쓴다)
+            var models = go.AddComponent<WeaponGrayboxVisual>();
+            Set(models, "combat", combat);
+            var mso = new SerializedObject(models);
+            var marr = mso.FindProperty("models");
+            var table = new (WeaponKind kind, GameObject root, GameObject nocked)[]
+            {
+                (WeaponKind.Sword, swordModel.gameObject, null),
+                (WeaponKind.Claymore, claymoreModel.gameObject, null),
+                (WeaponKind.Bow, bowModel.gameObject, nocked),
+            };
+            marr.arraySize = table.Length;
+            for (int i = 0; i < table.Length; i++)
+            {
+                var e = marr.GetArrayElementAtIndex(i);
+                e.FindPropertyRelative("kind").enumValueIndex = (int)table[i].kind;
+                e.FindPropertyRelative("root").objectReferenceValue = table[i].root;
+                e.FindPropertyRelative("nocked").objectReferenceValue = table[i].nocked;
+            }
+            mso.ApplyModifiedPropertiesWithoutUndo();
+
+            var arrow = new GameObject("ArrowTemplate");
+            arrow.transform.SetParent(go.transform, false);
+            Primitive(PrimitiveType.Cube, arrow.transform, "Shaft", new Vector3(0f, 0f, -ArrowShaftSize.z * 0.5f), Quaternion.identity, ArrowShaftSize, mats.Arrow);
+            Primitive(PrimitiveType.Cube, arrow.transform, "Head", new Vector3(0f, 0f, -ArrowHeadSize.z * 0.5f), Quaternion.identity, ArrowHeadSize, mats.Hilt);
+            arrow.SetActive(false);
+            var shooter = go.AddComponent<ProjectileShooter>();
+            Set(shooter, "arrowTemplate", arrow);
+            Set(shooter, "owner", go.transform);
 
             // 2-3: 적 공격을 받는 쪽 (저스트 회피)
             var defense = go.AddComponent<PlayerDefense>();

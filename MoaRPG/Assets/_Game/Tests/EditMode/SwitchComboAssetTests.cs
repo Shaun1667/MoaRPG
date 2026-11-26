@@ -122,15 +122,17 @@ namespace Moa.Tests
             var wanderer = p.GetMember(2);
             var w = wanderer.Weapon;
             var grunt = Load<EnemyTuning>(GruntPath);
+            // 3-3: 떠돌이가 활(콤보 경직 32)이 되어 경직 버프는 한손검 영웅(54)으로 본다
+            var sword = p.GetMember(0).Weapon;
 
-            // 수호자 E → 떠돌이: 콤보 경직 54 → 70.2 — Grunt(60)가 콤보 한 번에 그로기 (버프 없이는 54로 안 됨)
+            // 수호자 E → 영웅: 콤보 경직 54 → 70.2 — Grunt(60)가 콤보 한 번에 그로기 (버프 없이는 54로 안 됨)
             float poise = 0f;
-            for (int i = 0; i < w.StepCount; i++) poise += w.ComboPoise(i);
+            for (int i = 0; i < sword.StepCount; i++) poise += sword.ComboPoise(i);
             Assert.That(poise, Is.EqualTo(54f).Within(Eps));
             Assert.That(poise, Is.LessThan(grunt.MaxPoise));
             Assert.That(poise * (1f + guardian.HandoffPoiseBonus), Is.GreaterThanOrEqualTo(grunt.MaxPoise));
 
-            // 현자 E → 떠돌이: 콤보 40 · 40 · 53 · 57 · 75 (265) → 49 · 49 · 66 · 71 · 93 (328), 에너지 +15 / 50
+            // 현자 E → 떠돌이(활): 연사 26 · 26 · 33 · 35 · 46 (166) → 33 · 33 · 42 · 44 · 57 (209), 에너지 +15 / 50
             float buff = 1f + sage.HandoffDamageBonus;
             var plain = new int[w.StepCount];
             var buffed = new int[w.StepCount];
@@ -139,8 +141,8 @@ namespace Moa.Tests
                 plain[i] = Hit(wanderer.TotalAttack, w.GetStep(i).multiplier * 1f * 1f * 1f);
                 buffed[i] = Hit(wanderer.TotalAttack, w.GetStep(i).multiplier * 1f * buff * 1f);
             }
-            Assert.That(plain, Is.EqualTo(new[] { 40, 40, 53, 57, 75 }), "no buff = 2-6 numbers");
-            Assert.That(buffed, Is.EqualTo(new[] { 49, 49, 66, 71, 93 }));
+            Assert.That(plain, Is.EqualTo(new[] { 26, 26, 33, 35, 46 }), "no buff = 3-3 bow numbers");
+            Assert.That(buffed, Is.EqualTo(new[] { 33, 33, 42, 44, 57 }));
             Assert.That(sage.HandoffEnergy / wanderer.Skills.BurstEnergyCost, Is.EqualTo(0.3f).Within(Eps), "15 of 50");
         }
     }

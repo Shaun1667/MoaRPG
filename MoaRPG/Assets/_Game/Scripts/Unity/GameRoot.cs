@@ -689,6 +689,32 @@ namespace Moa.Unity
         /// <summary>[상태 변경] 필드 캐릭터의 등장 공격 창을 연다 (교체 없이 확인).</summary>
         public void DebugEntryOpen() { if (DebugHasParty) playerCombat.Party.OpenEntry(); }
 
+        // ---- 무기 종류 (3-3) ----
+
+        /// <summary>현재 무기 (없으면 null) · 종류.</summary>
+        public WeaponTuning DebugWeapon => playerCombat != null ? playerCombat.Weapon : null;
+        public string DebugWeaponKind => DebugWeapon != null ? DebugWeapon.Kind.ToString() : "-";
+        /// <summary>지금 동작의 판정 방식 (Melee / Projectile).</summary>
+        public string DebugCurrentDelivery => DebugHasCombat ? playerCombat.CurrentDelivery.ToString() : "-";
+        /// <summary>날아가는 투사체 수 · 쏜 수 · 맞힌 수 · 풀 크기 (표현 오브젝트).</summary>
+        public int DebugProjectileCount => playerCombat != null ? playerCombat.ActiveProjectiles : 0;
+        public int DebugProjectileFired => playerCombat != null ? playerCombat.ShotsFired : 0;
+        public int DebugProjectileHits => playerCombat != null ? playerCombat.ProjectileHitCount : 0;
+        public ProjectileShooter DebugProjectileShooter => playerCombat != null ? playerCombat.Shooter : null;
+        /// <summary>조준형 강공격 조준 중 · 조준한 초.</summary>
+        public bool DebugAiming => DebugHasCombat && playerCombat.Aiming;
+        public float DebugAimElapsed => DebugHasCombat ? playerCombat.Charged.AimElapsed : 0f;
+        /// <summary>회전형 강공격 회전 중 · 이번 회전 수 · 회전에 쓴 스태미나 합.</summary>
+        public bool DebugSpinning => DebugHasCombat && playerCombat.Charged.Spinning;
+        public int DebugSpinsThisCharge => DebugHasCombat ? playerCombat.Charged.SpinsThisCharge : 0;
+        public float DebugSpinStaminaSpent => DebugHasCombat ? playerCombat.Charged.SpinStaminaSpent : 0f;
+
+        /// <summary>[상태 변경] 현재 캐릭터의 무기를 바꾼다 (테스트용 — 에셋은 그대로). 바꿨으면 true.</summary>
+        public bool DebugSetWeapon(WeaponTuning weapon) => DebugHasCombat && playerCombat.DebugSetWeapon(weapon);
+
+        /// <summary>[상태 변경] 현재 캐릭터를 데이터의 무기로 되돌린다.</summary>
+        public bool DebugResetWeapon() => DebugHasCombat && playerCombat.DebugResetWeapon();
+
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()
         {

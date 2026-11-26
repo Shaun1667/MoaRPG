@@ -1,0 +1,92 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d3db7b7f5d4fa5e48b0cb652c0de798f, type: 3}
+  m_Name: Claymore
+  m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.WeaponTuning
+  kind: 1
+  baseAttack: 40
+  steps:
+  - multiplier: 0.8
+    windup: 0.2
+    active: 0.12
+    recovery: 0.36
+    inputOpen: 0.2
+    lunge: 0.4
+    poise: 18
+  - multiplier: 0.85
+    windup: 0.2
+    active: 0.12
+    recovery: 0.4
+    inputOpen: 0.2
+    lunge: 0.4
+    poise: 20
+  - multiplier: 1
+    windup: 0.24
+    active: 0.12
+    recovery: 0.44
+    inputOpen: 0.24
+    lunge: 0.5
+    poise: 24
+  - multiplier: 1.35
+    windup: 0.3
+    active: 0.14
+    recovery: 0.62
+    inputOpen: 0.3
+    lunge: 0.6
+    poise: 32
+  comboResetTime: 0.6
+  attackMoveFactor: 0
+  hitRange: 2.6
+  hitAngle: 150
+  hitHeight: 1
+  chargedStaminaCost: 10
+  chargedSlashes:
+  - multiplier: 0.5
+    windup: 0.04
+    active: 0.12
+    recovery: 0.3
+    inputOpen: 0
+    lunge: 0
+    poise: 10
+  - multiplier: 1.1
+    windup: 0.1
+    active: 0.12
+    recovery: 0.42
+    inputOpen: 0
+    lunge: 0.3
+    poise: 25
+  chargedHitRange: 2.8
+  chargedHitAngle: 360
+  plungeLowMultiplier: 1.5
+  plungeHighMultiplier: 1.9
+  plungeRange: 2.8
+  plungeLowPoise: 25
+  plungeHighPoise: 45
+  entrySlash:
+    multiplier: 1.6
+    windup: 0.16
+    active: 0.1
+    recovery: 0.42
+    inputOpen: 0
+    lunge: 1.5
+    poise: 40
+  entryHitRange: 2.8
+  entryHitAngle: 180
+  comboDelivery: 0
+  chargedDelivery: 0
+  entryDelivery: 0
+  projectileSpeed: 0
+  projectileLifetime: 0
+  projectileRadius: 0
+  autoAimRange: 0
+  chargedAimTime: 0
+  chargedSpinDrainPerSecond: 40

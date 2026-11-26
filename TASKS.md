@@ -1,7 +1,7 @@
 # TASKS — MoaRPG
 
 ## 진행 요약 (2026-11-24 기준 — 새 세션은 여기부터 읽는다)
-**최신 (2026-11-26): Phase 3 3-2 교체 연계 구현 — 교체 직후 0.8초 안 공격 = 등장 돌진 베기(그로기 적 ×1.5), E 뒤 3초 안 교체면 캐릭터별 버프(수호자 경직 +30% · 보호막 300, 현자 에너지 +15 · 피해 +25% 등), 버프 HUD · BALANCE 14번. 3-1 플레이어 체력 · 쓰러짐 구현 — 캐릭터마다 체력 · 방어(영웅 1000 · 수호자 1300 · 떠돌이 850 · 현자 900), Grunt 한 대 영웅 10%, 땅 위 경직 · 밀려남, 쓰러지면 다음 캐릭터로 자동 교체, 전원 쓰러짐 → 시작 지점 50% 부활, 회복 지점, HUD 체력 막대 · BALANCE 13번. Phase 2(2-1 ~ 2-6) · 캐릭터/무기 공격력 분리까지 커밋. 브랜치 `phase2-combat`. **EditMode 279개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6 · 3-1 · 3-2. 다음: 3-3 무기 종류 → 3-4 적 추가 · 길찾기 → 3-5 성장 → 3-6 탐험 → 3-7 가챠(사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘"). 물을 것: 콤보 중 적이 계속 경직되는 체감 · 공격력 비율 60 : 40.**
+**최신 (2026-11-26): Phase 3 3-3 무기 종류 추가 — 대검(수호자) · 활(떠돌이), 투사체 풀 · 조준 사격 · 회전 베기, 영웅 · 현자 한손검 그대로 · BALANCE 15번. 3-2 교체 연계 구현 — 교체 직후 0.8초 안 공격 = 등장 돌진 베기(그로기 적 ×1.5), E 뒤 3초 안 교체면 캐릭터별 버프(수호자 경직 +30% · 보호막 300, 현자 에너지 +15 · 피해 +25% 등), 버프 HUD · BALANCE 14번. 3-1 플레이어 체력 · 쓰러짐 구현 — 캐릭터마다 체력 · 방어(영웅 1000 · 수호자 1300 · 떠돌이 850 · 현자 900), Grunt 한 대 영웅 10%, 땅 위 경직 · 밀려남, 쓰러지면 다음 캐릭터로 자동 교체, 전원 쓰러짐 → 시작 지점 50% 부활, 회복 지점, HUD 체력 막대 · BALANCE 13번. Phase 2(2-1 ~ 2-6) · 캐릭터/무기 공격력 분리까지 커밋. 브랜치 `phase2-combat`. **EditMode 299개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6 · 3-1 ~ 3-3. 다음: 3-4 적 추가 · 길찾기 → 3-5 성장 → 3-6 탐험 → 3-7 가챠(사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘"). 물을 것: 콤보 중 적이 계속 경직되는 체감 · 공격력 비율 60 : 40.**
 
 ## Phase 0. 세팅
 - [x] **0-0. 문서 3종 + 기획서** (2026-11-24 사용자 "원신 라이크 기획서 노션에", "MY_DEV_GUIDE 대입") — CLAUDE.md · GDD.md · TASKS.md, Notion 기획서
@@ -134,7 +134,14 @@
   - 테스트: 새 `SwitchComboTests`(18) · `SwitchComboAssetTests`(5). EditMode 279개 중 278 통과 — strings 3줄이 없어 `TextTableRulesTests.UsedKeys_AllExistInTable` 1개 실패 → 감독이 넣은 뒤 재실행 279개 모두 통과
   - 캡처: `Assets/Screenshots/p3_2_entry_attack.png` · `p3_2_handoff_sage_buff.png` · `p3_2_entry_groggy_206.png`
   - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 지점 Dummies → 4 키(현자) → E → 바로 3 키 → 오른쪽 칸 3이 노랗게 빛나고 체력 막대 위에 분홍 아이콘 · '피해 +25%' → 0.8초 안에 클릭하면 크림색 궤적 돌진 베기 132 → 수호자 E 뒤 교체하면 '경직 +30% 보호막 300' → 디버그 창 "교체 연계"
-- [ ] 3-3. 무기 종류 추가
+- [x] **3-3. 무기 종류 추가** (2026-11-26 사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘") — 플레이 확인 대기
+  - 구현: Core `Projectile.cs`(HitDelivery · ProjectileRules · ProjectileShot · ProjectileSet 풀링 · 한 발에 한 대상 · 막힘 · 수명) · `ChargedRules` 조준형(aimTime) · 회전형(spinDrainPerSecond) · `ChargedAttack.Advance(dt, held, stamina)` · `AttackEnd.AimCancelled` · `PlayerAttack.Aiming/ChangeWeapon` / Unity `WeaponTuning`(kind = WeaponKind · 동작마다 판정 방식 · 투사체 수치 · autoAimRange · chargedAimTime · chargedSpinDrainPerSecond) · `PlayerCombat`(투사체면 휘두르기마다 한 발, 맞으면 같은 Report, 조준 사격은 자동 조준 없음, DebugSetWeapon) · `ProjectileShooter`(SphereCast · 화살 풀) · `WeaponGrayboxVisual`(종류 표 → 모델) · `PlayerMotor`(투사체 진행 · 조준 중 카메라 방향) · `GameRoot.DebugWeapon*/DebugProjectile*/DebugAiming/DebugSpin*/DebugSetWeapon/DebugResetWeapon` · 디버그 창 `WeaponSection` · TestFieldSetup(Sword · Claymore · Bow 모델, ArrowTemplate, 머티리얼 Claymore · Bow · Arrow) / 데이터 `Weapons/Claymore.asset` · `Bow.asset`, 수호자 → 대검 · 떠돌이 → 활, 두 캐릭터 E · Q 조정
+  - 정한 것 (Claude, 확인 필요): 활 조준 = 길게 누르기 뒤 0.8초 조준이 차야 떼면 한 발(일찍 떼면 없음), 조준 방향 = 카메라 요 · 화살 수평 직선 / 투사체는 콤보 · 강공격 · 등장만, 낙하 · E · Q는 범위 판정(활 E · Q는 긴 반지름, 벽 너머도 맞을 수 있음) / 대검 회전 = 시작 10 + 초당 40, 회전 줄이 끝날 때 누르고 있고 스태미나가 있으면 다시, 아니면 마무리, 제자리 / 무기 공격력 셋 다 40(합 공격력 그대로) / 캐릭터 에셋 이름(SwordGuardian · SwordWanderer) 그대로 — 바꿀지 물을 것 / 바꿔 끼우기는 판 안에서만 · 수치 BALANCE 15번
+  - 확인(TestField, 일시정지 + Step, 입력 주입): 떠돌이 활 연사 26 · 26 · 33 · 35 · 46(풀 1개 재사용), 조준 48스텝 · 몸 카메라 방향 · 떼면 141, 수호자 대검 64 · 68 · 80 · 108, 회전 2.5초 5바퀴 · 92 소모(40/s) · 회전 40 · 마무리 88, 교체 등장 활 뒤로 2.00m 88 · 대검 128, Grunt 12.1m 자동 조준 명중, 영웅 36 · E 136 그대로, 바꿔 끼우기 영웅+활 24 → 원래대로. Setup 2번 멱등. 콘솔 오류 0(NoSubscription 제외). 작업 중 감독 세션을 다시 켜 한 번 끊겼다 이어서 함
+  - 확인 못 함: 실제 입력, 디버그 창 새 섹션 화면, 화살 보간 · 체감(고정 스텝마다 0.6m), 화살 · 활 모델이 작아 캡처에서 잘 안 보임, 활 · 대검 E · Q 플레이(테스트로만), 경사 · 벽 화살
+  - 테스트: 새 `WeaponKindTests`(14) · `WeaponKindAssetTests`(6), 고침 `PartyAssetTests.OtherMembers_MatchBalance12` · `SwitchComboAssetTests.SupportToDealer_IsWorthIt`. EditMode 299개 모두 통과
+  - 캡처: `Assets/Screenshots/p3_3_bow_volley.png` · `p3_3_bow_aiming.png` · `p3_3_claymore_spin.png` · `p3_3_bow_vs_grunt.png`
+  - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 지점 Dummies → 3 키(떠돌이, 활) → 클릭 연타 = 화살 연사 → 길게 눌러 진홍이 된 채 1초쯤 뒤 떼면 카메라 쪽으로 강한 한 발 → 2 키(수호자, 대검) → 느리고 큰 4타 → 길게 누르면 회전 베기, 스태미나 원이 계속 줄고 떼면 마무리 → 교체 직후 클릭 = 활은 뒤로 뛰며 쏘기, 대검은 내려찍기 → 디버그 창 "무기 종류" [상태 변경] 무기 버튼으로 바꿔 끼우기
 - [ ] 3-4. 적 추가 · 길찾기
 - [ ] 3-5. 성장
 - [ ] 3-6. 탐험

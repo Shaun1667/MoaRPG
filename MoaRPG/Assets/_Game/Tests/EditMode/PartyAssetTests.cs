@@ -168,8 +168,8 @@ namespace Moa.Tests
             // 칸: 공격력 · E 짧게 쿨 · 에너지 · 궁극기 비용 · 쿨 → 허수아비에 E · Q
             var want = new[]
             {
-                new { attack = 100f, tapCd = 4f, tapEnergy = 10f, cost = 60f, burstCd = 15f, e = 112, q = 272 },
-                new { attack = 110f, tapCd = 6f, tapEnergy = 8f, cost = 50f, burstCd = 12f, e = 176, q = 405 },
+                new { attack = 100f, tapCd = 4f, tapEnergy = 10f, cost = 60f, burstCd = 15f, e = 128, q = 304 }, // 3-3: 대검에 맞춰 (2-6: 112 / 272)
+                new { attack = 110f, tapCd = 6f, tapEnergy = 8f, cost = 50f, burstCd = 12f, e = 150, q = 370 }, // 3-3: 활에 맞춰 (2-6: 176 / 405)
                 new { attack = 100f, tapCd = 5f, tapEnergy = 14f, cost = 40f, burstCd = 15f, e = 120, q = 240 },
             };
             for (int i = 0; i < want.Length; i++)
@@ -184,11 +184,11 @@ namespace Moa.Tests
                 Assert.That(Hit(c.TotalAttack, c.Skills.Tap.slashes[0].multiplier), Is.EqualTo(want[i].e), at + " E");
                 Assert.That(Hit(c.TotalAttack, c.Skills.GetBurstSlash(0).multiplier), Is.EqualTo(want[i].q), at + " Q");
             }
-            // 떠돌이(공격력 110) 콤보
+            // 떠돌이(공격력 110) 콤보 — 3-3: 활 연사 (2-6 한손검일 때 40 · 40 · 53 · 57 · 75)
             var wanderer = p.GetMember(2);
             var combo = new int[wanderer.Weapon.StepCount];
             for (int i = 0; i < combo.Length; i++) combo[i] = Hit(wanderer.TotalAttack, wanderer.Weapon.GetStep(i).multiplier);
-            Assert.That(combo, Is.EqualTo(new[] { 40, 40, 53, 57, 75 }));
+            Assert.That(combo, Is.EqualTo(new[] { 26, 26, 33, 35, 46 }));
         }
     }
 }

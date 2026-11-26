@@ -15,49 +15,49 @@ MonoBehaviour:
   skillHoldTime: 0.5
   tap:
     slashes:
-    - multiplier: 2
-      windup: 0.12
+    - multiplier: 1.7
+      windup: 0.16
       active: 0.1
       recovery: 0.3
       inputOpen: 0
-      lunge: 0.4
-      poise: 30
+      lunge: -1
+      poise: 20
     cooldown: 6
     energy: 8
-    hitRange: 3
-    hitAngle: 360
+    hitRange: 8
+    hitAngle: 60
   hold:
     slashes:
-    - multiplier: 1.2
+    - multiplier: 1.1
       windup: 0.1
       active: 0.08
-      recovery: 0.04
+      recovery: 0.06
       inputOpen: 0
-      lunge: 0.5
-      poise: 20
-    - multiplier: 2
-      windup: 0.1
-      active: 0.12
-      recovery: 0.4
+      lunge: -0.5
+      poise: 15
+    - multiplier: 1.8
+      windup: 0.14
+      active: 0.1
+      recovery: 0.36
       inputOpen: 0
-      lunge: 1
-      poise: 40
+      lunge: 0
+      poise: 25
     cooldown: 8
     energy: 15
-    hitRange: 3.5
-    hitAngle: 180
+    hitRange: 10
+    hitAngle: 40
   burstEnergyCost: 50
   burstCooldown: 12
   burstInvulnerable: 1
   burstSlashes:
-  - multiplier: 4.6
+  - multiplier: 4.2
     windup: 0.6
     active: 0.1
     recovery: 0.5
     inputOpen: 0
     lunge: 0
-    poise: 60
-  burstHitRange: 5
+    poise: 50
+  burstHitRange: 9
   burstHitAngle: 360
   handoffDamageBonus: 0.1
   handoffPoiseBonus: 0

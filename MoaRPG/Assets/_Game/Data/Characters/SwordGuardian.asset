@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.CharacterData
   nameKey: character.sword_guardian.name
   color: {r: 0.25, g: 0.5, b: 0.95, a: 1}
-  weapon: {fileID: 11400000, guid: 735eb6454e776364b9b10501d0ed4641, type: 2}
+  weapon: {fileID: 11400000, guid: a3a4adf21aebeac458ef55a6b26cbc21, type: 2}
   skills: {fileID: 11400000, guid: 96bd33f8da974cc44b4c4d9e7350c90d, type: 2}
   baseAttack: 60
   maxHealth: 1300

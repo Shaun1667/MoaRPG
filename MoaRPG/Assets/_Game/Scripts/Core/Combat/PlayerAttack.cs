@@ -106,15 +106,15 @@ namespace Moa.Core.Combat
             Energy = new Energy(Burst.Rules.EnergyCost);
         }
 
-        public ComboAttack Combo { get; }
-        public ChargedAttack Charged { get; }
-        public PlungeAttack Plunge { get; }
+        public ComboAttack Combo { get; private set; }
+        public ChargedAttack Charged { get; private set; }
+        public PlungeAttack Plunge { get; private set; }
         /// <summary>스킬(E) · 궁극기(Q) · 에너지 (2-4).</summary>
         public SkillAttack Skill { get; }
         public BurstAttack Burst { get; }
         public Energy Energy { get; }
         /// <summary>교체 등장 공격 (3-2) — 창은 Party가 교체 직후에 연다.</summary>
-        public EntryAttack Entry { get; }
+        public EntryAttack Entry { get; private set; }
         /// <summary>누른 스텝 뒤로 이만큼 계속 누르고 있으면 강공격 (초).</summary>
         public float HoldTime { get; }
 
@@ -244,7 +244,7 @@ namespace Moa.Core.Combat
             }
 
             ComboTick comboTick = Combo.Advance(dt);
-            ComboTick chargedTick = Charged.Advance(dt);
+            ComboTick chargedTick = Charged.Advance(dt, input.AttackHeld && canHold, stamina); // 3-3: 조준형 · 회전형은 누르고 있는지 · 스태미나를 본다
             Plunge.Advance(dt);
             ComboTick skillTick = Skill.Advance(dt);
             ComboTick burstTick = Burst.Advance(dt);
@@ -314,6 +314,23 @@ namespace Moa.Core.Combat
             Skill.Interrupt(AttackEnd.Cancelled);
             Burst.Cancel();
             Entry.Cancel();
+        }
+
+        /// <summary>조준형 강공격으로 조준 중 (3-3) — 몸은 조준 방향(카메라)으로, 떼면 쏜다.</summary>
+        public bool Aiming => Charged.Aiming;
+
+        /// <summary>
+        /// [상태 변경] 무기를 바꾼다 (3-3, 디버그 바꿔 끼기): 콤보 · 강공격 · 낙하 · 등장 공격 규칙만 새로 (지금 동작은 끊기고 처음 자세로).
+        /// 스킬 · 궁극기 · 에너지 · 쿨은 캐릭터 것이라 그대로.
+        /// </summary>
+        public void ChangeWeapon(ComboRules combo, ChargedRules charged, PlungeRules plunge, ComboStepRules[] entry)
+        {
+            Holding = false;
+            HoldElapsed = 0f;
+            Combo = new ComboAttack(combo);
+            Charged = new ChargedAttack(charged);
+            Plunge = new PlungeAttack(plunge);
+            Entry = new EntryAttack(entry);
         }
 
         /// <summary>대기 캐릭터의 한 고정 스텝 (2-6, Party가 부른다): 스킬 · 궁극기 쿨만 돈다 (교체로 끊겨 베기는 없다).</summary>

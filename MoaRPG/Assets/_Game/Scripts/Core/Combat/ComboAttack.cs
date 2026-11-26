@@ -115,6 +115,8 @@ namespace Moa.Core.Combat
         Switch,
         /// <summary>적에게 맞아 경직됐다 · 파티가 전멸했다 (3-1).</summary>
         Hit,
+        /// <summary>조준을 다 하기 전에 떼서 아무것도 안 나갔다 (3-3, 조준형 강공격).</summary>
+        AimCancelled,
     }
 
     public enum ComboPhase
