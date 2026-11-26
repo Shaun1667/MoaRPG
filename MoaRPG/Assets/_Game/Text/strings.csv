@@ -12,3 +12,6 @@ character.sword_hero.name,영웅,Hero
 character.sword_guardian.name,수호자,Guardian
 character.sword_wanderer.name,떠돌이,Wanderer
 character.sword_sage.name,현자,Sage
+ui.buff.damage,피해 +{0:0}%,DMG +{0:0}%
+ui.buff.poise,경직 +{0:0}%,Poise +{0:0}%
+ui.buff.shield,보호막 {0},Shield {0}

@@ -1,7 +1,7 @@
 # TASKS — MoaRPG
 
 ## 진행 요약 (2026-11-24 기준 — 새 세션은 여기부터 읽는다)
-**최신 (2026-11-26): Phase 3 3-1 플레이어 체력 · 쓰러짐 구현 — 캐릭터마다 체력 · 방어(영웅 1000 · 수호자 1300 · 떠돌이 850 · 현자 900), Grunt 한 대 영웅 10%, 땅 위 경직 · 밀려남, 쓰러지면 다음 캐릭터로 자동 교체, 전원 쓰러짐 → 시작 지점 50% 부활, 회복 지점, HUD 체력 막대 · BALANCE 13번. Phase 2(2-1 ~ 2-6) · 캐릭터/무기 공격력 분리까지 커밋. 브랜치 `phase2-combat`. **EditMode 256개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6 · 3-1. 다음: 3-2 교체 연계 → 3-3 무기 종류 → 3-4 적 추가 · 길찾기 → 3-5 성장 → 3-6 탐험 → 3-7 가챠(사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘"). 물을 것: 콤보 중 적이 계속 경직되는 체감 · 공격력 비율 60 : 40.**
+**최신 (2026-11-26): Phase 3 3-2 교체 연계 구현 — 교체 직후 0.8초 안 공격 = 등장 돌진 베기(그로기 적 ×1.5), E 뒤 3초 안 교체면 캐릭터별 버프(수호자 경직 +30% · 보호막 300, 현자 에너지 +15 · 피해 +25% 등), 버프 HUD · BALANCE 14번. 3-1 플레이어 체력 · 쓰러짐 구현 — 캐릭터마다 체력 · 방어(영웅 1000 · 수호자 1300 · 떠돌이 850 · 현자 900), Grunt 한 대 영웅 10%, 땅 위 경직 · 밀려남, 쓰러지면 다음 캐릭터로 자동 교체, 전원 쓰러짐 → 시작 지점 50% 부활, 회복 지점, HUD 체력 막대 · BALANCE 13번. Phase 2(2-1 ~ 2-6) · 캐릭터/무기 공격력 분리까지 커밋. 브랜치 `phase2-combat`. **EditMode 279개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6 · 3-1 · 3-2. 다음: 3-3 무기 종류 → 3-4 적 추가 · 길찾기 → 3-5 성장 → 3-6 탐험 → 3-7 가챠(사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘"). 물을 것: 콤보 중 적이 계속 경직되는 체감 · 공격력 비율 60 : 40.**
 
 ## Phase 0. 세팅
 - [x] **0-0. 문서 3종 + 기획서** (2026-11-24 사용자 "원신 라이크 기획서 노션에", "MY_DEV_GUIDE 대입") — CLAUDE.md · GDD.md · TASKS.md, Notion 기획서
@@ -126,7 +126,14 @@
   - 테스트: 새 `PlayerHealthTests`(14) · `PlayerHealthAssetTests`(4). EditMode 256개 모두 통과
   - 캡처: `Assets/Screenshots/p3_1_grunt_hit.png` · `p3_1_just_dodge_no_damage.png` · `p3_1_downed_auto_switch.png` · `p3_1_all_down_fade.png` · `p3_1_all_down_dark.png` · `p3_1_respawn_half.png` · `p3_1_heal_point.png`
   - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 디버그 창 "적 AI" [지점 Enemies로] → Grunt에게 맞으면 빨간 숫자 · 몸 검붉게 · 아래 가운데 막대가 줄어듦 → 닿기 직전 회피하면 체력 그대로 → 디버그 창 "플레이어 체력 · 쓰러짐" [쓰러뜨리기] → 다음 캐릭터로 바뀌고 칸이 회색, 그 번호 키로는 안 바뀜 → [전원 쓰러짐] → 화면이 어두워졌다 시작 지점에서 절반 체력으로 → 지점 HealPoint의 청록 원 위에 서면 전원 회복 · 쓰러진 캐릭터 부활
-- [ ] 3-2. 교체 연계
+- [x] **3-2. 교체 연계** (2026-11-26 사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘") — 플레이 확인 대기
+  - 구현: Core `EntryAttack`(창 Open · TryStart · 베기 SlashSequence · EntryBlock) · `HandoffRules` · `HandoffBuff`(DamageMultiplier · PoiseMultiplier · Absorb · HandoffEnd) / `PlayerAttack`(AttackMode.Entry · AttackTick.EntryStarted · 창 안 공격 = 등장 베기, E · Q가 창을 닫음) · `Party`(교체하면 등장 창, E 뒤 창 안 교체면 버프, 받은 캐릭터가 나가면 끝, 쓰러져 바뀐 교체는 둘 다 없음, GrantHandoff · ClearHandoff · OpenEntry) · `PartyRules` 5인자 · `PartyVitals` 보호막 먼저(다 막으면 경직 없음, PlayerHit.Absorbed) / Unity `WeaponTuning` entrySlash · `PartyTuning` entryWindow · handoffWindow · entryGroggyBonus · `SkillTuning` handoff* · `PlayerCombat` 피해 × 버프 × 등장 그로기 보너스 · 경직 × 버프 · `SwordSwingVisual` 등장 궤적 · `PartyHud` 등장 창 빛남 · `BuffHud`(체력 막대 위 아이콘 · 남은 초 · 효과) · `GameRoot.DebugEntry*/DebugHandoff*` · 디버그 창 `SwitchComboSection` · TestFieldSetup. strings 3줄은 감독이 넣음
+  - 정한 것 (Claude, 확인 필요): 등장 창 0.8초(교체 스텝 포함 40스텝) · 돌진 베기 1.2배 · 2m · 경직 25 · 2.6m 150° · 그로기 적에게 ×1.5(그로기 ×1.3에 곱) · E가 나간 뒤 3초 안 교체면 버프 · 버프는 받은 캐릭터가 나가면 끝 · 강제 교체는 등장 · 버프 없음 · 캐릭터별 버프(영웅 피해 +15% 6초 / 수호자 경직 +30% · 보호막 300 8초 / 떠돌이 피해 +10% 5초 / 현자 에너지 +15 · 피해 +25% 8초) · 수치 BALANCE 14번
+  - 확인(TestField, 일시정지 + Step, 입력 주입): 떠돌이 교체 → 칸 빛남 · 등장 106 둘 · 영웅 등장 96, 현자 E → 떠돌이 피해 ×1.25 · 에너지 0→15 · HUD '피해 +25%' · 등장 132 · 콤보 49/49/66/71/93 → 버프 끝 뒤 40, 수호자 E → 떠돌이 + 그로기 허수아비 등장 206 ×2 · 콤보 경직 ×1.3 · 보호막 104/104 다 막음(경직 없음) → 92 막고 12, 영웅으로 바꾸면 버프 끝 · 콤보 36/36/48/52/68 · E 136 그대로. Setup 2번 멱등. 콘솔 오류 0(NoSubscription 제외)
+  - 확인 못 함: 실제 키 · 패드 입력, 디버그 창 새 섹션 화면, 실제 Grunt 공격으로 보호막(디버그 피해 · 테스트로만), 영어 표시, 실제 프레임레이트 체감
+  - 테스트: 새 `SwitchComboTests`(18) · `SwitchComboAssetTests`(5). EditMode 279개 중 278 통과 — strings 3줄이 없어 `TextTableRulesTests.UsedKeys_AllExistInTable` 1개 실패 → 감독이 넣은 뒤 재실행 279개 모두 통과
+  - 캡처: `Assets/Screenshots/p3_2_entry_attack.png` · `p3_2_handoff_sage_buff.png` · `p3_2_entry_groggy_206.png`
+  - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 지점 Dummies → 4 키(현자) → E → 바로 3 키 → 오른쪽 칸 3이 노랗게 빛나고 체력 막대 위에 분홍 아이콘 · '피해 +25%' → 0.8초 안에 클릭하면 크림색 궤적 돌진 베기 132 → 수호자 E 뒤 교체하면 '경직 +30% 보호막 300' → 디버그 창 "교체 연계"
 - [ ] 3-3. 무기 종류 추가
 - [ ] 3-4. 적 추가 · 길찾기
 - [ ] 3-5. 성장

@@ -77,3 +77,13 @@ MonoBehaviour:
   plungeRange: 2.5
   plungeLowPoise: 20
   plungeHighPoise: 35
+  entrySlash:
+    multiplier: 1.2
+    windup: 0.08
+    active: 0.1
+    recovery: 0.32
+    inputOpen: 0
+    lunge: 2
+    poise: 25
+  entryHitRange: 2.6
+  entryHitAngle: 150

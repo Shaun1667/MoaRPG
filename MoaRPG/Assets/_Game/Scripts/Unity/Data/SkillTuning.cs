@@ -50,6 +50,18 @@ namespace Moa.Unity.Data
         [Tooltip("Full fan angle, degrees (360 = all around)")]
         [SerializeField] float burstHitAngle;
 
+        [Header("Switch handoff (3-2): switch out within PartyTuning handoffWindow after E")]
+        [Tooltip("Incoming character deals damage x (1 + this) for handoffDuration (0.25 = +25%)")]
+        [SerializeField] float handoffDamageBonus;
+        [Tooltip("Incoming character deals poise x (1 + this) for handoffDuration")]
+        [SerializeField] float handoffPoiseBonus;
+        [Tooltip("Shield on the incoming character: blocks this much damage first, gone when the buff ends")]
+        [SerializeField] int handoffShield;
+        [Tooltip("Burst energy the incoming character gets at once on the switch")]
+        [SerializeField] float handoffEnergy;
+        [Tooltip("s the buff lasts (it also ends when the incoming character leaves the field)")]
+        [SerializeField] float handoffDuration;
+
         public float SkillHoldTime => skillHoldTime;
         public Form Tap => tap;
         public Form Hold => hold;
@@ -61,6 +73,14 @@ namespace Moa.Unity.Data
         public WeaponTuning.Step GetBurstSlash(int i) => burstSlashes[i];
         public float BurstHitRange => burstHitRange;
         public float BurstHitAngle => burstHitAngle;
+        public float HandoffDamageBonus => handoffDamageBonus;
+        public float HandoffPoiseBonus => handoffPoiseBonus;
+        public int HandoffShield => handoffShield;
+        public float HandoffEnergy => handoffEnergy;
+        public float HandoffDuration => handoffDuration;
+
+        /// <summary>스킬 뒤 교체 강화 (3-2).</summary>
+        public HandoffRules ToHandoffRules() => new HandoffRules(handoffDamageBonus, handoffPoiseBonus, handoffShield, handoffEnergy, handoffDuration);
 
         /// <summary>베기 경직 (index는 0부터, 없으면 0).</summary>
         public float SkillPoise(SkillForm form, int index)

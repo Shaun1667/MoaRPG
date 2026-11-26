@@ -18,6 +18,7 @@
 | 11 | `Assets/_Game/Data/Enemies/Grunt.asset` (새 적 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.EnemyTuning` | `Moa.Tests.EnemyTuningAssetTests` |
 | 12 | `Assets/_Game/Data/Characters/Party.asset` + 캐릭터 에셋 (새 캐릭터 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.PartyTuning` · `CharacterData` | `Moa.Tests.PartyAssetTests` |
 | 13 | `Assets/_Game/Data/Player/PlayerHealthTuning.asset` + 캐릭터 에셋 `maxHealth` · `defense` + 적 에셋 `attack` · `attackMultiplier` | `Moa.Unity.Data.PlayerHealthTuning` · `CharacterData` · `EnemyTuning` | `Moa.Tests.PlayerHealthAssetTests` |
+| 14 | `Data/Characters/Party.asset`(entryWindow · handoffWindow · entryGroggyBonus) + `Data/Weapons/Sword.asset`(entrySlash · entryHit*) + 캐릭터 스킬 에셋 `handoff*` | `PartyTuning` · `WeaponTuning` · `SkillTuning` | `Moa.Tests.SwitchComboAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -260,6 +261,26 @@
 - 맞는 것은 필드 캐릭터뿐. 0이 되면 다음 칸부터 돌아 살아 있는 캐릭터로 자동 교체(쿨 무시, 새 쿨 없음), 쓰러진 칸으로는 교체 불가
 - 표현 값(Setup 표): 플레이어 피해 숫자 빨강 (1, .32, .28), 피격 몸 검붉은 (.55, .08, .08), 전멸 몸 회색, 아래 가운데 막대 420×14px(30% 이하면 빨강), 파티 칸 막대 6px · 쓰러지면 회색, 회복 지점 청록 원판(회복 중 밝게)
 
+## 14. 교체 연계 (TASKS 3-2) — 정한 것 (Claude, 2026-11-26, 확인 필요 — GDD에는 "교체 등장 공격 · 스킬 직후 교체 강화"만)
+| 곳 | 항목 | 값 | 근거 |
+|---|---|---|---|
+| `Party.asset` | entryWindow | 0.8 s (교체 스텝 포함 40스텝) | 교체 쿨(1초)보다 짧게. 쓰면 닫히고 E · Q를 써도 닫힘. 쓰러져 바뀐 교체는 없음 |
+| `Party.asset` | handoffWindow | 3.0 s | E가 나간 순간부터. 길게 누르기(0.5초) + 베기 뒤에도 여유 |
+| `Party.asset` | entryGroggyBonus | ×1.5 | 그로기 적에게 등장 공격이면 그로기 ×1.3에 곱함 — 영웅 187 · 떠돌이 206 (없으면 125) |
+| `Sword.asset` | entrySlash | 배율 1.20 · 선딜 0.08 · 판정 0.10 · 후딜 0.32 (0.5 s) · 내딛기 2.0 m · 경직 25 | 돌진 베기 한 번. 허수아비에 영웅 96 · 떠돌이 106 (1타 36 / 40) |
+| `Sword.asset` | entryHitRange · entryHitAngle | 2.6 m · 150° | 강공격(2.6m)과 같은 거리, 앞 넓게 |
+
+| 칸 | E 뒤 교체 → 들어온 캐릭터 | 피해 | 경직 | 보호막 | 에너지 | 시간 |
+|---|---|---|---|---|---|---|
+| 1 | 영웅 `SwordHero` | +15% | — | — | — | 6 s |
+| 2 | 수호자 `SwordGuardian` | — | +30% | 300 | — | 8 s |
+| 3 | 떠돌이 `SwordWanderer` | +10% | — | — | — | 5 s |
+| 4 | 현자 `SwordSage` | +25% | — | — | +15 (즉시) | 8 s |
+- 서포터 → 딜러: 수호자 E → 떠돌이는 콤보 경직 54 → 70.2로 Grunt(60)가 콤보 한 번에 그로기, 보호막 300 = Grunt 약 3대(104). 현자 E → 떠돌이는 콤보 40 · 40 · 53 · 57 · 75(265) → 49 · 49 · 66 · 71 · 93(328), Q 에너지 15/50
+- 버프는 하나만, 받은 캐릭터가 필드에 있는 동안만(나가면 끝, 새 버프면 바뀜). 버프가 없으면 배율이 정확히 1 — 교체 없이 싸울 때 피해는 2-1 ~ 3-1 그대로
+- 보호막이 먼저 막고 남은 것만 체력에, 다 막으면 경직 없음. 무적 · 디버그 쓰러뜨리기는 보호막을 쓰지 않음
+- 표현 값(Setup 표): 등장 궤적 크림 (1, .95, .6), 등장 창 칸 바탕 노랑 (1, .95, .45, .95 — 남은 시간만큼 현재 칸 색으로), 버프 아이콘 36px(준 캐릭터 색) · 아래 남은 시간 띠 4px · 화면 아래 66px
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
@@ -284,6 +305,7 @@
 - 적 AI: 순찰 2초 뒤 1.5 m/s, 시야 120° · 10m · 뒤 3m, 사거리 2m에서 70스텝째 닿음 · 다음 110스텝, 예고 중 안 돌고 옆으로 피하면 빗나감(스침 판정), 시야 2초 · 15m · 집 20m 복귀, 복귀 4 m/s · 도착하면 회복, 경직 15스텝 · 예고 중 경직 없음, 그로기 중 정지, 쓰러지고 250스텝 뒤 다시 남 → `EnemyBrainTests` · `EnemyTuningAssetTests`
 - 파티: 교체 쿨 50스텝 · 쿨 중 막힘(Cooldown) · 궁극기 · 낙하로 떨어지는 중 · 활공 중 막힘, 교체하면 콤보 · 강공격 · E 누르는 중 · 착지 경직이 끊김, 대기 캐릭터 스킬 · 궁극기 쿨이 돎, 처치 에너지 현재 5 · 대기 3 · 캐릭터 60 · 60 · 70 · 60 + 무기 40, 파티 없이도 100 → `PartyTests` · `PartyAssetTests`(CharacterAndWeaponAttack_AreSeparate_TotalsAsBefore · PlayerCombat_WithoutParty_AddsCharacterAttack_LikeWithParty)
 - 플레이어 체력: Grunt 100/83/104/100 · 10/6.4/12.2/11.1% · 10/16/9/9대, 경직 15스텝 · 공중이면 없음, 대기 캐릭터 체력 그대로, 쓰러지면 다음 살아 있는 칸(한 바퀴) · 쿨 무시 · 쓰러진 칸 교체 Downed, 전멸 50스텝에 50% 부활 · 120스텝에 끝 · 연출 중 무피해, 회복 지점 한 스텝 10/13 · 2초 가득 · 부활 → `PlayerHealthTests` · `PlayerHealthAssetTests`
+- 교체 연계: 등장 창 40스텝째 Entry · 41스텝 Combo, 돌진 25스텝 · 판정 5스텝 · 내딛기 2m · 대상마다 한 번, 강제 교체 · 2-6 규칙 · 등장 베기 없음이면 일반 공격, E 뒤 150스텝 안 교체 버프 · 151은 없음, 수호자 버프 400스텝 · 보호막 104/104/92+12, 현자 에너지 +15, 받은 캐릭터가 나가면 끝, 96 · 106 · 187 · 206 · 경직 54 → 70.2 ≥ 60 · 49/49/66/71/93 → `SwitchComboTests` · `SwitchComboAssetTests`
 - 10번 값: 136 · 96+160 · 320, 시간은 0.02 배수, 60+30+16 ≥ 100 → `SkillTuningAssetTests`
 
 ## 실험 기록
@@ -299,3 +321,4 @@
 | 2026-11-26 | TestField 코드 주입 플레이 (2-5) | 순찰 1.500 m/s, 9.96m 감지 · 추적 3.500 m/s, 1.95m에서 공격 · 0.6초 뒤 예고 · 0.8초 뒤 닿음 Hit, 0.12초 전 옆 회피 Just, 36 · 36 · 48 · 52 · 68 · 다음 1타 그로기 · 그로기 중 47, 처치 에너지 +5 · 5초 뒤 다시 남, 엄폐 뒤 2.00초 LostSight 복귀 4.000 m/s · 400 → 500, 15m TooFar 복귀 |
 | 2026-11-26 | TestField 코드 주입 플레이 (2-6) | 영웅 E 136 → 2번 교체(콤보 끊김 · 쿨 0.98) · 쿨 중 3번 막힘, 수호자 E 112 · 영웅 에너지 그대로 · 대기 E 쿨 4.98 → 4.02(48스텝), 떠돌이 콤보 40 · 40 · 53 · 57 · 75, 처치 에너지 현재 5 · 대기 3, 뛰는 중 교체 5.5 m/s 그대로, 현자 Q 240, 궁극기 · 활공 · 낙하로 떨어지는 중 막힘, 등반 · 회피 중 교체 |
 | 2026-11-26 | TestField 코드 주입 플레이 (3-1) | Grunt 한 대 영웅 1000 → 900 · 경직 0.30초 · 0.5m 밀려남, 저스트 회피 무피해, 영웅 쓰러짐 → 수호자 자동 교체 · 수호자 83, 전원 쓰러짐 → 1.0초 뒤 Spawn에서 500/650/425/450 · 적 제자리 · 2.4초에 끝, 회복 지점 2초에 가득 · 쓰러진 캐릭터 부활, 무적 0 |
+| 2026-11-26 | TestField 코드 주입 플레이 (3-2) | 떠돌이 교체 등장 106 · 영웅 96, 현자 E → 떠돌이 ×1.25 · 에너지 +15 · 등장 132 · 콤보 49/49/66/71/93 → 버프 끝 뒤 40, 수호자 E → 떠돌이 + 그로기 등장 206 · 경직 ×1.3 · 보호막 104/104 → 92+12, 영웅으로 바꾸면 버프 끝 · 36/36/48/52/68 · E 136 |

@@ -35,6 +35,9 @@ namespace Moa.Unity.UI
         [SerializeField] Color downedColor;
         [Tooltip("Number, name and color strip of a downed character")]
         [SerializeField] Color downedTextColor;
+        [Header("Switch entry attack (3-2)")]
+        [Tooltip("Slot background while the entry attack can be made (fades with the time left)")]
+        [SerializeField] Color entryColor;
 
         PlayerCombat _combat;
         PlayerVitals _vitals;
@@ -53,6 +56,8 @@ namespace Moa.Unity.UI
         public float HealthShown(int i) => i >= 0 && i < _healthShown.Length ? _healthShown[i] : 0f;
         public bool DownedShown(int i) => i >= 0 && i < Slots && (_state[i] & 4) != 0;
         readonly float[] _healthShown = new float[Slots];
+        /// <summary>3-2: 칸이 등장 공격 창으로 빛나는 중인지.</summary>
+        public bool EntryShown(int i) => i >= 0 && i < Slots && (_state[i] & 8) != 0;
 
         public void Bind(PlayerCombat combat, Font font)
         {
@@ -107,7 +112,8 @@ namespace Moa.Unity.UI
                 float hp = pv != null && i < pv.Count ? pv.Member(i).Ratio : 0f;
                 _healthShown[i] = hp;
                 if (i < healthFills.Length) HealthHud.SetFill(healthFills[i], hp);
-                int state = (isActive ? 1 : 0) | (ready ? 2 : 0) | (downed ? 4 : 0);
+                bool entry = isActive && !downed && a.Entry.WindowOpen; // 3-2: 등장 공격을 할 수 있는 동안 빛난다
+                int state = (isActive ? 1 : 0) | (ready ? 2 : 0) | (downed ? 4 : 0) | (entry ? 8 : 0);
                 if (state != _state[i])
                 {
                     _state[i] = state;
@@ -118,6 +124,11 @@ namespace Moa.Unity.UI
                     CharacterData cd = _combat.GetCharacter(i);
                     if (i < swatches.Length && swatches[i] != null && cd != null) swatches[i].color = downed ? downedTextColor : cd.Color;
                     if (i < burstReady.Length && burstReady[i] != null) burstReady[i].enabled = ready;
+                }
+                if (entry && i < backs.Length && backs[i] != null)
+                {
+                    float w = a.Entry.WindowTotal > 0f ? Mathf.Clamp01(a.Entry.WindowLeft / a.Entry.WindowTotal) : 0f;
+                    backs[i].color = Color.Lerp(activeColor, entryColor, 0.35f + 0.65f * w);
                 }
                 float cover = isActive ? 0f : ratio;
                 if (i < cooldowns.Length && cooldowns[i] != null) cooldowns[i].fillAmount = cover;

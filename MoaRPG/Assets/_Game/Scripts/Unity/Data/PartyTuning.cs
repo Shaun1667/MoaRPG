@@ -17,14 +17,24 @@ namespace Moa.Unity.Data
         [SerializeField] float switchCooldown;
         [Tooltip("Share of defeat energy the off-field members get (0..1, the on-field member gets all of it)")]
         [SerializeField] float benchEnergyRatio;
+        [Header("Switch combo (3-2)")]
+        [Tooltip("s after switching in during which Attack makes the entry attack (weapon entrySlash), 0 = none")]
+        [SerializeField] float entryWindow;
+        [Tooltip("s after a skill (E) is cast during which switching out gives the incoming character that skill's handoff buff, 0 = none")]
+        [SerializeField] float handoffWindow;
+        [Tooltip("Entry attack damage x this on a groggy enemy (on top of the groggy damage-taken multiplier), 1 = none")]
+        [SerializeField] float entryGroggyBonus;
         [Tooltip("Starting party, slot 1 first (up to 4)")]
         [SerializeField] CharacterData[] members;
 
         public float SwitchCooldown => switchCooldown;
         public float BenchEnergyRatio => benchEnergyRatio;
+        public float EntryWindow => entryWindow;
+        public float HandoffWindow => handoffWindow;
+        public float EntryGroggyBonus => entryGroggyBonus;
         public int MemberCount => members != null ? Mathf.Min(members.Length, MaxMembers) : 0;
         public CharacterData GetMember(int index) => members != null && index >= 0 && index < MemberCount ? members[index] : null;
 
-        public PartyRules ToRules() => new PartyRules(switchCooldown, benchEnergyRatio);
+        public PartyRules ToRules() => new PartyRules(switchCooldown, benchEnergyRatio, entryWindow, handoffWindow, entryGroggyBonus);
     }
 }

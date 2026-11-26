@@ -4,7 +4,14 @@ namespace Moa.Core.Combat
     public sealed class PartyRules
     {
         public PartyRules(float switchCooldown, float benchEnergyRatio)
+            : this(switchCooldown, benchEnergyRatio, 0f, 0f, 1f) { }
+
+        /// <summary>3-2: 교체 연계까지 (등장 공격 창 · 스킬 뒤 교체 창 · 그로기 적에게 등장 공격 추가 배율). 0 · 0 · 1이면 2-6과 같다.</summary>
+        public PartyRules(float switchCooldown, float benchEnergyRatio, float entryWindow, float handoffWindow, float entryGroggyBonus)
         {
+            EntryWindow = entryWindow > 0f ? entryWindow : 0f;
+            HandoffWindow = handoffWindow > 0f ? handoffWindow : 0f;
+            EntryGroggyBonus = entryGroggyBonus > 0f ? entryGroggyBonus : 1f;
             SwitchCooldown = switchCooldown > 0f ? switchCooldown : 0f;
             BenchEnergyRatio = benchEnergyRatio < 0f ? 0f : benchEnergyRatio > 1f ? 1f : benchEnergyRatio;
         }
@@ -13,6 +20,12 @@ namespace Moa.Core.Combat
         public float SwitchCooldown { get; }
         /// <summary>처치 에너지를 대기 캐릭터가 받는 비율 (0 ~ 1, 현재 캐릭터는 그대로 1).</summary>
         public float BenchEnergyRatio { get; }
+        /// <summary>3-2: 교체해 들어온 뒤 이 안에 공격을 누르면 등장 공격 (초, 0 = 없음).</summary>
+        public float EntryWindow { get; }
+        /// <summary>3-2: 스킬(E)이 나간 뒤 이 안에 교체하면 들어온 캐릭터가 강화를 받는다 (초, 0 = 없음).</summary>
+        public float HandoffWindow { get; }
+        /// <summary>3-2: 그로기 중인 적에게 등장 공격이 맞으면 피해 × 이 값 (그로기 받는 피해 배율과 곱한다, 1 = 없음).</summary>
+        public float EntryGroggyBonus { get; }
     }
 
     /// <summary>교체가 받아지지 않은 까닭 (끝에만 추가).</summary>
@@ -47,9 +60,16 @@ namespace Moa.Core.Combat
         const float Epsilon = 1e-5f;
         readonly PlayerAttack[] _members;
         bool[] _downed = new bool[0]; // 3-1: 쓰러진 칸 (PartyVitals가 정한다)
+        // 3-2: 스킬 뒤 교체 강화 — 칸마다 줄 버프 · 스킬이 나간 뒤 남은 교체 창 · 마지막으로 본 스킬 수
+        HandoffRules[] _handoffs = new HandoffRules[0];
+        float[] _handoffLeft = new float[0];
+        int[] _skillCounts = new int[0];
 
         /// <summary>members: 칸 순서대로 (null 칸 없이, 1명 이상). 처음 현재 캐릭터는 0번.</summary>
-        public Party(PartyRules rules, PlayerAttack[] members)
+        public Party(PartyRules rules, PlayerAttack[] members) : this(rules, members, null) { }
+
+        /// <summary>3-2: handoffs = 칸마다 그 캐릭터가 스킬을 쓴 뒤 교체하면 들어온 캐릭터에게 주는 버프 (null · 빈 칸 = 없음).</summary>
+        public Party(PartyRules rules, PlayerAttack[] members, HandoffRules[] handoffs)
         {
             Rules = rules ?? new PartyRules(0f, 0f);
             _members = members != null ? (PlayerAttack[])members.Clone() : new PlayerAttack[0];
@@ -57,7 +77,63 @@ namespace Moa.Core.Combat
                 if (_members[i] == null) throw new System.ArgumentException("party member " + i + " is null");
             if (_members.Length == 0) throw new System.ArgumentException("party needs at least one member");
             _downed = new bool[_members.Length];
+            _handoffs = new HandoffRules[_members.Length];
+            for (int i = 0; i < _members.Length; i++)
+                _handoffs[i] = handoffs != null && i < handoffs.Length && handoffs[i] != null ? handoffs[i] : HandoffRules.None;
+            _handoffLeft = new float[_members.Length];
+            _skillCounts = new int[_members.Length];
+            for (int i = 0; i < _members.Length; i++) _skillCounts[i] = _members[i].Skill.Count;
         }
+
+        // ---- 3-2 교체 연계 ----
+
+        /// <summary>지금 필드 캐릭터에게 걸린 교체 강화 (하나만).</summary>
+        public HandoffBuff Buff { get; } = new HandoffBuff();
+        /// <summary>칸이 스킬을 쓴 뒤 교체하면 주는 버프.</summary>
+        public HandoffRules Handoff(int index) => index >= 0 && index < _handoffs.Length ? _handoffs[index] : HandoffRules.None;
+        /// <summary>칸이 스킬을 쓴 뒤 버프를 줄 수 있는 남은 시간 (초, 0 = 없음).</summary>
+        public float HandoffLeft(int index) => index >= 0 && index < _handoffLeft.Length ? _handoffLeft[index] : 0f;
+        /// <summary>필드 캐릭터가 주는 피해 · 경직 배율 (버프가 없으면 정확히 1).</summary>
+        public float DamageMultiplier => Buff.DamageMultiplier(ActiveIndex);
+        public float PoiseMultiplier => Buff.PoiseMultiplier(ActiveIndex);
+        /// <summary>버프를 받은 수 · 마지막에 교체 순간 받은 에너지 (디버그 · 확인용).</summary>
+        public int HandoffCount { get; private set; }
+        public float LastHandoffEnergy { get; private set; }
+
+        /// <summary>보호막이 필드 캐릭터가 받을 damage에서 막은 양 (PartyVitals가 부른다).</summary>
+        public int AbsorbShield(int damage) => Buff.Absorb(ActiveIndex, damage);
+
+        /// <summary>from 칸의 버프를 지금 필드 캐릭터에게 (교체 때 · [상태 변경] 디버그). 걸렸거나 에너지를 줬으면 true.</summary>
+        public bool GrantHandoff(int from)
+        {
+            HandoffRules h = Handoff(from);
+            if (!h.HasEffect) return false;
+            LastHandoffEnergy = h.Energy > 0f ? Active.GainEnergy(h.Energy) : 0f;
+            Buff.Start(h, from, ActiveIndex);
+            HandoffCount++;
+            return true;
+        }
+
+        /// <summary>[상태 변경] 버프를 끝낸다.</summary>
+        public void ClearHandoff() => Buff.End(HandoffEnd.Cleared);
+
+        /// <summary>[상태 변경] 지금 필드 캐릭터의 등장 공격 창을 연다 (EntryWindow).</summary>
+        public void OpenEntry() => Active.Entry.Open(Rules.EntryWindow);
+
+        /// <summary>교체 뒤 들어온 캐릭터 쪽 연계: 나간 캐릭터가 받은 버프는 끝, 스킬 뒤 창 안이면 버프, voluntary면 등장 창.</summary>
+        void AfterSwitch(int from, bool voluntary)
+        {
+            _members[from].Entry.Close();
+            if (Buff.Active && Buff.To == from) Buff.End(HandoffEnd.Left);
+            if (!voluntary) return;
+            if (_handoffLeft[from] > 0f)
+            {
+                _handoffLeft[from] = 0f;
+                GrantHandoff(from);
+            }
+            Active.Entry.Open(Rules.EntryWindow);
+        }
+
 
         public PartyRules Rules { get; }
         public int Count => _members.Length;
@@ -98,6 +174,7 @@ namespace Moa.Core.Combat
             Active.Cancel(); // 들어오는 캐릭터는 처음 자세 (쿨 · 에너지는 그대로)
             CooldownLeft = Rules.SwitchCooldown;
             SwitchCount++;
+            AfterSwitch(LastFrom, true); // 3-2
             return true;
         }
 
@@ -111,6 +188,22 @@ namespace Moa.Core.Combat
             }
             for (int i = 0; i < _members.Length; i++)
                 if (i != ActiveIndex) _members[i].AdvanceBench(dt);
+            // 3-2: 스킬 뒤 교체 창 (줄어든 뒤, 이번 스텝에 스킬이 나갔으면 처음부터) · 버프 시간
+            for (int i = 0; i < _members.Length; i++)
+            {
+                if (_handoffLeft[i] > 0f)
+                {
+                    _handoffLeft[i] -= dt;
+                    if (_handoffLeft[i] <= Epsilon) _handoffLeft[i] = 0f;
+                }
+                int count = _members[i].Skill.Count;
+                if (count != _skillCounts[i])
+                {
+                    _skillCounts[i] = count;
+                    if (Rules.HandoffWindow > 0f && _handoffs[i].HasEffect) _handoffLeft[i] = Rules.HandoffWindow;
+                }
+            }
+            Buff.Advance(dt);
         }
 
         /// <summary>
@@ -151,6 +244,7 @@ namespace Moa.Core.Combat
             Active.Cancel();
             SwitchCount++;
             LastBlock = SwitchBlock.None;
+            AfterSwitch(LastFrom, false); // 3-2: 쓰러져 바뀐 것은 등장 공격 · 강화 없음
             return true;
         }
 
@@ -164,6 +258,8 @@ namespace Moa.Core.Combat
             ActiveIndex = 0;
             Active.Cancel();
             CooldownLeft = 0f;
+            Buff.End(HandoffEnd.Cleared); // 3-2
+            for (int i = 0; i < _handoffLeft.Length; i++) _handoffLeft[i] = 0f;
         }
     }
 }

@@ -14,6 +14,8 @@ namespace Moa.Core.Combat
         Skill,
         /// <summary>궁극기(Q) (2-4).</summary>
         Burst,
+        /// <summary>교체 등장 공격 (3-2).</summary>
+        Entry,
     }
 
     /// <summary>한 고정 스텝의 공격 입력 (2-4: 스킬 · 궁극기까지).</summary>
@@ -48,12 +50,18 @@ namespace Moa.Core.Combat
         public readonly bool SkillStarted;
         /// <summary>이번 스텝에 궁극기가 나갔는지 (2-4).</summary>
         public readonly bool BurstStarted;
+        /// <summary>이번 스텝에 교체 등장 공격이 나갔는지 (3-2).</summary>
+        public readonly bool EntryStarted;
 
         public AttackTick(ComboTick swing, bool chargedStarted, bool plungeStarted)
             : this(swing, chargedStarted, plungeStarted, false, false) { }
 
         public AttackTick(ComboTick swing, bool chargedStarted, bool plungeStarted, bool skillStarted, bool burstStarted)
+            : this(swing, chargedStarted, plungeStarted, skillStarted, burstStarted, false) { }
+
+        public AttackTick(ComboTick swing, bool chargedStarted, bool plungeStarted, bool skillStarted, bool burstStarted, bool entryStarted)
         {
+            EntryStarted = entryStarted;
             Swing = swing;
             ChargedStarted = chargedStarted;
             PlungeStarted = plungeStarted;
@@ -83,7 +91,12 @@ namespace Moa.Core.Combat
 
         /// <summary>2-4: 스킬 · 궁극기까지 (null이면 그 동작 없음 — 누르면 NoForms · NoSlashes).</summary>
         public PlayerAttack(ComboRules combo, ChargedRules charged, PlungeRules plunge, float holdTime, SkillRules skill, BurstRules burst)
+            : this(combo, charged, plunge, holdTime, skill, burst, null) { }
+
+        /// <summary>3-2: 교체 등장 공격 베기 표까지 (null · 빈 표 = 등장 공격 없음 — 창이 열려도 일반 공격).</summary>
+        public PlayerAttack(ComboRules combo, ChargedRules charged, PlungeRules plunge, float holdTime, SkillRules skill, BurstRules burst, ComboStepRules[] entry)
         {
+            Entry = new EntryAttack(entry);
             Combo = new ComboAttack(combo);
             Charged = new ChargedAttack(charged);
             Plunge = new PlungeAttack(plunge);
@@ -100,6 +113,8 @@ namespace Moa.Core.Combat
         public SkillAttack Skill { get; }
         public BurstAttack Burst { get; }
         public Energy Energy { get; }
+        /// <summary>교체 등장 공격 (3-2) — 창은 Party가 교체 직후에 연다.</summary>
+        public EntryAttack Entry { get; }
         /// <summary>누른 스텝 뒤로 이만큼 계속 누르고 있으면 강공격 (초).</summary>
         public float HoldTime { get; }
 
@@ -117,14 +132,15 @@ namespace Moa.Core.Combat
         public AttackMode Mode => Burst.Active ? AttackMode.Burst
             : Skill.Active ? AttackMode.Skill
             : Plunge.Active ? AttackMode.Plunge
+            : Entry.Active ? AttackMode.Entry
             : Charged.Active ? AttackMode.Charged
             : Combo.Attacking ? AttackMode.Combo
             : AttackMode.None;
 
         /// <summary>땅 위에서 휘두르는 중 (콤보 · 강공격 · 스킬(누르는 중 포함) · 궁극기).</summary>
-        public bool Swinging => Combo.Attacking || Charged.Active || Skill.Active || Burst.Active;
+        public bool Swinging => Combo.Attacking || Charged.Active || Skill.Active || Burst.Active || Entry.Active;
         /// <summary>강공격 · 낙하 · 스킬 · 궁극기 중 (이때 공격을 누르면 Busy).</summary>
-        public bool Busy => Charged.Active || Plunge.Active || Skill.Active || Burst.Active;
+        public bool Busy => Charged.Active || Plunge.Active || Skill.Active || Burst.Active || Entry.Active;
         /// <summary>궁극기로 무적인지 (2-4).</summary>
         public bool Invulnerable => Burst.Invulnerable;
 
@@ -138,7 +154,7 @@ namespace Moa.Core.Combat
         /// <summary>한 고정 스텝 (2-4): 궁극기 → 스킬 → 일반 공격 순서로 입력을 보고 → 모두 진행.</summary>
         public AttackTick Step(AttackInput input, AttackContext ctx, Stamina stamina, float dt)
         {
-            bool chargedStarted = false, plungeStarted = false, skillStarted = false, burstStarted = false;
+            bool chargedStarted = false, plungeStarted = false, skillStarted = false, burstStarted = false, entryStarted = false;
             bool canHold = ctx.Grounded && !ctx.Dodging && !ctx.Climbing && !ctx.Gliding;
 
             // 궁극기 (2-4)
@@ -152,6 +168,8 @@ namespace Moa.Core.Combat
                     Combo.Interrupt(AttackEnd.Burst);
                     Charged.Interrupt(AttackEnd.Burst);
                     Skill.Interrupt(AttackEnd.Burst);
+                    Entry.Interrupt(AttackEnd.Burst);
+                    Entry.Close(); // 3-2: 다른 동작을 썼으면 등장 창은 닫힌다
                 }
             }
 
@@ -164,6 +182,8 @@ namespace Moa.Core.Combat
                     Holding = false;
                     Combo.Interrupt(AttackEnd.Skill);
                     Charged.Interrupt(AttackEnd.Skill);
+                    Entry.Interrupt(AttackEnd.Skill);
+                    Entry.Close();
                     if (!input.SkillHeld) skillStarted = Skill.Release();
                 }
             }
@@ -179,6 +199,13 @@ namespace Moa.Core.Combat
                 {
                     LastBlock = AttackBlock.Busy;
                     BusyCount++;
+                }
+                else if (Entry.WindowOpen && ctx.Grounded && Entry.TryStart(ctx))
+                {
+                    // 3-2: 교체해 들어온 직후 — 일반 공격 대신 등장 베기 (콤보는 1타 그대로)
+                    entryStarted = true;
+                    Holding = false;
+                    LastBlock = AttackBlock.None;
                 }
                 else if (!ctx.Grounded)
                 {
@@ -221,11 +248,13 @@ namespace Moa.Core.Combat
             Plunge.Advance(dt);
             ComboTick skillTick = Skill.Advance(dt);
             ComboTick burstTick = Burst.Advance(dt);
+            ComboTick entryTick = Entry.Advance(dt);
             ComboTick swing;
             if (burstStarted || Burst.Active || burstTick.HitOpen || burstTick.Lunge > 0f) swing = burstTick;
             else if (skillStarted || Skill.Active || skillTick.HitOpen || skillTick.Lunge > 0f) swing = skillTick;
+            else if (entryStarted || Entry.Active || entryTick.HitOpen || entryTick.Lunge > 0f) swing = entryTick;
             else swing = chargedStarted || Charged.Active || chargedTick.HitOpen || chargedTick.Lunge > 0f ? chargedTick : comboTick;
-            return new AttackTick(swing, chargedStarted, plungeStarted, skillStarted, burstStarted);
+            return new AttackTick(swing, chargedStarted, plungeStarted, skillStarted, burstStarted, entryStarted);
         }
 
         /// <summary>떨어지던 낙하 공격이 땅에 닿았다 (PlayerMotor가 이동 뒤에 부른다). 착지했으면 true — 그 자리에서 범위 판정을 한 번.</summary>
@@ -235,6 +264,7 @@ namespace Moa.Core.Combat
         public bool TryHitSwing(EntityId target) =>
             Burst.Active ? Burst.TryHit(target)
             : Skill.Casting ? Skill.TryHit(target)
+            : Entry.Active ? Entry.TryHit(target)
             : Charged.Active ? Charged.TryHit(target)
             : Combo.TryHit(target);
 
@@ -242,6 +272,7 @@ namespace Moa.Core.Combat
         public ComboStepRules CurrentSwing =>
             Burst.Active ? Burst.CurrentSlash
             : Skill.Casting ? Skill.CurrentSlash
+            : Entry.Active ? Entry.CurrentSlash
             : Charged.Active ? Charged.CurrentSlash
             : Combo.CurrentStep;
 
@@ -259,6 +290,7 @@ namespace Moa.Core.Combat
             Charged.Interrupt(reason);
             Plunge.Interrupt(reason);
             Skill.Interrupt(reason);
+            Entry.Interrupt(reason);
         }
 
         /// <summary>땅 위 휘두르기(콤보 · 강공격 · 스킬)만 끊는다 — 낙하 · 궁극기는 그대로 (발밑이 사라짐).</summary>
@@ -268,6 +300,7 @@ namespace Moa.Core.Combat
             Combo.Interrupt(reason);
             Charged.Interrupt(reason);
             Skill.Interrupt(reason);
+            Entry.Interrupt(reason);
         }
 
         /// <summary>[상태 변경] 처음 상태로 (순간이동, 기록 수 · 쿨타임 · 에너지는 그대로).</summary>
@@ -280,6 +313,7 @@ namespace Moa.Core.Combat
             Plunge.Interrupt(AttackEnd.Cancelled);
             Skill.Interrupt(AttackEnd.Cancelled);
             Burst.Cancel();
+            Entry.Cancel();
         }
 
         /// <summary>대기 캐릭터의 한 고정 스텝 (2-6, Party가 부른다): 스킬 · 궁극기 쿨만 돈다 (교체로 끊겨 베기는 없다).</summary>

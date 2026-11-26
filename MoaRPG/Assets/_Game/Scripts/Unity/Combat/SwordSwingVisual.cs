@@ -55,12 +55,17 @@ namespace Moa.Unity.Combat
         [Tooltip("s the burst ring stays")]
         [SerializeField] float burstRingTime;
 
+        [Header("Switch entry attack (3-2)")]
+        [Tooltip("Entry (dash) slash uses the charged poses with this trail color")]
+        [SerializeField] Color entryTrailColor;
+
 
         Gradient _normalGradient;
         Gradient _chargedGradient;
         Gradient _skillGradient;
         Gradient _burstGradient;
-        int _trailKind; // 0 콤보 · 1 강공격 · 2 스킬 · 3 궁극기
+        Gradient _entryGradient;
+        int _trailKind; // 0 콤보 · 1 강공격 · 2 스킬 · 3 궁극기 · 4 등장 공격 (3-2)
         float _ringTime;
         float _ringLeft;
         Color _landColor;
@@ -86,6 +91,7 @@ namespace Moa.Unity.Combat
                 _chargedGradient = Fade(chargedTrailColor);
                 _skillGradient = Fade(skillTrailColor);
                 _burstGradient = Fade(burstTrailColor);
+                _entryGradient = Fade(entryTrailColor);
             }
             if (landRing != null)
             {
@@ -178,6 +184,15 @@ namespace Moa.Unity.Combat
                 t = a.Burst.Elapsed;
                 kind = 3;
             }
+            else if (a.Entry.Active)
+            {
+                // 3-2: 등장 돌진 베기 = 강공격 첫 베기 자세 + 등장 궤적 색
+                s = a.Entry.CurrentSlash;
+                start = Quaternion.Euler(chargedStartEuler);
+                end = Quaternion.Euler(chargedEndEuler);
+                t = a.Entry.Elapsed;
+                kind = 4;
+            }
             else if (a.Skill.Casting || a.Charged.Active)
             {
                 bool skill = a.Skill.Casting;
@@ -232,7 +247,7 @@ namespace Moa.Unity.Combat
             if (on && kind != _trailKind && _chargedGradient != null)
             {
                 _trailKind = kind;
-                trail.colorGradient = kind == 1 ? _chargedGradient : kind == 2 ? _skillGradient : kind == 3 ? _burstGradient : _normalGradient;
+                trail.colorGradient = kind == 1 ? _chargedGradient : kind == 2 ? _skillGradient : kind == 3 ? _burstGradient : kind == 4 ? _entryGradient : _normalGradient;
             }
             if (trail.emitting == on) return;
             trail.emitting = on;

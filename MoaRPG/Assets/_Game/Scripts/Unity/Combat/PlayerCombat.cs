@@ -98,6 +98,11 @@ namespace Moa.Unity.Combat
         public int HitCount { get; private set; }
         /// <summary>마지막 낙하 착지 자리 (발) · 그때 맞힌 수.</summary>
         public Vector3 LastLandPosition { get; private set; }
+        /// <summary>3-2: 등장 공격이 맞힌 수 · 그중 그로기 적에게 추가 배율이 든 수 (디버그 · 확인용).</summary>
+        public int EntryHitCount { get; private set; }
+        public int EntryGroggyHitCount { get; private set; }
+        /// <summary>3-2: 지금 캐릭터의 등장 공격 (Bind 전에는 null).</summary>
+        public EntryAttack Entry => _attack?.Entry;
         public int LastLandHits { get; private set; }
 
         // ---- 2-6 파티 ----
@@ -137,6 +142,7 @@ namespace Moa.Unity.Combat
                 int n = party.MemberCount;
                 var characters = new CharacterData[n];
                 var attacks = new PlayerAttack[n];
+                var handoffs = new HandoffRules[n]; // 3-2: 스킬 뒤 교체 강화 (캐릭터의 SkillTuning)
                 for (int i = 0; i < n; i++)
                 {
                     CharacterData c = party.GetMember(i);
@@ -145,9 +151,10 @@ namespace Moa.Unity.Combat
                     if (w == null) { Debug.LogError("PlayerCombat: character " + c.name + " has no weapon"); enabled = false; return; }
                     characters[i] = c;
                     attacks[i] = Build(w, c.Skills, c.name);
+                    handoffs[i] = c.Skills != null ? c.Skills.ToHandoffRules() : HandoffRules.None;
                 }
                 _characters = characters;
-                _party = new Party(party.ToRules(), attacks);
+                _party = new Party(party.ToRules(), attacks, handoffs);
                 ApplyActive();
                 return;
             }
@@ -170,7 +177,7 @@ namespace Moa.Unity.Combat
             var plunge = new PlungeRules(tuning.PlungeMinHeight, tuning.PlungeHighHeight, w.PlungeLowMultiplier, w.PlungeHighMultiplier,
                 tuning.PlungeFallSpeed, tuning.PlungeLandRecovery);
             return new PlayerAttack(w.ToRules(), w.ToChargedRules(), plunge, tuning.ChargeHoldTime,
-                s != null ? s.ToSkillRules() : null, s != null ? s.ToBurstRules() : null);
+                s != null ? s.ToSkillRules() : null, s != null ? s.ToBurstRules() : null, w.ToEntrySlashes());
         }
 
         /// <summary>현재 캐릭터의 공격 · 무기 · 스킬 · 공격력으로 바꾼다 (2-6).</summary>
@@ -274,6 +281,7 @@ namespace Moa.Unity.Combat
             if (!Bound || !_attack.Swinging) return 0;
             AttackMode kind = _attack.Burst.Active ? AttackMode.Burst
                 : _attack.Skill.Casting ? AttackMode.Skill
+                : _attack.Entry.Active ? AttackMode.Entry
                 : _attack.Charged.Active ? AttackMode.Charged
                 : _attack.Combo.Attacking ? AttackMode.Combo
                 : AttackMode.None;
@@ -285,6 +293,7 @@ namespace Moa.Unity.Combat
                 case AttackMode.Burst: range = _skills.BurstHitRange; angle = _skills.BurstHitAngle; break;
                 case AttackMode.Skill: { var f = _skills.GetForm(_attack.Skill.Form); range = f.hitRange; angle = f.hitAngle; break; }
                 case AttackMode.Charged: range = w.ChargedHitRange; angle = w.ChargedHitAngle; break;
+                case AttackMode.Entry: range = w.EntryHitRange; angle = w.EntryHitAngle; break; // 3-2
                 default: range = w.HitRange; angle = w.HitAngle; break;
             }
             Vector3 center = feet + Vector3.up * w.HitHeight;
@@ -312,6 +321,9 @@ namespace Moa.Unity.Combat
                         Report(t, multiplier, _skills.SkillPoise(_attack.Skill.Form, _attack.Skill.SlashIndex), feet, kind, _attack.Skill.SlashIndex + 1, _attack.Skill.Count);
                         float e = _attack.TakeSkillEnergy(); // 이번 스킬이 처음 맞힌 순간 한 번
                         if (e > 0f) { EnergyFromSkill += e; OnEnergy(e, true); }
+                        break;
+                    case AttackMode.Entry:
+                        Report(t, multiplier, w.EntryPoise, feet, kind, 1, _attack.Entry.Count);
                         break;
                     case AttackMode.Charged:
                         Report(t, multiplier, w.ChargedPoise(_attack.Charged.SlashIndex), feet, kind, _attack.Charged.SlashIndex + 1, _attack.Charged.Count);
@@ -360,7 +372,12 @@ namespace Moa.Unity.Combat
             var pt = t as IPoiseTarget;
             bool onGroggy = pt != null && pt.Groggy;
             float taken = pt != null ? pt.DamageTakenMultiplier : 1f;
-            int damage = DamageMath.Compute(Attack, multiplier * taken, t.Defense, tuning.DefenseConstant);
+            // 3-2: 교체 강화(버프가 없으면 정확히 1) · 그로기 적에게 등장 공격이면 추가 배율
+            float buff = _party != null ? _party.DamageMultiplier : 1f;
+            bool entryGroggy = kind == AttackMode.Entry && onGroggy && _party != null && _party.Rules.EntryGroggyBonus != 1f;
+            float bonus = entryGroggy ? _party.Rules.EntryGroggyBonus : 1f;
+            if (kind == AttackMode.Entry) { EntryHitCount++; if (entryGroggy) EntryGroggyHitCount++; }
+            int damage = DamageMath.Compute(Attack, multiplier * taken * buff * bonus, t.Defense, tuning.DefenseConstant);
             bool wasAlive = t.Alive;
             int applied = t.ReceiveHit(damage, feet);
             // 2-4: 이 한 방으로 쓰러뜨렸으면 적 표의 처치 에너지 (궁극기 중에는 안 찬다)
@@ -377,7 +394,7 @@ namespace Moa.Unity.Combat
             bool broke = false;
             if (pt != null && pt.Poise != null && !pt.Groggy && t.Alive && poise > 0f)
             {
-                poiseApplied = poise * (_defense != null ? _defense.PoiseMultiplier : 1f);
+                poiseApplied = poise * (_defense != null ? _defense.PoiseMultiplier : 1f) * (_party != null ? _party.PoiseMultiplier : 1f);
                 broke = pt.ReceivePoise(poiseApplied);
             }
             var report = new HitReport(t.Id, (t as Component) != null ? ((Component)t).name : "-", damage, applied, step, swing, t.NumberPosition, kind,

@@ -58,9 +58,15 @@ namespace Moa.Core.Combat
         public readonly int SwitchedTo;
         /// <summary>이 한 방으로 전원이 쓰러졌다 (전멸 연출 시작).</summary>
         public readonly bool AllDown;
+        /// <summary>교체 강화 보호막이 막은 양 (3-2, Requested 중 체력에 가지 않은 몸).</summary>
+        public readonly int Absorbed;
 
         public PlayerHit(int member, int requested, int applied, bool ignored, bool stunned, bool downed, int switchedTo, bool allDown)
+            : this(member, requested, applied, ignored, stunned, downed, switchedTo, allDown, 0) { }
+
+        public PlayerHit(int member, int requested, int applied, bool ignored, bool stunned, bool downed, int switchedTo, bool allDown, int absorbed)
         {
+            Absorbed = absorbed;
             Member = member;
             Requested = requested;
             Applied = applied;
@@ -180,7 +186,7 @@ namespace Moa.Core.Combat
             if (Wiping || _health[i].IsDead) return PlayerHit.None(i);
             int damage = DamageMath.Compute(attack, multiplier, _defense[i], defenseConstant);
             if (damage <= 0) return PlayerHit.None(i);
-            return Apply(i, damage, canStagger, Invulnerable);
+            return Apply(i, damage, canStagger, Invulnerable, true);
         }
 
         /// <summary>[상태 변경] 방어를 거치지 않고 amount만큼 (디버그 피해 주기).</summary>
@@ -188,7 +194,7 @@ namespace Moa.Core.Combat
         {
             int i = ActiveIndex;
             if (Wiping || _health[i].IsDead || amount <= 0) return PlayerHit.None(i);
-            return Apply(i, amount, canStagger, Invulnerable);
+            return Apply(i, amount, canStagger, Invulnerable, true);
         }
 
         /// <summary>[상태 변경] 필드 캐릭터를 쓰러뜨린다 (무적이어도).</summary>
@@ -196,7 +202,7 @@ namespace Moa.Core.Combat
         {
             int i = ActiveIndex;
             if (Wiping || _health[i].IsDead) return PlayerHit.None(i);
-            return Apply(i, _health[i].Current, false, false);
+            return Apply(i, _health[i].Current, false, false, false);
         }
 
         /// <summary>[상태 변경] 전원 쓰러뜨린다 → 전멸 연출.</summary>
@@ -214,11 +220,15 @@ namespace Moa.Core.Combat
             return DownActive();
         }
 
-        PlayerHit Apply(int i, int damage, bool canStagger, bool invulnerable)
+        /// <summary>useShield: 3-2 교체 강화 보호막이 먼저 막는다 (무적이면 보호막도 그대로). 다 막으면 경직도 없다.</summary>
+        PlayerHit Apply(int i, int damage, bool canStagger, bool invulnerable, bool useShield)
         {
             Health h = _health[i];
+            int absorbed = useShield && !invulnerable && _party != null ? _party.AbsorbShield(damage) : 0;
+            int rest = damage - absorbed;
             h.Invulnerable = invulnerable;
-            int applied = h.TakeDamage(damage);
+            int applied = rest > 0 ? h.TakeDamage(rest) : 0;
+            if (rest <= 0) canStagger = false;
             h.Invulnerable = false;
             HitCount++;
             bool stunned = false, downed = false, allDown = false;
@@ -235,7 +245,7 @@ namespace Moa.Core.Combat
                 StunLeft = Rules.HitStunTime;
                 stunned = true;
             }
-            LastHit = new PlayerHit(i, damage, applied, false, stunned, downed, switchedTo, allDown);
+            LastHit = new PlayerHit(i, damage, applied, false, stunned, downed, switchedTo, allDown, absorbed);
             return LastHit;
         }
 

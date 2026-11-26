@@ -70,6 +70,14 @@ namespace Moa.Unity.Data
         [Tooltip("Poise added per target by a high plunge (2-3)")]
         [SerializeField] float plungeHighPoise;
 
+        [Header("Switch entry attack (3-2, Attack right after switching in)")]
+        [Tooltip("The one strong slash (dash slash) the incoming character makes instead of hit 1 (inputOpen is not used). multiplier 0 = no entry attack")]
+        [SerializeField] Step entrySlash;
+        [Tooltip("m from the body center to the target surface")]
+        [SerializeField] float entryHitRange;
+        [Tooltip("Full fan angle, degrees (360 = all around)")]
+        [SerializeField] float entryHitAngle;
+
         public float BaseAttack => baseAttack;
         public int StepCount => steps != null ? steps.Length : 0;
         public Step GetStep(int i) => steps[i];
@@ -88,6 +96,12 @@ namespace Moa.Unity.Data
         public float PlungeRange => plungeRange;
         public float PlungeLowPoise => plungeLowPoise;
         public float PlungeHighPoise => plungeHighPoise;
+        /// <summary>교체 등장 공격 (3-2): 베기 한 줄 · 범위 · 각도. 배율이 0이면 없음.</summary>
+        public bool HasEntry => entrySlash.multiplier > 0f;
+        public Step EntrySlash => entrySlash;
+        public float EntryHitRange => entryHitRange;
+        public float EntryHitAngle => entryHitAngle;
+        public float EntryPoise => HasEntry ? entrySlash.poise : 0f;
 
         /// <summary>콤보 단계 · 강공격 베기 · 낙하의 경직 수치 (2-3). index는 0부터, 낙하는 high로 고른다.</summary>
         public float ComboPoise(int index) => index >= 0 && index < StepCount ? steps[index].poise : 0f;
@@ -103,6 +117,14 @@ namespace Moa.Unity.Data
                 list[i] = new ComboStepRules(s.multiplier, s.windup, s.active, s.recovery, s.inputOpen, s.lunge);
             }
             return new ComboRules(list, comboResetTime);
+        }
+
+        /// <summary>교체 등장 공격 베기 표 (3-2, 없으면 빈 표).</summary>
+        public ComboStepRules[] ToEntrySlashes()
+        {
+            if (!HasEntry) return new ComboStepRules[0];
+            Step s = entrySlash;
+            return new[] { new ComboStepRules(s.multiplier, s.windup, s.active, s.recovery, s.inputOpen, s.lunge) };
         }
 
         /// <summary>강공격 규칙 (2-2).</summary>

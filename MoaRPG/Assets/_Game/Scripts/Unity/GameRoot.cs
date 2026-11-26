@@ -58,6 +58,9 @@ namespace Moa.Unity
         [SerializeField] Transform respawnPoint;
         [Tooltip("Healing points: standing there heals the party and revives downed members")]
         [SerializeField] HealingPoint[] healingPoints;
+        [Header("Switch combo (3-2, empty in scenes without a player)")]
+        [Tooltip("Handoff buff icon and time left above the health bar")]
+        [SerializeField] BuffHud buffHud;
 
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
@@ -104,6 +107,7 @@ namespace Moa.Unity
             BindPoise(view);
             if (skillHud != null) skillHud.Bind(playerCombat, UiFont.Get(config)); // 2-4
             if (partyHud != null) partyHud.Bind(playerCombat, UiFont.Get(config)); // 2-6
+            if (buffHud != null) buffHud.Bind(playerCombat, UiFont.Get(config)); // 3-2
         }
 
         /// <summary>2-3: 저스트 회피(플레이어 쪽) · 공격 허수아비의 대상 · 경직 막대.</summary>
@@ -659,6 +663,31 @@ namespace Moa.Unity
 
         /// <summary>[상태 변경] 플레이어 무적 (체력 · 경직 없음, 피해 숫자는 회색).</summary>
         public void DebugPlayerHealthSetInvulnerable(bool on) { if (playerVitals != null) playerVitals.Invulnerable = on; }
+
+        // ---- 교체 연계 (3-2) ----
+
+        /// <summary>필드 캐릭터의 등장 공격 (없으면 null).</summary>
+        public Moa.Core.Combat.EntryAttack DebugEntry => DebugHasCombat ? playerCombat.Entry : null;
+        /// <summary>지금 걸린 교체 강화 (파티가 없으면 null).</summary>
+        public Moa.Core.Combat.HandoffBuff DebugHandoffBuff => DebugHasParty ? playerCombat.Party.Buff : null;
+        /// <summary>칸(1 ~ 4)이 스킬을 쓴 뒤 버프를 줄 수 있는 남은 초.</summary>
+        public float DebugHandoffLeft(int slot) => DebugHasParty ? playerCombat.Party.HandoffLeft(slot - 1) : 0f;
+        /// <summary>칸(1 ~ 4)이 주는 버프 수치.</summary>
+        public Moa.Core.Combat.HandoffRules DebugHandoffRules(int slot) => DebugHasParty ? playerCombat.Party.Handoff(slot - 1) : Moa.Core.Combat.HandoffRules.None;
+        public float DebugDamageMultiplier => DebugHasParty ? playerCombat.Party.DamageMultiplier : 1f;
+        public float DebugPoiseBuffMultiplier => DebugHasParty ? playerCombat.Party.PoiseMultiplier : 1f;
+        public int DebugEntryHitCount => playerCombat != null ? playerCombat.EntryHitCount : 0;
+        public int DebugEntryGroggyHitCount => playerCombat != null ? playerCombat.EntryGroggyHitCount : 0;
+        public BuffHud DebugBuffHud => buffHud;
+
+        /// <summary>[상태 변경] fromSlot(1 ~ 4) 캐릭터의 스킬 뒤 교체 버프를 지금 필드 캐릭터에게 (에너지 포함). 걸렸으면 true.</summary>
+        public bool DebugHandoffGrant(int fromSlot) => DebugHasParty && playerCombat.Party.GrantHandoff(fromSlot - 1);
+
+        /// <summary>[상태 변경] 버프를 끝낸다.</summary>
+        public void DebugHandoffClear() { if (DebugHasParty) playerCombat.Party.ClearHandoff(); }
+
+        /// <summary>[상태 변경] 필드 캐릭터의 등장 공격 창을 연다 (교체 없이 확인).</summary>
+        public void DebugEntryOpen() { if (DebugHasParty) playerCombat.Party.OpenEntry(); }
 
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()

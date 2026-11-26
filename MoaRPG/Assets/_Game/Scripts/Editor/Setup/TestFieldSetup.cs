@@ -174,6 +174,15 @@ namespace Moa.Editor.Setup
         const float HealDiscThickness = 0.04f;                                     // 원판 두께 (m)
         static readonly Vector3 HealStatueSize = new Vector3(0.6f, 2.4f, 0.6f);    // 가운데 기둥 (m, 충돌 없음)
 
+        // ---- 표현 표 (3-2 교체 연계, 게임 수치 아님) ----
+        static readonly Color EntryTrailColor = new Color(1.00f, 0.95f, 0.60f, 0.95f);  // 등장 돌진 베기 궤적: 밝은 크림
+        static readonly Color PartyEntryColor = new Color(1.00f, 0.95f, 0.45f, 0.95f);  // 등장 공격 창 동안 현재 칸 바탕 (남은 시간만큼 현재 칸 색으로)
+        const float BuffIconSize = 36f, BuffBarHeight = 4f, BuffGap = 4f;              // 버프 아이콘 · 아래 남은 시간 띠 · 사이 (px)
+        const float BuffHudBottom = 66f;                                               // 화면 아래에서 (체력 막대 36 + 20 위로 10)
+        const int BuffFontSize = 22;
+        static readonly Color BuffBackColor = new Color(0f, 0f, 0f, 0.55f);
+        static readonly Color BuffBarColor = new Color(1.00f, 0.85f, 0.30f);
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -311,6 +320,9 @@ namespace Moa.Editor.Setup
                 PartyNumberFontSize, PartyNameFontSize, PartySlotColor, PartyActiveColor, PartyCooldownCover, EnergyFullColor, SkillTextColor, DamageOutlineColor); // 2-6
             PartyHud.AddHealthBars(partyHud, PartySwatchWidth, PartyHealthHeight, PartyHealthInset, HealthBackColor, HealthFillColor, PartyDownedColor, PartyDownedTextColor); // 3-1
             SetColor(numbers, "playerDamageColor", PlayerDamageColor); // 3-1
+            SetColor(partyHud, "entryColor", PartyEntryColor); // 3-2
+            var buffHud = BuffHud.CreateIn(gauge.transform.parent, BuffHudBottom, BuffIconSize, BuffBarHeight, BuffGap, BuffFontSize,
+                BuffBackColor, BuffBarColor, SkillTextColor, DamageOutlineColor); // 3-2: 체력 HUD보다 먼저 (검은 판이 위)
             var healthHud = HealthHud.CreateIn(gauge.transform.parent, HealthBarSize, HealthBarBottom, HealthBarBorder, HealthBackColor, HealthFillColor, HealthLowColor,
                 HealthLowRatio, FadeColor); // 3-1: HUD 마지막 자식 — 검은 판이 맨 위
             var dummies = BuildDummies(dummyTuning, attackTuning, mats);
@@ -318,6 +330,7 @@ namespace Moa.Editor.Setup
             var root = BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies, partyHud);
             var heals = BuildHealingPoints(env, health, mats); // 3-1
             ConnectHealth(root, player, healthHud, points, heals);
+            Set(root, "buffHud", buffHud); // 3-2
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -614,6 +627,7 @@ namespace Moa.Editor.Setup
             SetColor(swing, "burstTrailColor", BurstTrailColor);
             SetColor(swing, "burstRingColor", BurstRingColor);
             SetFloat(swing, "burstRingTime", BurstRingTime);
+            SetColor(swing, "entryTrailColor", EntryTrailColor); // 3-2
 
             // 2-3: 적 공격을 받는 쪽 (저스트 회피)
             var defense = go.AddComponent<PlayerDefense>();

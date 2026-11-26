@@ -59,3 +59,8 @@ MonoBehaviour:
     poise: 80
   burstHitRange: 5
   burstHitAngle: 360
+  handoffDamageBonus: 0
+  handoffPoiseBonus: 0.3
+  handoffShield: 300
+  handoffEnergy: 0
+  handoffDuration: 8

@@ -14,6 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.PartyTuning
   switchCooldown: 1
   benchEnergyRatio: 0.6
+  entryWindow: 0.8
+  handoffWindow: 3
+  entryGroggyBonus: 1.5
   members:
   - {fileID: 11400000, guid: 0bce7bb7ba3f3634ba40f34f5d04635c, type: 2}
   - {fileID: 11400000, guid: e700e37aef7376246a9c4a41b3db7bc2, type: 2}
