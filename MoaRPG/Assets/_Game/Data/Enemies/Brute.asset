@@ -1,0 +1,79 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 42fc307a5637c9b43a88518a4ef6607e, type: 3}
+  m_Name: Brute
+  m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.EnemyTuning
+  rank: 1
+  maxHealth: 1600
+  defense: 100
+  energyOnDefeat: 10
+  capsuleHeight: 2.6
+  capsuleRadius: 0.75
+  eyeHeight: 2
+  gravity: 25
+  flashTime: 0.1
+  knockbackDistance: 0.08
+  knockbackTime: 0.06
+  numberHeight: 3
+  maxPoise: 150
+  groggyDuration: 5
+  groggyDamageTaken: 1.3
+  poiseRegenDelay: 2
+  poiseRegenPerSecond: 25
+  detectRange: 10
+  viewAngle: 120
+  noticeRange: 4
+  loseRange: 15
+  loseSightTime: 3
+  leashRange: 20
+  patrolSpeed: 1.2
+  chaseSpeed: 2.6
+  returnSpeed: 4
+  turnSpeed: 240
+  patrolWait: 2
+  arriveDistance: 0.4
+  retreatRange: 0
+  retreatSpeed: 0
+  attack: 100
+  attacks:
+  - debugName: Slam
+    multiplier: 2
+    startRange: 3
+    hitRange: 3.5
+    hitAngle: 360
+    interval: 0.8
+    telegraph: 1.2
+    activeTime: 0
+    lungeDistance: 0
+    recovery: 1.2
+    knockdownTime: 1.2
+    delivery: 0
+    projectileSpeed: 0
+    projectileLifetime: 0
+    projectileRadius: 0
+  - debugName: Charge
+    multiplier: 1.5
+    startRange: 9
+    hitRange: 1.8
+    hitAngle: 120
+    interval: 0.6
+    telegraph: 0.8
+    activeTime: 0.6
+    lungeDistance: 7.2
+    recovery: 1
+    knockdownTime: 0
+    delivery: 0
+    projectileSpeed: 0
+    projectileLifetime: 0
+    projectileRadius: 0
+  hitStunTime: 0
+  respawnDelay: 8

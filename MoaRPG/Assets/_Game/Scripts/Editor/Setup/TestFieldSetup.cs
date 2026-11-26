@@ -11,6 +11,9 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
+using System.Collections.Generic;
+using Unity.AI.Navigation;
+using UnityEngine.AI;
 
 namespace Moa.Editor.Setup
 {
@@ -40,6 +43,9 @@ namespace Moa.Editor.Setup
         public const string PartyPath = "Assets/_Game/Data/Characters/Party.asset";             // 2-6: 교체 수치 + 시작 파티 (PartyTuning, 캐릭터는 같은 폴더)
         public const string HeroCharacterPath = "Assets/_Game/Data/Characters/SwordHero.asset"; // 2-6: 파티가 없을 때 캐릭터 기본 공격력 (CharacterData)
         public const string PlayerHealthTuningPath = "Assets/_Game/Data/Player/PlayerHealthTuning.asset"; // 3-1: 피격 · 전멸 · 회복 지점 (PlayerHealthTuning)
+        public const string ArcherTuningPath = "Assets/_Game/Data/Enemies/Archer.asset";        // 3-4: 원거리 궁수 (EnemyTuning)
+        public const string BruteTuningPath = "Assets/_Game/Data/Enemies/Brute.asset";          // 3-4: 정예 (EnemyTuning)
+        public const string NavMeshDataPath = "Assets/_Game/Scenes/TestField/NavMesh-Environment.asset"; // 3-4: Environment에서 구운 NavMesh (다시 굽으면 이 에셋을 고침)
 
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
@@ -145,6 +151,17 @@ namespace Moa.Editor.Setup
         const float GruntGroggyTilt = 14f;
         const float FanWidth = 0.08f, FanHitFlashTime = 0.16f, FanHeight = 0.05f;  // 예고 부채꼴 선 두께(m) · 닿은 뒤 보이는 시간(초) · 바닥 위 높이(m)
 
+        // ---- 표현 표 (3-4 적 종류, 게임 수치 아님) — 새 적 종류 = 줄 하나 (몸 크기는 EnemyTuning) ----
+        // (종류 이름, 수치 에셋, 몸 머티리얼 이름 · 색, 무기 머티리얼 이름 · 색, 무기 상자 크기 · 발 기준 자리, 화살을 쏘는지)
+        static readonly (string kind, string tuningPath, string bodyMat, Color body, string weaponMat, Color weapon, Vector3 weaponSize, Vector3 weaponOffset, bool shoots)[] EnemyKinds =
+        {
+            ("Grunt", GruntTuningPath, "Grunt", GruntColor, "GruntClub", GruntClubColor, GruntClubSize, GruntClubOffset, false),
+            ("Archer", ArcherTuningPath, "Archer", new Color(0.30f, 0.52f, 0.78f), "Bow", new Color(0.55f, 0.36f, 0.18f), new Vector3(0.05f, 1.0f, 0.08f), new Vector3(-0.38f, 0.75f, 0.28f), true), // 파랑 캡슐 + 활 상자 (활 색 = 3-3 BowColor, 아래에 선언돼 값으로)
+            ("Brute", BruteTuningPath, "Brute", new Color(0.58f, 0.30f, 0.24f), "BruteAxe", new Color(0.34f, 0.34f, 0.40f), new Vector3(0.28f, 0.28f, 1.7f), new Vector3(0.95f, 1.35f, 0.45f), false), // 큰 갈색 캡슐 + 큰 무기 상자
+        };
+        const float KnockdownTilt = 75f;                                           // 3-4: 넘어진 플레이어 몸 기울기 (도)
+        static readonly Color PlayerKnockdownColor = new Color(0.40f, 0.20f, 0.12f); // 3-4: 넘어진 몸 색 (갈색, 피격 검붉은색과 구별)
+
 
         // ---- 표현 표 (2-6 파티 HUD, 게임 수치 아님) ----
         static readonly Vector2 PartyRowSize = new Vector2(240f, 56f);            // 칸 하나 (px, 1920×1080 기준)
@@ -235,6 +252,8 @@ namespace Moa.Editor.Setup
             ("Enemies", new Vector3(-1.0f, 0.05f, 18.0f)),     // 2-5: 적 셋 앞 (가장 가까운 Grunt1까지 12.4m — 감지 거리 밖)
             ("EnemyCover", new Vector3(6.0f, 0.05f, 24.5f)),   // 2-5: 엄폐벽 뒤 (Grunt2 시야선이 막힘)
             ("HealPoint", new Vector3(5.8f, 0.05f, 2.0f)),     // 3-1: 회복 지점 원 안 (기둥 옆)
+            ("Archers", new Vector3(-15.5f, 0.05f, 20.0f)),    // 3-4: 궁수 둘 앞 (가까운 Archer1까지 14.2m — 감지 거리 밖)
+            ("Brute", new Vector3(18.0f, 0.05f, 21.0f)),       // 3-4: 정예 앞 (13m — 감지 거리 밖)
         };
 
         // 2-1: 허수아비 배치 (발 위치, 바라보는 방향 도, 2-3: 예고 공격을 하는지) — 새 허수아비 = 줄 하나
@@ -246,12 +265,15 @@ namespace Moa.Editor.Setup
             ("AttackDummy", new Vector3(-22.0f, 0f, 6.0f), 180f, true), // 2-3: 저스트 회피 시험용 (다른 허수아비에서 멀리)
         };
 
-        // 2-5: 적 배치 (발 위치 = 집, 바라보는 방향 도, 순찰 지점 = 집에서 이만큼 — 0이면 제자리) — 새 적 = 줄 하나
-        static readonly (string name, Vector3 position, float yaw, Vector3 patrol)[] Enemies =
+        // 2-5: 적 배치 (발 위치 = 집, 바라보는 방향 도, 순찰 지점 = 집에서 이만큼 — 0이면 제자리, 3-4: 종류 = EnemyKinds의 이름) — 새 적 = 줄 하나
+        static readonly (string name, Vector3 position, float yaw, Vector3 patrol, string kind)[] Enemies =
         {
-            ("Grunt1", new Vector3(-4.0f, 0f, 30.0f), 180f, new Vector3(4.0f, 0f, 0f)),
-            ("Grunt2", new Vector3(2.0f, 0f, 32.0f), 180f, Vector3.zero),
-            ("Grunt3", new Vector3(-1.0f, 0f, 36.0f), 180f, new Vector3(0f, 0f, 3.0f)),
+            ("Grunt1", new Vector3(-4.0f, 0f, 30.0f), 180f, new Vector3(4.0f, 0f, 0f), "Grunt"),
+            ("Grunt2", new Vector3(2.0f, 0f, 32.0f), 180f, Vector3.zero, "Grunt"),
+            ("Grunt3", new Vector3(-1.0f, 0f, 36.0f), 180f, new Vector3(0f, 0f, 3.0f), "Grunt"),
+            ("Archer1", new Vector3(-18.0f, 0f, 34.0f), 180f, Vector3.zero, "Archer"), // 3-4
+            ("Archer2", new Vector3(-13.0f, 0f, 37.0f), 180f, Vector3.zero, "Archer"),
+            ("Brute", new Vector3(18.0f, 0f, 34.0f), 180f, Vector3.zero, "Brute"),
         };
 
         // 3-1: 회복 지점 배치 (바닥 가운데) — 새 회복 지점 = 줄 하나. 반지름은 PlayerHealthTuning
@@ -300,6 +322,8 @@ namespace Moa.Editor.Setup
             var attackTuning = LoadOrCreate<EnemyAttackTuning>(AttackingDummyPath);
             var skills = LoadOrCreate<SkillTuning>(SkillTuningPath);
             var grunt = LoadOrCreate<EnemyTuning>(GruntTuningPath); // 2-5
+            var enemyTunings = new EnemyTuning[EnemyKinds.Length]; // 3-4: 종류마다 에셋 하나
+            for (int i = 0; i < EnemyKinds.Length; i++) enemyTunings[i] = LoadOrCreate<EnemyTuning>(EnemyKinds[i].tuningPath);
             var party = LoadOrCreate<PartyTuning>(PartyPath); // 2-6
             var hero = LoadOrCreate<CharacterData>(HeroCharacterPath); // 2-6: 파티 없이 쓸 때의 캐릭터 공격력
             var health = LoadOrCreate<PlayerHealthTuning>(PlayerHealthTuningPath); // 3-1
@@ -318,6 +342,7 @@ namespace Moa.Editor.Setup
 
             BuildLight();
             var env = BuildEnvironment(mats);
+            string nav = BakeNavMesh(env); // 3-4: Environment의 충돌체로 NavMesh (같은 에셋을 다시 굽는다)
             var points = BuildDebugPoints();
             var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, skills, party, hero, inputAsset, mats);
             AddPlayerHealth(player, health); // 3-1
@@ -339,7 +364,7 @@ namespace Moa.Editor.Setup
             var healthHud = HealthHud.CreateIn(gauge.transform.parent, HealthBarSize, HealthBarBottom, HealthBarBorder, HealthBackColor, HealthFillColor, HealthLowColor,
                 HealthLowRatio, FadeColor); // 3-1: HUD 마지막 자식 — 검은 판이 맨 위
             var dummies = BuildDummies(dummyTuning, attackTuning, mats);
-            var enemies = BuildEnemies(grunt, mats); // 2-5
+            var enemies = BuildEnemies(enemyTunings, mats); // 2-5 · 3-4
             var root = BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies, partyHud);
             var heals = BuildHealingPoints(env, health, mats); // 3-1
             ConnectHealth(root, player, healthHud, points, heals);
@@ -347,7 +372,7 @@ namespace Moa.Editor.Setup
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
-            return "scene " + ScenePath + (saved ? " saved" : " NOT saved") + ", roots " + string.Join(",", GeneratedRoots);
+            return "scene " + ScenePath + (saved ? " saved" : " NOT saved") + ", roots " + string.Join(",", GeneratedRoots) + ", " + nav;
         }
 
         // ---- 에셋 ----
@@ -411,7 +436,7 @@ namespace Moa.Editor.Setup
                 Arrow = Get("Arrow", ArrowColor, null, Vector2.one);
             }
 
-            static Material Get(string name, Color color, Texture tex, Vector2 tiling)
+            internal static Material Get(string name, Color color, Texture tex, Vector2 tiling)
             {
                 string path = GrayboxFolder + "/" + name + ".mat";
                 var m = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -811,17 +836,23 @@ namespace Moa.Editor.Setup
         }
 
         /// <summary>
-        /// 적 (2-5): 루트에 CharacterController + EnemyAgent, 자식 Visual에 몸 캡슐 · 눈 · 몽둥이 상자 (번쩍임 대상은 몸), 예고 부채꼴 LineRenderer. 배치는 Enemies 표.
-        /// 몸 크기는 EnemyTuning(데이터), 색 · 몽둥이 · 눈은 위 표현 표.
+        /// 적 (2-5 · 3-4): 루트에 CharacterController + NavMeshAgent(꺼 둠 — EnemyAgent가 NavMesh가 있을 때만 켬다) + EnemyAgent, 자식 Visual에 몸 캡슐 · 눈 · 무기 상자
+        /// (번쓰임 대상은 몸), 예고 부채꼴 LineRenderer, 화살을 쏘면 EnemyProjectiles + 화살 템플릿. 배치는 Enemies 표, 종류는 EnemyKinds 표.
+        /// 몸 크기는 EnemyTuning(데이터), 색 · 무기 · 눈은 표현 표.
         /// </summary>
-        static EnemyAgent[] BuildEnemies(EnemyTuning tuning, Materials mats)
+        static EnemyAgent[] BuildEnemies(EnemyTuning[] tunings, Materials mats)
         {
             var root = new GameObject("Enemies").transform;
             var result = new EnemyAgent[Enemies.Length];
-            float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
-            if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: EnemyTuning capsule size is empty - fill it from BALANCE.md and run again");
             for (int i = 0; i < Enemies.Length; i++)
             {
+                int k = System.Array.FindIndex(EnemyKinds, x => x.kind == Enemies[i].kind);
+                if (k < 0) { Debug.LogError("TestFieldSetup: no enemy kind '" + Enemies[i].kind + "' for " + Enemies[i].name); continue; }
+                var kind = EnemyKinds[k];
+                EnemyTuning tuning = tunings[k];
+                float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
+                if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: " + kind.tuningPath + " capsule size is empty - fill it from BALANCE.md and run again");
+
                 var go = new GameObject(Enemies[i].name);
                 go.transform.SetParent(root, false);
                 go.transform.SetPositionAndRotation(Enemies[i].position, Quaternion.Euler(0f, Enemies[i].yaw, 0f));
@@ -829,13 +860,20 @@ namespace Moa.Editor.Setup
                 cc.height = height;
                 cc.radius = radius;
                 cc.center = new Vector3(0f, height * 0.5f, 0f);
+                var navAgent = go.AddComponent<NavMeshAgent>(); // 3-4: 길 계산만 (이동은 CharacterController)
+                navAgent.radius = radius;
+                navAgent.height = height;
+                navAgent.updatePosition = false;
+                navAgent.updateRotation = false;
+                navAgent.enabled = false;
                 var visual = new GameObject("Visual").transform;
                 visual.SetParent(go.transform, false);
                 var body = Primitive(PrimitiveType.Capsule, visual, "Body", new Vector3(0f, height * 0.5f, 0f), Quaternion.identity,
-                    new Vector3(radius * 2f, height * 0.5f, radius * 2f), mats.Grunt);
+                    new Vector3(radius * 2f, height * 0.5f, radius * 2f), Materials.Get(kind.bodyMat, kind.body, null, Vector2.one));
                 Primitive(PrimitiveType.Cube, visual, "Eye", new Vector3(0f, height * 0.78f, radius), Quaternion.identity,
                     new Vector3(GruntEyeSize * 1.6f, GruntEyeSize * 0.6f, GruntEyeSize), mats.Nose);
-                Primitive(PrimitiveType.Cube, visual, "Club", GruntClubOffset, Quaternion.identity, GruntClubSize, mats.GruntClub);
+                Primitive(PrimitiveType.Cube, visual, "Weapon", kind.weaponOffset, Quaternion.identity, kind.weaponSize,
+                    Materials.Get(kind.weaponMat, kind.weapon, null, Vector2.one));
 
                 var fanGo = new GameObject("WarningFan");
                 fanGo.transform.SetParent(go.transform, false);
@@ -864,6 +902,19 @@ namespace Moa.Editor.Setup
                 SetColor(agent, "hitColor", WarnHitColor);
                 SetFloat(agent, "hitFlashTime", FanHitFlashTime);
                 SetFloat(agent, "fanHeight", FanHeight);
+                if (kind.shoots)
+                {
+                    // 3-4: 화살 템플릿 (플레이어 화살과 같은 모양) + 투사체 실행
+                    var arrow = new GameObject("ArrowTemplate");
+                    arrow.transform.SetParent(go.transform, false);
+                    Primitive(PrimitiveType.Cube, arrow.transform, "Shaft", new Vector3(0f, 0f, -ArrowShaftSize.z * 0.5f), Quaternion.identity, ArrowShaftSize, mats.Arrow);
+                    Primitive(PrimitiveType.Cube, arrow.transform, "Head", new Vector3(0f, 0f, -ArrowHeadSize.z * 0.5f), Quaternion.identity, ArrowHeadSize, mats.Hilt);
+                    arrow.SetActive(false);
+                    var shooter = go.AddComponent<EnemyProjectiles>();
+                    Set(shooter, "arrowTemplate", arrow);
+                    Set(shooter, "owner", go.transform);
+                    Set(agent, "projectiles", shooter);
+                }
                 var so = new SerializedObject(agent);
                 var arr = so.FindProperty("flashRenderers");
                 arr.arraySize = 1;
@@ -872,6 +923,46 @@ namespace Moa.Editor.Setup
                 result[i] = agent;
             }
             return result;
+        }
+
+        /// <summary>
+        /// 3-4: Environment 루트에 NavMeshSurface(자식 · 물리 충돌체만)를 두고 굽는다 — 데이터는 에셋 하나(NavMeshDataPath)를 제자리에서 고친다(멱등).
+        /// 플레이어 · 적 · 허수아비는 Environment 밖이라 들어가지 않는다. 요약 글을 돌려준다.
+        /// </summary>
+        static string BakeNavMesh(Transform env)
+        {
+            var surface = env.gameObject.AddComponent<NavMeshSurface>();
+            surface.collectObjects = CollectObjects.Children;
+            surface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+            NavMeshBuildSettings settings = surface.GetBuildSettings();
+            Physics.SyncTransforms(); // 방금 만든 충돌체의 자리를 물리에 올린다 (에디터에서는 저절로 안 됨)
+            var sources = new List<NavMeshBuildSource>();
+            UnityEngine.AI.NavMeshBuilder.CollectSources(env, ~0, NavMeshCollectGeometry.PhysicsColliders, 0, new List<NavMeshBuildMarkup>(), sources);
+            // 범위 = Environment 모델들의 렌더러 범위 (렌더러 범위는 바로 맞는다)
+            var bounds = new Bounds(env.position, Vector3.zero);
+            bool first = true;
+            foreach (var c in env.GetComponentsInChildren<Renderer>())
+            {
+                if (first) { bounds = c.bounds; first = false; }
+                else bounds.Encapsulate(c.bounds);
+            }
+            EnsureFolder(Path.GetDirectoryName(NavMeshDataPath).Replace('\\', '/'));
+            var data = AssetDatabase.LoadAssetAtPath<NavMeshData>(NavMeshDataPath);
+            bool created = false;
+            if (data == null)
+            {
+                data = new NavMeshData(settings.agentTypeID) { name = Path.GetFileNameWithoutExtension(NavMeshDataPath) };
+                AssetDatabase.CreateAsset(data, NavMeshDataPath);
+                created = true;
+            }
+            bool ok = UnityEngine.AI.NavMeshBuilder.UpdateNavMeshData(data, settings, sources, bounds);
+            if (!ok) Debug.LogWarning("TestFieldSetup: NavMesh bake failed");
+            EditorUtility.SetDirty(data);
+            AssetDatabase.SaveAssetIfDirty(data);
+            surface.navMeshData = data;
+            surface.RemoveData();
+            surface.AddData();
+            return "navmesh " + NavMeshDataPath + (created ? " created" : " rebaked") + (ok ? "" : " FAILED") + " (" + sources.Count + " sources)";
         }
 
         static GameRoot BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge,
@@ -913,6 +1004,8 @@ namespace Moa.Editor.Setup
             var feedback = motor.GetComponent<PlayerGrayboxFeedback>();
             SetColor(feedback, "hitColor", PlayerHitColor);
             SetColor(feedback, "downedColor", PlayerDownedColor);
+            SetColor(feedback, "knockdownColor", PlayerKnockdownColor); // 3-4
+            SetFloat(feedback, "knockdownTilt", KnockdownTilt);
         }
 
         /// <summary>3-1: 회복 지점 (Environment 아래) — 바닥 원판(반지름 = PlayerHealthTuning) + 가운데 기둥, 둘 다 충돌 없음. 배치는 HealPoints 표.</summary>

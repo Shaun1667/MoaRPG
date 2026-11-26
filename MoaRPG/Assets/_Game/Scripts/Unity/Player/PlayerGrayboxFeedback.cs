@@ -34,12 +34,19 @@ namespace Moa.Unity.Player
         [SerializeField] Color hitColor;
         [Tooltip("Everyone down, while the screen is dark (3-1)")]
         [SerializeField] Color downedColor;
+        [Tooltip("Knocked down by a heavy enemy hit (3-4) - the body also lies down")]
+        [SerializeField] Color knockdownColor;
+        [Tooltip("Degrees the body capsule tips over while knocked down (visual only)")]
+        [SerializeField] float knockdownTilt;
 
         [Tooltip("Glider visual, shown only while gliding (1-3)")]
         [SerializeField] GameObject wings;
 
         PlayerMotor _motor;
         MaterialPropertyBlock _block;
+        Vector3 _bodyPos;
+        Quaternion _bodyRot = Quaternion.identity;
+        bool _lying;
         int _shown = -1;
         Moa.Unity.Data.CharacterData _shownCharacter; // 2-6: 보통 상태 색 = 현재 캐릭터 색 (파티가 없으면 머티리얼 색)
 
@@ -56,6 +63,7 @@ namespace Moa.Unity.Player
             _motor = GetComponent<PlayerMotor>();
             _block = new MaterialPropertyBlock();
             if (wings != null) wings.SetActive(false);
+            if (body != null) { _bodyPos = body.transform.localPosition; _bodyRot = body.transform.localRotation; }
         }
 
         void LateUpdate()
@@ -63,8 +71,26 @@ namespace Moa.Unity.Player
             if (_motor == null) return;
             if (wings != null && wings.activeSelf != _motor.Gliding) wings.SetActive(_motor.Gliding);
             if (body == null) return;
-            // 3-1: 전멸 13 > 회피 무적 > 궁극기 > 피격 경직 12 > 회피 > …
-            int state = _motor.Wiped ? 13 : _motor.Invulnerable ? 4 : _motor.Bursting ? 11 : _motor.HitStunned ? 12 : _motor.Dodging ? 3 : _motor.SkillActive ? 10 : _motor.Plunging ? 9 : _motor.ChargedAttacking ? 8 : _motor.Attacking ? 7 : _motor.Climbing ? 5 : _motor.Gliding ? 6
+            // 3-4: 넘어지면 몸 캡슐을 뒤로 눕힌다 (발을 중심으로, 표현만)
+            bool lying = _motor.KnockedDown;
+            if (lying != _lying)
+            {
+                _lying = lying;
+                Transform t = body.transform;
+                if (lying)
+                {
+                    Quaternion tip = Quaternion.Euler(-knockdownTilt, 0f, 0f);
+                    t.localRotation = tip * _bodyRot;
+                    t.localPosition = tip * _bodyPos;
+                }
+                else
+                {
+                    t.localRotation = _bodyRot;
+                    t.localPosition = _bodyPos;
+                }
+            }
+            // 3-1: 전멸 13 > 회피 무적 > 궁극기 > 넘어짐 14 (3-4) > 피격 경직 12 > 회피 > …
+            int state = _motor.Wiped ? 13 : _motor.Invulnerable ? 4 : _motor.Bursting ? 11 : _motor.KnockedDown ? 14 : _motor.HitStunned ? 12 : _motor.Dodging ? 3 : _motor.SkillActive ? 10 : _motor.Plunging ? 9 : _motor.ChargedAttacking ? 8 : _motor.Attacking ? 7 : _motor.Climbing ? 5 : _motor.Gliding ? 6
                 : _motor.Exhausted ? 2 : _motor.Sprinting ? 1 : 0;
             var character = _motor.Combat != null ? _motor.Combat.ActiveCharacter : null;
             if (character != _shownCharacter) { _shownCharacter = character; _shown = -1; } // 2-6: 교체하면 색을 다시
@@ -78,7 +104,7 @@ namespace Moa.Unity.Player
                 body.SetPropertyBlock(_block);
                 return;
             }
-            Color c = state == 13 ? downedColor : state == 12 ? hitColor : state == 4 ? invulnerableColor : state == 11 ? burstColor : state == 10 ? skillColor : state == 3 ? dodgeColor : state == 9 ? plungeColor : state == 8 ? chargedColor : state == 7 ? attackColor : state == 5 ? climbColor : state == 6 ? glideColor
+            Color c = state == 14 ? knockdownColor : state == 13 ? downedColor : state == 12 ? hitColor : state == 4 ? invulnerableColor : state == 11 ? burstColor : state == 10 ? skillColor : state == 3 ? dodgeColor : state == 9 ? plungeColor : state == 8 ? chargedColor : state == 7 ? attackColor : state == 5 ? climbColor : state == 6 ? glideColor
                 : state == 2 ? exhaustedColor : sprintColor;
             body.GetPropertyBlock(_block);
             _block.SetColor(BaseColorId, c);

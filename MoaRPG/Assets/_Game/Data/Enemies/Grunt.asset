@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 42fc307a5637c9b43a88518a4ef6607e, type: 3}
   m_Name: Grunt
   m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.EnemyTuning
+  rank: 0
   maxHealth: 500
   defense: 100
   energyOnDefeat: 5
@@ -40,13 +41,24 @@ MonoBehaviour:
   turnSpeed: 360
   patrolWait: 2
   arriveDistance: 0.3
-  attackRange: 2
-  hitRange: 2.6
-  hitAngle: 120
-  attackInterval: 0.6
-  telegraphTime: 0.8
-  recoveryTime: 0.8
+  retreatRange: 0
+  retreatSpeed: 0
   attack: 100
-  attackMultiplier: 1.25
+  attacks:
+  - debugName: Club
+    multiplier: 1.25
+    startRange: 2
+    hitRange: 2.6
+    hitAngle: 120
+    interval: 0.6
+    telegraph: 0.8
+    activeTime: 0
+    lungeDistance: 0
+    recovery: 0.8
+    knockdownTime: 0
+    delivery: 0
+    projectileSpeed: 0
+    projectileLifetime: 0
+    projectileRadius: 0
   hitStunTime: 0.3
   respawnDelay: 5

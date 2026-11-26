@@ -102,6 +102,8 @@ namespace Moa.Unity.Player
         public PlayerCombat Combat => _combat;
         /// <summary>적에게 맞아 경직 중 (3-1) — 이동 · 공격 · 점프 입력을 버리고 밀려난다, 회피로 끊긴다.</summary>
         public bool HitStunned => _vitals != null && _vitals.Stunned;
+        /// <summary>3-4: 넘어진 중 (경직의 한 가지) — 회피로도 못 끊는다(회피 입력을 버린다).</summary>
+        public bool KnockedDown => _vitals != null && _vitals.KnockedDown;
         /// <summary>전원 쓰러져 어두워졌다 되살아나는 중 (3-1) — 입력을 모두 버린다.</summary>
         public bool Wiped => _vitals != null && _vitals.Wiping;
         public PlayerVitals Vitals => _vitals;
@@ -239,7 +241,7 @@ namespace Moa.Unity.Player
             float wishLen = wish.Length;
 
             // 회피 (1-2): 입력 방향, 없으면 캐릭터 앞. 시작 조건(쿨 · 공중 · 스태미나)은 Core Dodge
-            if (_input.ConsumeDodge() && !Bursting && !wiping && _dodge.TryStart(_stamina, grounded)) // 궁극기 중 회피는 버린다 (2-4)
+            if (_input.ConsumeDodge() && !Bursting && !wiping && !KnockedDown && _dodge.TryStart(_stamina, grounded)) // 궁극기 중 회피는 버린다 (2-4) · 넘어진 중에도 (3-4)
             {
                 if (_combat != null) _combat.Interrupt(AttackEnd.Dodge); // 회피가 공격을 끊는다 (2-1, 원신 방식)
                 if (HitStunned) _vitals.EndStun(); // 회피가 피격 경직도 끊는다 (3-1)

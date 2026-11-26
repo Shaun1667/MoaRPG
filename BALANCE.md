@@ -20,6 +20,7 @@
 | 13 | `Assets/_Game/Data/Player/PlayerHealthTuning.asset` + 캐릭터 에셋 `maxHealth` · `defense` + 적 에셋 `attack` · `attackMultiplier` | `Moa.Unity.Data.PlayerHealthTuning` · `CharacterData` · `EnemyTuning` | `Moa.Tests.PlayerHealthAssetTests` |
 | 14 | `Data/Characters/Party.asset`(entryWindow · handoffWindow · entryGroggyBonus) + `Data/Weapons/Sword.asset`(entrySlash · entryHit*) + 캐릭터 스킬 에셋 `handoff*` | `PartyTuning` · `WeaponTuning` · `SkillTuning` | `Moa.Tests.SwitchComboAssetTests` |
 | 15 | `Data/Weapons/Claymore.asset` · `Bow.asset` (+ Sword.asset 새 칸) + 캐릭터 무기 · 수호자 / 떠돌이 스킬 에셋 | `WeaponTuning` · `CharacterData` · `SkillTuning` | `Moa.Tests.WeaponKindAssetTests` |
+| 16 | `Data/Enemies/Archer.asset` · `Brute.asset` (+ Grunt.asset 공격 줄) | `Moa.Unity.Data.EnemyTuning` | `Moa.Tests.EnemyVarietyAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -225,7 +226,7 @@
 | hitStunTime · respawnDelay | 0.3 s · 5 s | 예고 중에는 경직 없음 |
 | capsule · eye · gravity · flash · knockback · number | 1.4 / 0.4 m · 1.1 m · 25 · 0.1 s · 0.15 m / 0.06 s · 1.7 m | |
 - 표현 값(Setup 표): 몸 초록, 예고 중 빨강, 그로기 노랑 + 뒤로 14°, 앞 부채꼴 선 엷은 노랑 → 빨강 · 닿는 순간 흰색
-- 이동은 NavMesh 없이 곧장(asmdef에 Unity.AI.Navigation 참조가 없고 구운 NavMesh도 없음) — 큰 벽은 돌아가지 못하고 미끄러짐
+- 이동은 NavMesh 길을 따라 (3-4, TestField NavMeshSurface). NavMesh가 없으면 곧장. 공격은 공격 줄 하나(Club: 배율 1.25 · 2.0 m · 2.6 m 120° · 0.6/0.8/0.8 s)
 
 ## 12. 파티 · 캐릭터 (TASKS 2-6) — 정한 것 (Claude, 2026-11-26, 확인 필요 — 교체 쿨 1초 · 대기 ×0.6은 원신 값)
 | 항목 | 값 | 근거 |
@@ -316,6 +317,30 @@
 - 쿨 · 에너지 · 궁극기 비용은 12번 그대로. 떠돌이 조준 141 · 등장 88, 수호자 회전 40 · 마무리 88 · 등장 128
 - 검산: `WeaponKindTests` · `WeaponKindAssetTests`
 
+## 16. 적 추가 — 궁수 · 정예 · 넘어짐 (TASKS 3-4) — 정한 것 (Claude, 2026-11-26, 확인 필요 — GDD에는 "적 일반 3 · 정예 2 · 보스 1"만)
+적 = `Data/Enemies/` 에셋 하나, 공격 = 에셋의 공격 표 한 줄(배율 · 시작 거리 · 범위 · 쉬기/예고/이어짐/자세 · 돌진 · 넘어짐 · 투사체), 차례로 씀. 시간은 0.02초 배수.
+
+| 항목 | 궁수 Archer (일반) | 정예 Brute (정예) |
+|---|---|---|
+| maxHealth · defense · energyOnDefeat | 350 · 100 · 5 | 1600 · 100 · 10 |
+| maxPoise · groggy | 40 · 5 s ×1.3 · 2 s 뒤 25/s | 150 (한손검 콤보 54 × 3) · 5 s ×1.3 (같음) |
+| capsule · eye · number | 1.4/0.4 · 1.1 · 1.7 m | 2.6/0.75 · 2.0 · 3.0 m |
+| detect · view · notice · lose · loseSight · leash | 14 · 120° · 3 · 18 · 2 s · 20 | 10 · 120° · 4 · 15 · 3 s · 20 |
+| patrol · chase · return · turn | 1.5 · 3.0 · 4.0 m/s · 360°/s | 1.2 · 2.6 · 4.0 m/s · 240°/s |
+| retreat | 5 m 안이면 2.5 m/s (쉬는 동안만) | 없음 |
+| hitStun · respawn | 0.3 s · 5 s | 0 (안 멈춤) · 8 s |
+| attack | 100 | 100 |
+
+| 공격 줄 | 배율 | 시작 | 범위 | 쉬기/예고/이어짐/자세 | 돌진 | 넘어짐 | 투사체 | 영웅 피해 |
+|---|---|---|---|---|---|---|---|---|
+| Archer Arrow | 0.9 | 12 m | (조준선 15 m) | 1.0/1.0/0/0.6 | — | — | 15 m/s · 1.0 s · r 0.2 | 72 |
+| Brute Slam | 2.0 | 3 m | 3.5 m 360° | 0.8/1.2/0/1.2 | — | 1.2 s | — | 160 |
+| Brute Charge | 1.5 | 9 m | 1.8 m 120° | 0.6/0.8/0.6/1.0 | 7.2 m (12 m/s) | — | — | 120 |
+- 넘어짐: 땅 위에서만, 그 시간 동안 행동 · 교체 · 회피 불가(회피로 못 끊음), 밀려남은 보통 피격과 같음(0.3 s · 0.5 m), 넘어진 채 맞아도 줄지 않음. 1.2 s < 내려찍기 자세 + 돌진 쉬기 · 예고(2.6 s)
+- 투사체: 3-3 ProjectileSet 규칙 그대로, 닿으면 근접과 같은 판정(회피 · 저스트 · 무적 · 보호막), 다른 적은 지나가고 벽에 막힘
+- 표현 값(Setup 표): 궁수 파랑 (.30,.52,.78) + 활 상자, 정예 갈색 (.58,.30,.24) + 큰 무기 상자 (.34,.34,.40), 넘어진 플레이어 갈색 (.40,.20,.12) · 75° 눕힘, 돌진 예고 = 돌진 길이만큼 좁은 길, 화살 예고 = 조준선
+- 검산: `EnemyVarietyTests` · `EnemyVarietyAssetTests`
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
@@ -342,6 +367,7 @@
 - 플레이어 체력: Grunt 100/83/104/100 · 10/6.4/12.2/11.1% · 10/16/9/9대, 경직 15스텝 · 공중이면 없음, 대기 캐릭터 체력 그대로, 쓰러지면 다음 살아 있는 칸(한 바퀴) · 쿨 무시 · 쓰러진 칸 교체 Downed, 전멸 50스텝에 50% 부활 · 120스텝에 끝 · 연출 중 무피해, 회복 지점 한 스텝 10/13 · 2초 가득 · 부활 → `PlayerHealthTests` · `PlayerHealthAssetTests`
 - 교체 연계: 등장 창 40스텝째 Entry · 41스텝 Combo, 돌진 25스텝 · 판정 5스텝 · 내딛기 2m · 대상마다 한 번, 강제 교체 · 2-6 규칙 · 등장 베기 없음이면 일반 공격, E 뒤 150스텝 안 교체 버프 · 151은 없음, 수호자 버프 400스텝 · 보호막 104/104/92+12, 현자 에너지 +15, 받은 캐릭터가 나가면 끝, 96 · 106 · 187 · 206 · 경직 54 → 70.2 ≥ 60 · 49/49/66/71/93 → `SwitchComboTests` · `SwitchComboAssetTests`
 - 무기 종류: 화살 30 m/s × 0.6 s = 18m · 한 발에 한 대상 · 풀 재사용, 조준 0.8 s(40스텝) 전 떼면 AimCancelled · 뒤면 1.60, 회전 40/s · 회전마다 다시 맞음 · 떼거나 바닥나면 마무리, 대검 64/68/80/108 · 활 26/26/33/35/46 · 141, DPS 1.21/1.23/0.96/1.07 → `WeaponKindTests` · `WeaponKindAssetTests`
+- 적 추가: 궁수 100스텝째 첫 발 · 다음 130 · 5m 안 2.5 m/s 물러남, 정예 내려찍기 100스텝 · 돌진 30스텝 7.2 m · 한 번만 맞힘 · 안 멈춤, 넘어짐 60스텝 · 회피 불가 · 밀려남 15스텝, 길찾기 없으면 2-5와 같음, 72 · 160 · 120 → `EnemyVarietyTests` · `EnemyVarietyAssetTests`
 - 10번 값: 136 · 96+160 · 320, 시간은 0.02 배수, 60+30+16 ≥ 100 → `SkillTuningAssetTests`
 
 ## 실험 기록
@@ -359,3 +385,4 @@
 | 2026-11-26 | TestField 코드 주입 플레이 (3-1) | Grunt 한 대 영웅 1000 → 900 · 경직 0.30초 · 0.5m 밀려남, 저스트 회피 무피해, 영웅 쓰러짐 → 수호자 자동 교체 · 수호자 83, 전원 쓰러짐 → 1.0초 뒤 Spawn에서 500/650/425/450 · 적 제자리 · 2.4초에 끝, 회복 지점 2초에 가득 · 쓰러진 캐릭터 부활, 무적 0 |
 | 2026-11-26 | TestField 코드 주입 플레이 (3-2) | 떠돌이 교체 등장 106 · 영웅 96, 현자 E → 떠돌이 ×1.25 · 에너지 +15 · 등장 132 · 콤보 49/49/66/71/93 → 버프 끝 뒤 40, 수호자 E → 떠돌이 + 그로기 등장 206 · 경직 ×1.3 · 보호막 104/104 → 92+12, 영웅으로 바꾸면 버프 끝 · 36/36/48/52/68 · E 136 |
 | 2026-11-26 | TestField 코드 주입 플레이 (3-3) | 떠돌이 활 연사 26 · 26 · 33 · 35 · 46(풀 1개), 조준 48스텝 · 141, 수호자 대검 64 · 68 · 80 · 108, 회전 2.5초 5바퀴 · 92 소모 · 40/88, 등장 활 뒤로 2.00m 88 · 대검 128, Grunt 12.1m 원거리 명중, 영웅 36 · E 136 그대로 |
+| 2026-11-26 | TestField 코드 주입 플레이 (3-4) | Grunt 엄폐벽 돌아 70스텝째 100, 궁수 12m · 100스텝 첫 발 · 72 · 옆 회피 빗나감 · 0.88m Just, 3m면 물러남, 정예 내려찍기 160 · 넘어짐 60스텝 → 돌진 120, 그로기 동안 공격 0, 전원 쓰러짐 뒤 적 6 집 |

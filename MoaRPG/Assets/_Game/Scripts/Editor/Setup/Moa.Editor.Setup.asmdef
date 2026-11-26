@@ -6,7 +6,8 @@
         "Moa.Unity",
         "Moa.Unity.Input",
         "Moa.Editor",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.AI.Navigation"
     ],
     "includePlatforms": [
         "Editor"

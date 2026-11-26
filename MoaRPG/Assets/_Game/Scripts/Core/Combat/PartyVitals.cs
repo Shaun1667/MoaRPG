@@ -60,13 +60,19 @@ namespace Moa.Core.Combat
         public readonly bool AllDown;
         /// <summary>교체 강화 보호막이 막은 양 (3-2, Requested 중 체력에 가지 않은 몸).</summary>
         public readonly int Absorbed;
+        /// <summary>3-4: 이 한 방으로 넘어졌다 (회피로 못 끊는 긴 경직).</summary>
+        public readonly bool KnockedDown;
 
         public PlayerHit(int member, int requested, int applied, bool ignored, bool stunned, bool downed, int switchedTo, bool allDown)
             : this(member, requested, applied, ignored, stunned, downed, switchedTo, allDown, 0) { }
 
         public PlayerHit(int member, int requested, int applied, bool ignored, bool stunned, bool downed, int switchedTo, bool allDown, int absorbed)
+            : this(member, requested, applied, ignored, stunned, downed, switchedTo, allDown, absorbed, false) { }
+
+        public PlayerHit(int member, int requested, int applied, bool ignored, bool stunned, bool downed, int switchedTo, bool allDown, int absorbed, bool knockedDown)
         {
             Absorbed = absorbed;
+            KnockedDown = knockedDown;
             Member = member;
             Requested = requested;
             Applied = applied;
@@ -143,9 +149,15 @@ namespace Moa.Core.Combat
         /// <summary>[상태 변경] 플레이어 무적 (디버그): 맞아도 체력이 줄지 않고 경직도 없다.</summary>
         public bool Invulnerable { get; set; }
 
-        /// <summary>남은 경직 (초).</summary>
+        /// <summary>남은 경직 (초, 넘어짐 포함).</summary>
         public float StunLeft { get; private set; }
         public bool Stunned => StunLeft > 0f;
+        /// <summary>3-4: 남은 넘어짐 (초) — 이 동안은 회피로 끊을 수 없다(EndStun이 안 됨).</summary>
+        public float KnockdownLeft { get; private set; }
+        public bool KnockedDown => KnockdownLeft > 0f;
+        /// <summary>3-4: 밀려나는 중인지 — 맞은 뒤 HitStunTime 동안만 (넘어져도 밀려나는 거리는 같다).</summary>
+        public float PushLeft { get; private set; }
+        public bool Pushing => PushLeft > 0f && Stunned;
         /// <summary>경직 동안 밀려나는 속력 (m/s) = 거리 ÷ 경직 시간.</summary>
         public float KnockbackSpeed => Rules.HitStunTime > 0f ? Rules.KnockbackDistance / Rules.HitStunTime : 0f;
 
@@ -181,12 +193,16 @@ namespace Moa.Core.Combat
 
         /// <summary>적 공격이 필드 캐릭터에게 맞았다. canStagger = 땅 위라 경직 · 밀려남이 되는지.</summary>
         public PlayerHit TakeHit(float attack, float multiplier, float defenseConstant, bool canStagger)
+            => TakeHit(attack, multiplier, defenseConstant, canStagger, 0f);
+
+        /// <summary>3-4: knockdownTime이 있으면 땅 위에서 넘어진다 (그만큼 행동 불가, 회피로 못 끊음). 공중 · 무적 · 보호막이 다 막으면 없음.</summary>
+        public PlayerHit TakeHit(float attack, float multiplier, float defenseConstant, bool canStagger, float knockdownTime)
         {
             int i = ActiveIndex;
             if (Wiping || _health[i].IsDead) return PlayerHit.None(i);
             int damage = DamageMath.Compute(attack, multiplier, _defense[i], defenseConstant);
             if (damage <= 0) return PlayerHit.None(i);
-            return Apply(i, damage, canStagger, Invulnerable, true);
+            return Apply(i, damage, canStagger, Invulnerable, true, knockdownTime);
         }
 
         /// <summary>[상태 변경] 방어를 거치지 않고 amount만큼 (디버그 피해 주기).</summary>
@@ -194,7 +210,7 @@ namespace Moa.Core.Combat
         {
             int i = ActiveIndex;
             if (Wiping || _health[i].IsDead || amount <= 0) return PlayerHit.None(i);
-            return Apply(i, amount, canStagger, Invulnerable, true);
+            return Apply(i, amount, canStagger, Invulnerable, true, 0f);
         }
 
         /// <summary>[상태 변경] 필드 캐릭터를 쓰러뜨린다 (무적이어도).</summary>
@@ -202,7 +218,7 @@ namespace Moa.Core.Combat
         {
             int i = ActiveIndex;
             if (Wiping || _health[i].IsDead) return PlayerHit.None(i);
-            return Apply(i, _health[i].Current, false, false, false);
+            return Apply(i, _health[i].Current, false, false, false, 0f);
         }
 
         /// <summary>[상태 변경] 전원 쓰러뜨린다 → 전멸 연출.</summary>
@@ -220,8 +236,8 @@ namespace Moa.Core.Combat
             return DownActive();
         }
 
-        /// <summary>useShield: 3-2 교체 강화 보호막이 먼저 막는다 (무적이면 보호막도 그대로). 다 막으면 경직도 없다.</summary>
-        PlayerHit Apply(int i, int damage, bool canStagger, bool invulnerable, bool useShield)
+        /// <summary>useShield: 3-2 교체 강화 보호막이 먼저 막는다 (무적이면 보호막도 그대로). 다 막으면 경직도 없다. knockdown: 3-4 넘어짐 시간 (0 = 보통 경직).</summary>
+        PlayerHit Apply(int i, int damage, bool canStagger, bool invulnerable, bool useShield, float knockdown)
         {
             Health h = _health[i];
             int absorbed = useShield && !invulnerable && _party != null ? _party.AbsorbShield(damage) : 0;
@@ -231,22 +247,43 @@ namespace Moa.Core.Combat
             if (rest <= 0) canStagger = false;
             h.Invulnerable = false;
             HitCount++;
-            bool stunned = false, downed = false, allDown = false;
+            bool stunned = false, downed = false, allDown = false, knocked = false;
             int switchedTo = -1;
             if (h.IsDead)
             {
                 downed = true;
                 StunLeft = 0f;
+                KnockdownLeft = 0f;
+                PushLeft = 0f;
                 switchedTo = OnDowned(i);
                 allDown = switchedTo < 0;
             }
+            else if (canStagger && !invulnerable && knockdown > 0f)
+            {
+                knocked = stunned = StartStun(knockdown, true);
+            }
             else if (canStagger && !invulnerable && Rules.HitStunTime > 0f)
             {
-                StunLeft = Rules.HitStunTime;
-                stunned = true;
+                stunned = StartStun(Rules.HitStunTime, false);
             }
-            LastHit = new PlayerHit(i, damage, applied, false, stunned, downed, switchedTo, allDown, absorbed);
+            LastHit = new PlayerHit(i, damage, applied, false, stunned, downed, switchedTo, allDown, absorbed, knocked);
             return LastHit;
+        }
+
+        /// <summary>경직(또는 넘어짐) 시작 — 남은 것보다 짧게 줄지 않는다(넘어진 채 맞아도 넘어짐이 그대로). 밀려남은 매번 HitStunTime.</summary>
+        bool StartStun(float time, bool knockdown)
+        {
+            if (StunLeft < time) StunLeft = time;
+            if (knockdown && KnockdownLeft < time) KnockdownLeft = time;
+            PushLeft = Rules.HitStunTime;
+            return true;
+        }
+
+        /// <summary>[상태 변경] 피해 없이 넘어뜨린다 (디버그 넘어짐 흉내). canStagger가 false(공중)이거나 전멸 중이면 false.</summary>
+        public bool Knockdown(float time, bool canStagger)
+        {
+            if (Wiping || Active.IsDead || !canStagger || time <= 0f) return false;
+            return StartStun(time, true);
         }
 
         /// <summary>쓰러짐 표시 → 다음 살아 있는 칸으로 강제 교체, 없으면 전멸. 교체한 칸(없으면 -1).</summary>
@@ -285,6 +322,16 @@ namespace Moa.Core.Combat
                 StunLeft -= dt;
                 if (StunLeft <= Epsilon) StunLeft = 0f;
             }
+            if (KnockdownLeft > 0f)
+            {
+                KnockdownLeft -= dt;
+                if (KnockdownLeft <= Epsilon) KnockdownLeft = 0f;
+            }
+            if (PushLeft > 0f)
+            {
+                PushLeft -= dt;
+                if (PushLeft <= Epsilon) PushLeft = 0f;
+            }
             if (!Wiping) return default;
             WipeElapsed += dt;
             bool respawned = false, ended = false;
@@ -310,8 +357,14 @@ namespace Moa.Core.Combat
             return new VitalsTick(respawned, ended);
         }
 
-        /// <summary>[상태 변경] 경직을 끝낸다 (회피로 빠져나감).</summary>
-        public void EndStun() => StunLeft = 0f;
+        /// <summary>[상태 변경] 경직을 끝낸다 (회피로 빠져나감). 3-4: 넘어진 동안에는 끊지 못한다 — 끊었으면 true.</summary>
+        public bool EndStun()
+        {
+            if (KnockedDown) return false;
+            StunLeft = 0f;
+            PushLeft = 0f;
+            return true;
+        }
 
         /// <summary>쓰러진 캐릭터를 최대 × ratio(최소 1)로 되살린다. 살아 있는 캐릭터는 그대로.</summary>
         public void ReviveAll(float ratio)

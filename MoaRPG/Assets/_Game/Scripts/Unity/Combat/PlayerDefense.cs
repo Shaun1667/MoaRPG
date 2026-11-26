@@ -55,7 +55,13 @@ namespace Moa.Unity.Combat
         /// 적 공격이 닿았다 (3-1): 판정이 Hit이면 필드 캐릭터가 attack × multiplier 피해(방어 반영, PlayerVitals). 저스트 · 피함이면 피해 없음.
         /// 전멸 연출 중에는 판정하지 않고 Avoided.
         /// </summary>
-        public DodgeJudgement ReceiveEnemyAttack(Vector3 from, float attack, float multiplier)
+        public DodgeJudgement ReceiveEnemyAttack(Vector3 from, float attack, float multiplier) => ReceiveEnemyAttack(from, attack, multiplier, 0f);
+
+        /// <summary>
+        /// 3-4: knockdownTime이 있는 공격(정예 내리찍기)이 Hit이면 땅 위에서 넘어진다 (그만큼 행동 불가, 회피로 못 끊음).
+        /// 근접 · 투사체 모두 이 창구 하나 — 회피 · 저스트 회피 · 무적 · 보호막 규칙이 같다.
+        /// </summary>
+        public DodgeJudgement ReceiveEnemyAttack(Vector3 from, float attack, float multiplier, float knockdownTime)
         {
             if (!Bound) return DodgeJudgement.Hit;
             if (_vitals != null && _vitals.Wiping) return DodgeJudgement.Avoided;
@@ -68,9 +74,19 @@ namespace Moa.Unity.Combat
             LastAttackFrom = from;
             LastJudgedAt = transform.position;
             if (j == DodgeJudgement.Just) ApplyTimeScale();
-            if (j == DodgeJudgement.Hit && _vitals != null && attack > 0f && multiplier > 0f) LastHit = _vitals.TakeEnemyHit(from, attack, multiplier);
+            if (j == DodgeJudgement.Hit && _vitals != null && attack > 0f && multiplier > 0f) LastHit = _vitals.TakeEnemyHit(from, attack, multiplier, knockdownTime);
             Judged?.Invoke(j, transform.position);
             return j;
+        }
+
+        /// <summary>3-4: 플레이어 전투 ID (적 투사체가 맞힌 대상, 없으면 None).</summary>
+        public Moa.Core.Ids.EntityId Id
+        {
+            get
+            {
+                var c = GetComponent<PlayerCombat>();
+                return c != null ? c.Id : Moa.Core.Ids.EntityId.None;
+            }
         }
 
         /// <summary>[상태 변경] 슬로모션 · 반격 보너스를 끈다.</summary>

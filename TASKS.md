@@ -1,7 +1,7 @@
 # TASKS — MoaRPG
 
 ## 진행 요약 (2026-11-24 기준 — 새 세션은 여기부터 읽는다)
-**최신 (2026-11-26): Phase 3 3-3 무기 종류 추가 — 대검(수호자) · 활(떠돌이), 투사체 풀 · 조준 사격 · 회전 베기, 영웅 · 현자 한손검 그대로 · BALANCE 15번. 3-2 교체 연계 구현 — 교체 직후 0.8초 안 공격 = 등장 돌진 베기(그로기 적 ×1.5), E 뒤 3초 안 교체면 캐릭터별 버프(수호자 경직 +30% · 보호막 300, 현자 에너지 +15 · 피해 +25% 등), 버프 HUD · BALANCE 14번. 3-1 플레이어 체력 · 쓰러짐 구현 — 캐릭터마다 체력 · 방어(영웅 1000 · 수호자 1300 · 떠돌이 850 · 현자 900), Grunt 한 대 영웅 10%, 땅 위 경직 · 밀려남, 쓰러지면 다음 캐릭터로 자동 교체, 전원 쓰러짐 → 시작 지점 50% 부활, 회복 지점, HUD 체력 막대 · BALANCE 13번. Phase 2(2-1 ~ 2-6) · 캐릭터/무기 공격력 분리까지 커밋. 브랜치 `phase2-combat`. **EditMode 299개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6 · 3-1 ~ 3-3. 다음: 3-4 적 추가 · 길찾기 → 3-5 성장 → 3-6 탐험 → 3-7 가챠(사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘"). 물을 것: 콤보 중 적이 계속 경직되는 체감 · 공격력 비율 60 : 40.**
+**최신 (2026-11-26): Phase 3 3-4 적 추가 · 길찾기 — NavMesh(적이 벽을 돌아옴, asmdef에 Unity.AI.Navigation 참조 — 감독), 궁수(12m 화살 · 가까우면 물러남) · 정예 Brute(내려찍기 넘어짐 1.2초 · 돌진, 안 멈춤) · BALANCE 16번. 3-3 무기 종류 추가 — 대검(수호자) · 활(떠돌이), 투사체 풀 · 조준 사격 · 회전 베기, 영웅 · 현자 한손검 그대로 · BALANCE 15번. 3-2 교체 연계 구현 — 교체 직후 0.8초 안 공격 = 등장 돌진 베기(그로기 적 ×1.5), E 뒤 3초 안 교체면 캐릭터별 버프(수호자 경직 +30% · 보호막 300, 현자 에너지 +15 · 피해 +25% 등), 버프 HUD · BALANCE 14번. 3-1 플레이어 체력 · 쓰러짐 구현 — 캐릭터마다 체력 · 방어(영웅 1000 · 수호자 1300 · 떠돌이 850 · 현자 900), Grunt 한 대 영웅 10%, 땅 위 경직 · 밀려남, 쓰러지면 다음 캐릭터로 자동 교체, 전원 쓰러짐 → 시작 지점 50% 부활, 회복 지점, HUD 체력 막대 · BALANCE 13번. Phase 2(2-1 ~ 2-6) · 캐릭터/무기 공격력 분리까지 커밋. 브랜치 `phase2-combat`. **EditMode 326개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6 · 3-1 ~ 3-4. 다음: 3-5 성장 → 3-6 탐험 → 3-7 가챠(사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘"). 물을 것: 콤보 중 적이 계속 경직되는 체감 · 공격력 비율 60 : 40.**
 
 ## Phase 0. 세팅
 - [x] **0-0. 문서 3종 + 기획서** (2026-11-24 사용자 "원신 라이크 기획서 노션에", "MY_DEV_GUIDE 대입") — CLAUDE.md · GDD.md · TASKS.md, Notion 기획서
@@ -142,7 +142,15 @@
   - 테스트: 새 `WeaponKindTests`(14) · `WeaponKindAssetTests`(6), 고침 `PartyAssetTests.OtherMembers_MatchBalance12` · `SwitchComboAssetTests.SupportToDealer_IsWorthIt`. EditMode 299개 모두 통과
   - 캡처: `Assets/Screenshots/p3_3_bow_volley.png` · `p3_3_bow_aiming.png` · `p3_3_claymore_spin.png` · `p3_3_bow_vs_grunt.png`
   - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 지점 Dummies → 3 키(떠돌이, 활) → 클릭 연타 = 화살 연사 → 길게 눌러 진홍이 된 채 1초쯤 뒤 떼면 카메라 쪽으로 강한 한 발 → 2 키(수호자, 대검) → 느리고 큰 4타 → 길게 누르면 회전 베기, 스태미나 원이 계속 줄고 떼면 마무리 → 교체 직후 클릭 = 활은 뒤로 뛰며 쏘기, 대검은 내려찍기 → 디버그 창 "무기 종류" [상태 변경] 무기 버튼으로 바꿔 끼우기
-- [ ] 3-4. 적 추가 · 길찾기
+- [x] **3-4. 적 추가 · 길찾기** (2026-11-26 사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘") — 플레이 확인 대기
+  - asmdef (감독, 2026-11-26, 사용자가 ④를 고른 것 = 허락): `Moa.Unity.asmdef` · `Moa.Editor.Setup.asmdef` references에 `Unity.AI.Navigation` 한 줄씩
+  - 구현: Core `EnemyAttackSpec`(공격 한 줄: 배율 · 시작 거리 · 범위 · 예고 · 이어짐(돌진) · 넘어짐 · 투사체) · `IEnemyPath`(길찾기 = 다음 지점만) · `EnemyAttackRules.Active` · `EnemyAttackPhase.Active` · `EnemyBrain`(공격 표 차례로 · 투사체 FireProjectile · 돌진 한 번 맞힘 · 원거리 물러나기 · HitStunTime 0 = 안 멈춤) · `PartyVitals` 넘어짐(KnockdownLeft · 회피로 못 끊음 · 밀려남은 HitStunTime만) / Unity `EnemyTuning`(EnemyRank · AttackRow[] attacks, Grunt는 한 줄로 옮김 · retreat*) · `EnemyAgent`(NavMeshAgent로 길만 계산, 이동은 CharacterController, NavMesh 없으면 곧장) · `EnemyProjectiles`(3-3 ProjectileSet 재사용, 맞으면 PlayerDefense.ReceiveEnemyAttack) · `PlayerDefense.ReceiveEnemyAttack(from, attack, multiplier, knockdownTime)` · PlayerMotor(넘어짐 중 회피 버림) · PlayerGrayboxFeedback(넘어짐 갈색 · 눕힘) · `GameRoot.DebugKnockdownPlayer` 등 · 디버그 창 `EnemySection`(종류 · 길 · [상태 변경] 넘어짐 흉내) · TestFieldSetup(NavMeshSurface 굽기 → `Scenes/TestField/NavMesh-Environment.asset`, EnemyKinds 표, Archer 2 · Brute 1, 지점 Archers · Brute) / 데이터 `Enemies/Archer.asset` · `Brute.asset`
+  - 정한 것 (Claude, 확인 필요): 궁수 = 12m에서 멈춰 예고 1초 뒤 화살 한 발(15 m/s · 1초, 쏘는 순간 플레이어 쪽, 수평), 5m 안이면 쉬는 동안 마주본 채 2.5 m/s로 물러남 / 정예 = 큰 캡슐, 경직 150(그로기 5초 같음), 맞아도 안 멈춤, 내려찍기(3.5m 360° · 넘어짐 1.2초)와 돌진(7.2m · 0.6초 · 한 번만 맞힘)을 번갈아 / 넘어짐: 땅 위에서만, 회피로 못 끊음, 밀려남은 보통과 같음, 넘어진 채 맞아도 안 줄어듦 / 공격 줄은 차례로 / 투사체는 회피 · 저스트여도 닿으면 사라짐 / NavMeshAgent는 길 계산만, NavMesh 밖 목적지는 가까운 점까지(Grunt는 전에는 곧장 미끄러짐) / Grunt 수치 · 행동 그대로(길만 NavMesh) · 수치 BALANCE 16번
+  - 확인(TestField, 일시정지 + Step, 입력 주입): Grunt2 엄폐벽 왼쪽 끝을 돌아 공격 · 70스텝째 100(2-5 그대로), 궁수 12m 정지 · 100스텝째 첫 발 · 다음 130스텝 · 72, 옆 회피로 빗나감 · 0.88m 앞 회피 Just(무피해 · 슬로 0.3), 3m면 2.5 m/s로 물러남, 정예 내려찍기 160 · 넘어짐 60스텝 · 회피 안 됨 → 돌진 12 m/s · 120, 그로기 250스텝 동안 공격 0, 전원 쓰러짐 뒤 적 6마리 집 · 체력 가득. Setup 2번 멱등(씬 정규화 diff 0, NavMesh 같은 해시). 콘솔 오류 0(NoSubscription 제외). 사용량 제한으로 한 번 끊겼다 이어서 함
+  - 확인 못 함: 실제 입력, 디버그 창 새 줄 화면, 시야를 잃은 Grunt의 자동 복귀 중 벽 돌기(테스트로만), 정예 공격 저스트 회피, 화살이 벽에 막히는 플레이, 큰 정예가 좁은 틈을 지나기(agent 반경 0.5로 구움), 프레임 체감
+  - 테스트: 새 `EnemyVarietyTests`(20) · `EnemyVarietyAssetTests`(7). EditMode 326개 모두 통과
+  - 캡처: `Assets/Screenshots/p3_4_grunt_around_wall.png` · `p3_4_archer_shot.png` · `p3_4_brute_slam_knockdown.png` · `p3_4_brute_groggy.png`
+  - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 디버그 창 "적 AI" [지점 EnemyCover로]에서 Grunt에게 들키면 벽을 돌아 옴 → [지점 Archers로] 앞으로 걸으면 파랑 캡슐이 조준선 뒤 화살, 옆으로 회피하면 피함, 다가가면 물러남 → [지점 Brute로] 다가가면 큰 갈색 캡슐이 바닥 원 예고 뒤 내려찍기(맞으면 눕고 1.2초 못 움직임), 다음엔 좁은 길 예고 뒤 돌진 → [상태 변경] 플레이어 넘어뜨리기
 - [ ] 3-5. 성장
 - [ ] 3-6. 탐험
 - [ ] 3-7. 가챠

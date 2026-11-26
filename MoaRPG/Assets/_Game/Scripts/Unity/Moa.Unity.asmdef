@@ -3,7 +3,8 @@
     "rootNamespace": "Moa.Unity",
     "references": [
         "Moa.Core",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Unity.AI.Navigation"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

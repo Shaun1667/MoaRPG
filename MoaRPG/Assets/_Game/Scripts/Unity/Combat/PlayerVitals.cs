@@ -32,11 +32,14 @@ namespace Moa.Unity.Combat
         public int Count => _vitals != null ? _vitals.Count : 0;
         public CharacterData GetCharacter(int index) => index >= 0 && index < _characters.Length ? _characters[index] : null;
         public bool Stunned => _vitals != null && _vitals.Stunned;
+        /// <summary>3-4: 넘어진 중 (회피로 못 끊음) · 남은 초.</summary>
+        public bool KnockedDown => _vitals != null && _vitals.KnockedDown;
+        public float KnockdownLeft => _vitals != null ? _vitals.KnockdownLeft : 0f;
         public bool Wiping => _vitals != null && _vitals.Wiping;
         public bool InputBlocked => _vitals != null && _vitals.InputBlocked;
         public float Darkness => _vitals != null ? _vitals.Darkness : 0f;
-        /// <summary>경직 동안 밀려나는 속도 (m/s, 수평).</summary>
-        public Vector3 KnockbackVelocity => Stunned ? _knockDir * _vitals.KnockbackSpeed : Vector3.zero;
+        /// <summary>경직 처음(HitStunTime) 동안 밀려나는 속도 (m/s, 수평) — 넘어져도 밀리는 거리는 같고 그 뒤엔 제자리.</summary>
+        public Vector3 KnockbackVelocity => _vitals != null && _vitals.Pushing ? _knockDir * _vitals.KnockbackSpeed : Vector3.zero;
         /// <summary>피해 숫자를 띄울 자리 (머리 위).</summary>
         public Vector3 NumberPosition => transform.position + Vector3.up * (_motor != null && _motor.Tuning != null ? _motor.Tuning.CapsuleHeight : 0f);
         /// <summary>회복 지점에서 지난 스텝에 찬 양 (디버그 · 확인용).</summary>
@@ -91,10 +94,13 @@ namespace Moa.Unity.Combat
         bool CanStagger => _motor != null && _motor.Grounded && !_motor.Climbing && !_motor.Gliding && !_motor.PlungeFalling;
 
         /// <summary>적 공격이 맞았다 (PlayerDefense가 Hit으로 판정한 뒤). from = 공격한 쪽 발.</summary>
-        public PlayerHit TakeEnemyHit(Vector3 from, float attack, float multiplier)
+        public PlayerHit TakeEnemyHit(Vector3 from, float attack, float multiplier) => TakeEnemyHit(from, attack, multiplier, 0f);
+
+        /// <summary>3-4: knockdownTime이 있으면 땅 위에서 넘어진다.</summary>
+        public PlayerHit TakeEnemyHit(Vector3 from, float attack, float multiplier, float knockdownTime)
         {
             if (_vitals == null) return PlayerHit.None(0);
-            PlayerHit hit = _vitals.TakeHit(attack, multiplier, DefenseConstant, CanStagger);
+            PlayerHit hit = _vitals.TakeHit(attack, multiplier, DefenseConstant, CanStagger, knockdownTime);
             AfterHit(hit, from);
             return hit;
         }
@@ -126,8 +132,18 @@ namespace Moa.Unity.Combat
             Respawned?.Invoke();
         }
 
-        /// <summary>[상태 변경] 경직을 끝낸다 (회피로 빠져나감 — PlayerMotor가 부른다).</summary>
+        /// <summary>[상태 변경] 경직을 끝낸다 (회피로 빠져나감 — PlayerMotor가 부른다). 3-4: 넘어진 동안에는 안 됨.</summary>
         public void EndStun() => _vitals?.EndStun();
+
+        /// <summary>[상태 변경] 피해 없이 넘어뜨린다 (3-4 디버그 넘어짐 흉내, 앞에서 맞은 것처럼 뒤로 밀림). 땅 위에서만.</summary>
+        public bool DebugKnockdown(float seconds)
+        {
+            if (_vitals == null || !_vitals.Knockdown(seconds, CanStagger)) return false;
+            _knockDir = -transform.forward;
+            _combat?.Interrupt(AttackEnd.Hit);
+            _motor?.Dodge?.Cancel();
+            return true;
+        }
 
         /// <summary>회복 지점 안에서 한 스텝 (HealingPoint가 부른다). 찬 양.</summary>
         public int HealTick(float dt)

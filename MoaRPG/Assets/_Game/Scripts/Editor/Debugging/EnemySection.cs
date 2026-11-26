@@ -6,9 +6,11 @@ using UnityEngine;
 
 namespace Moa.Editor.Debugging
 {
-    /// <summary>적 AI (2-5): 적마다 상태 · 목표 · 거리 · 체력 · 경직 · 공격 주기, [상태 변경] 상태 바꾸기 · 쓰러뜨리기 · 다시 세우기 · 멈추기 · 무적 · 그로기.</summary>
+    /// <summary>적 AI (2-5 · 3-4): 적마다 종류 · 상태 · 목표 · 거리 · 길(NavMesh 위인지 · 남은 길) · 체력 · 경직 · 공격 줄 · 주기, [상태 변경] 상태 바꾸기 · 쓰러뜨리기 · 다시 세우기 · 멈추기 · 무적 · 그로기 · 플레이어 넘어짐 흉내.</summary>
     public sealed class EnemySection : IDebugSection
     {
+        const string ArchersPointName = "Archers"; // 3-4: 궁수 둘 앞
+        const string BrutePointName = "Brute";     // 3-4: 정예 앞
         const string EnemiesPointName = "Enemies"; // 시험 지형 순간이동 지점 (Setup 배치 표)
 
         public string Title => "적 AI";
@@ -48,7 +50,19 @@ namespace Moa.Editor.Debugging
                     if (GUILayout.Button("[상태 변경] 모두 그로기")) root.DebugBreakEnemies();
                     if (GUILayout.Button("[상태 변경] 지점 Enemies로")) root.DebugTeleportToPoint(EnemiesPointName);
                 }
-                EditorGUILayout.HelpBox("적: 대기 · 순찰 → 앞 시야(또는 아주 가까이)에서 플레이어를 보면 쫓고, 사거리 안에서 몸이 빨개지며 앞 부채꼴 예고 → 공격(저스트 회피 가능). 벽 뒤로 숨거나 멀어지면 집으로 돌아가 체력이 찬다. 맞으면 잠깐 멈춤(예고 중에는 안 멈춤), 그로기면 멈춤, 쓰러지면 잠시 뒤 집에서 다시 난다.", MessageType.None);
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    float kd = root != null ? root.DebugEnemyKnockdownTime : 0f;
+                    using (new EditorGUI.DisabledScope(kd <= 0f))
+                        if (GUILayout.Button("[상태 변경] 플레이어 넘어뜨리기 (" + kd.ToString("0.0#") + "초, 피해 없음)")) root.DebugKnockdownPlayer(kd);
+                    EditorGUILayout.LabelField(root != null && root.DebugPlayerKnockedDown ? "넘어짐 " + root.DebugPlayerKnockdownLeft.ToString("0.00") + "초 (회피 안 됨)" : "서 있음");
+                }
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    if (GUILayout.Button("[상태 변경] 지점 Archers로")) root.DebugTeleportToPoint(ArchersPointName);
+                    if (GUILayout.Button("[상태 변경] 지점 Brute로")) root.DebugTeleportToPoint(BrutePointName);
+                }
+                EditorGUILayout.HelpBox("적: 대기 · 순찰 → 앞 시야(또는 아주 가까이)에서 플레이어를 보면 NavMesh 길을 따라 쫓고(벽은 돌아옴), 공격 줄의 사거리에서 몸이 빨개지며 예고 → 공격(저스트 회피 가능). 궁수는 가까우면 물러나며 화살, 정예는 내리찍기(넘어짐) · 돌진을 번갈아 쓴다. 벽 뒤로 숨거나 멀어지면 집으로 돌아가 체력이 찬다. 맞으면 잠깐 멈춤(예고 · 돌진 중과 정예는 안 멈춤), 그로기면 멈춤, 쓰러지면 잠시 뒤 집에서 다시 난다.", MessageType.None);
             }
         }
 
@@ -58,6 +72,21 @@ namespace Moa.Editor.Debugging
             EditorGUILayout.LabelField(e.name, b.State + " " + b.StateTime.ToString("0.00") + "초"
                 + (b.Paused ? " · 멈춤" : "")
                 + (b.State == EnemyState.Dead ? " · 다시 나기까지 " + b.RespawnLeft.ToString("0.00") + "초" : ""));
+            using (new EditorGUI.IndentLevelScope())
+            {
+                var tune = e.Tuning;
+                EditorGUILayout.LabelField("종류", (tune != null ? tune.name + " (" + RankName(tune.Rank) + ")" : "-")
+                    + " · 공격 " + (b.CurrentAttackIndex + 1) + "/" + b.AttackKinds
+                    + (tune != null && tune.GetAttack(b.CurrentAttackIndex) != null ? " " + tune.GetAttack(b.CurrentAttackIndex).debugName : "")
+                    + (b.CurrentAttack.Knockdown ? " · 넘어짐 " + b.CurrentAttack.KnockdownTime.ToString("0.0#") + "초" : "")
+                    + (b.CurrentAttack.IsProjectile ? " · 투사체" : "")
+                    + (b.Retreating ? " · 물러나는 중" : ""));
+                EditorGUILayout.LabelField("길", (e.UsesNavMesh ? (e.OnNavMesh ? "NavMesh 위" : "NavMesh 밖") : "NavMesh 없음 (곧장)")
+                    + " · " + PathName(e.PathState)
+                    + " · 남은 길 " + e.PathRemaining.ToString("0.00") + "m · 꺾임 " + Mathf.Max(0, e.PathCorners - 2)
+                    + " · 돌아간 스텝 " + e.DetourSteps
+                    + (e.Projectiles != null ? " · 화살 " + e.Projectiles.FiredCount + " (맞힘 " + e.Projectiles.HitCount + " · 막힘 " + e.Projectiles.BlockedCount + ")" : ""));
+            }
             using (new EditorGUI.IndentLevelScope())
             {
                 string target = !e.Bound ? "없음" : b.Engaged ? "플레이어 (쫓는 중)" : b.LastCanSee ? "플레이어 (보임)" : "플레이어 (못 봄)";
@@ -100,5 +129,9 @@ namespace Moa.Editor.Debugging
                 }
             }
         }
+
+        static string RankName(Moa.Unity.Data.EnemyRank r) => r == Moa.Unity.Data.EnemyRank.Elite ? "정예" : r == Moa.Unity.Data.EnemyRank.Boss ? "보스" : "일반";
+
+        static string PathName(EnemyPathState s) => s == EnemyPathState.Complete ? "길 끝까지" : s == EnemyPathState.Partial ? "갈 수 있는 데까지" : s == EnemyPathState.Straight ? "곧장" : "-";
     }
 }

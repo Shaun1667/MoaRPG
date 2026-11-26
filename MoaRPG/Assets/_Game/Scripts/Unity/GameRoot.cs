@@ -610,6 +610,35 @@ namespace Moa.Unity
             foreach (var e in enemies) if (e != null && e.Poise != null) e.ReceivePoise(e.Poise.Rules.Max);
         }
 
+        // ---- 3-4 적 추가 · 길찾기 · 넘어짐 ----
+
+        /// <summary>적 공격 표에서 가장 긴 넘어짐 시간 (초, 없으면 0) — 디버그 넘어짐 흉내가 쓰는 값.</summary>
+        public float DebugEnemyKnockdownTime
+        {
+            get
+            {
+                float t = 0f;
+                if (enemies == null) return t;
+                foreach (var e in enemies)
+                {
+                    if (e == null || e.Tuning == null) continue;
+                    for (int i = 0; i < e.Tuning.AttackCount; i++)
+                    {
+                        var row = e.Tuning.GetAttack(i);
+                        if (row != null && row.knockdownTime > t) t = row.knockdownTime;
+                    }
+                }
+                return t;
+            }
+        }
+
+        public bool DebugPlayerKnockedDown => playerVitals != null && playerVitals.KnockedDown;
+        public float DebugPlayerKnockdownLeft => playerVitals != null ? playerVitals.KnockdownLeft : 0f;
+
+        /// <summary>[상태 변경] 플레이어를 피해 없이 seconds초 넘어뜨린다 (넘어짐 흉내, 땅 위에서만). 되면 true.</summary>
+        public bool DebugKnockdownPlayer(float seconds) => playerVitals != null && playerVitals.DebugKnockdown(seconds);
+
+
         /// <summary>[상태 변경] 순간이동 지점 이름으로 (없으면 false).</summary>
         public bool DebugTeleportToPoint(string pointName)
         {
