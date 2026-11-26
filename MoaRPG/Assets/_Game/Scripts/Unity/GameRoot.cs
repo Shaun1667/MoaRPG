@@ -43,6 +43,9 @@ namespace Moa.Unity
         [Header("Skill / burst / energy (2-4, empty in scenes without a player)")]
         [Tooltip("E cooldown and Q energy slots on the HUD canvas")]
         [SerializeField] SkillHud skillHud;
+        [Header("Enemies (2-5, empty in scenes without enemies)")]
+        [Tooltip("Melee enemies (EnemyAgent) that chase and attack the player")]
+        [SerializeField] EnemyAgent[] enemies;
 
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
@@ -107,7 +110,8 @@ namespace Moa.Unity
                     list.Add(a);
                 }
             _attackers = list.ToArray();
-            if (poiseBars != null) poiseBars.Bind(view, trainingDummies);
+            if (enemies != null) foreach (var e in enemies) if (e != null) e.Bind(playerDefense); // 2-5
+            if (poiseBars != null) poiseBars.Bind(view, trainingDummies, enemies);
         }
 
         void OnJudged(Moa.Core.Combat.DodgeJudgement judgement, Vector3 feet)
@@ -122,8 +126,10 @@ namespace Moa.Unity
         {
             if (_ids == null) return;
             if (playerCombat != null) playerCombat.SetId(_ids.Next());
-            if (trainingDummies == null) return;
-            foreach (var d in trainingDummies) if (d != null) d.SetId(_ids.Next());
+            if (trainingDummies != null)
+                foreach (var d in trainingDummies) if (d != null) d.SetId(_ids.Next());
+            if (enemies != null)
+                foreach (var e in enemies) if (e != null) e.SetId(_ids.Next()); // 2-5
         }
 
         void OnHitLanded(HitReport hit)
@@ -443,7 +449,64 @@ namespace Moa.Unity
             playerCombat.Burst.ResetCooldown();
         }
 
-        
+        // ---- 적 AI (2-5) ----
+
+        public EnemyAgent[] DebugEnemies => enemies;
+        public int DebugEnemyCount => enemies != null ? enemies.Length : 0;
+        bool _enemiesPaused, _enemiesInvulnerable;
+        public bool DebugEnemiesPaused => _enemiesPaused;
+        public bool DebugEnemiesInvulnerable => _enemiesInvulnerable;
+
+        /// <summary>적 하나 (없으면 null).</summary>
+        public EnemyAgent DebugEnemy(int index) => enemies != null && index >= 0 && index < enemies.Length ? enemies[index] : null;
+
+        /// <summary>[상태 변경] 적을 모두 집에서 다시 세운다 (체력 · 경직 가득, 대기).</summary>
+        public void DebugRespawnEnemies() { if (enemies != null) foreach (var e in enemies) if (e != null) e.Respawn(); }
+
+        /// <summary>[상태 변경] 적 멈춤 / 다시 (멈추면 서 있고 예고도 취소).</summary>
+        public void DebugSetEnemiesPaused(bool paused)
+        {
+            _enemiesPaused = paused;
+            if (enemies != null) foreach (var e in enemies) if (e != null) e.Paused = paused;
+        }
+
+        /// <summary>[상태 변경] 적 무적 (피해 숫자는 뜨고 체력은 그대로).</summary>
+        public void DebugSetEnemiesInvulnerable(bool on)
+        {
+            _enemiesInvulnerable = on;
+            if (enemies != null) foreach (var e in enemies) if (e != null) e.SetInvulnerable(on);
+        }
+
+        /// <summary>[상태 변경] 적 하나의 상태를 바꾼다 (Idle · Patrol · Chase · Return · Stagger). 못 바꾸면 false.</summary>
+        public bool DebugSetEnemyState(int index, Moa.Core.Combat.EnemyState state)
+        {
+            var e = DebugEnemy(index);
+            return e != null && e.ForceState(state);
+        }
+
+        /// <summary>[상태 변경] 적 하나를 쓰러뜨린다 (처치 에너지 없음, RespawnDelay 뒤 다시 남).</summary>
+        public void DebugKillEnemy(int index) { var e = DebugEnemy(index); if (e != null) e.Kill(); }
+
+        /// <summary>[상태 변경] 적을 모두 바로 그로기로 (게이지를 가득 채움).</summary>
+        public void DebugBreakEnemies()
+        {
+            if (enemies == null) return;
+            foreach (var e in enemies) if (e != null && e.Poise != null) e.ReceivePoise(e.Poise.Rules.Max);
+        }
+
+        /// <summary>[상태 변경] 순간이동 지점 이름으로 (없으면 false).</summary>
+        public bool DebugTeleportToPoint(string pointName)
+        {
+            if (debugTeleportPoints == null) return false;
+            foreach (var p in debugTeleportPoints)
+            {
+                if (p == null || p.name != pointName) continue;
+                DebugTeleportPlayer(p.position);
+                return true;
+            }
+            return false;
+        }
+
 /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()
         {

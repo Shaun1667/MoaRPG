@@ -23,7 +23,8 @@ namespace Moa.Unity.UI
 
         sealed class Bar
         {
-            public TrainingDummy Target;
+            public IHitTarget Target;
+            public IPoiseTarget Gauge;
             public RectTransform Root;
             public RectTransform Fill;
             public Image FillImage;
@@ -38,19 +39,24 @@ namespace Moa.Unity.UI
         /// <summary>i번째 막대가 지금 그리는 비율 (확인용, 없으면 −1).</summary>
         public float ShownRatio(int i) => i >= 0 && i < _bars.Count ? _bars[i].Fill.anchorMax.x : -1f;
 
-        public void Bind(Camera viewCamera, TrainingDummy[] targets)
+        public void Bind(Camera viewCamera, TrainingDummy[] targets) => Bind(viewCamera, targets, null);
+
+        /// <summary>허수아비 막대 뒤에 적 막대 (2-5). i번째 막대 = 허수아비 순서, 그 뒤 적 순서.</summary>
+        public void Bind(Camera viewCamera, TrainingDummy[] targets, EnemyAgent[] enemies)
         {
             _camera = viewCamera;
             _canvas = GetComponentInParent<Canvas>();
             foreach (var b in _bars) if (b.Root != null) Destroy(b.Root.gameObject);
             _bars.Clear();
-            if (targets == null) return;
-            foreach (var t in targets) if (t != null) _bars.Add(Make(t));
+            if (targets != null)
+                foreach (var t in targets) if (t != null) _bars.Add(Make(t, t, t.name));
+            if (enemies != null)
+                foreach (var e in enemies) if (e != null) _bars.Add(Make(e, e, e.name));
         }
 
-        Bar Make(TrainingDummy target)
+        Bar Make(IHitTarget target, IPoiseTarget gauge, string targetName)
         {
-            var go = new GameObject("Poise_" + target.name, typeof(RectTransform));
+            var go = new GameObject("Poise_" + targetName, typeof(RectTransform));
             var rt = (RectTransform)go.transform;
             rt.SetParent(transform, false);
             rt.anchorMin = rt.anchorMax = Vector2.zero;
@@ -70,7 +76,7 @@ namespace Moa.Unity.UI
             var img = fillGo.AddComponent<Image>();
             img.color = fillColor;
             img.raycastTarget = false;
-            return new Bar { Target = target, Root = rt, Fill = fill, FillImage = img };
+            return new Bar { Target = target, Gauge = gauge, Root = rt, Fill = fill, FillImage = img };
         }
 
         void LateUpdate()
@@ -78,8 +84,8 @@ namespace Moa.Unity.UI
             float scale = _canvas != null && _canvas.scaleFactor > 0f ? _canvas.scaleFactor : 1f;
             foreach (var b in _bars)
             {
-                TrainingDummy t = b.Target;
-                bool show = t != null && t.Alive && t.Poise != null && _camera != null;
+                IHitTarget t = b.Target;
+                bool show = t != null && (t as Object) != null && t.Alive && b.Gauge.Poise != null && _camera != null;
                 Vector3 screen = Vector3.zero;
                 if (show)
                 {
@@ -89,7 +95,7 @@ namespace Moa.Unity.UI
                 if (b.Root.gameObject.activeSelf != show) b.Root.gameObject.SetActive(show);
                 if (!show) continue;
                 b.Root.anchoredPosition = new Vector2(screen.x / scale, screen.y / scale);
-                var p = t.Poise;
+                var p = b.Gauge.Poise;
                 bool groggy = p.Groggy;
                 float ratio = groggy
                     ? (p.Rules.GroggyDuration > 0f ? p.GroggyLeft / p.Rules.GroggyDuration : 0f)

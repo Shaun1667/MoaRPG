@@ -1,7 +1,7 @@
 # TASKS — MoaRPG
 
 ## 진행 요약 (2026-11-24 기준 — 새 세션은 여기부터 읽는다)
-**최신 (2026-11-25): Phase 2 2-4 스킬(E) · 궁극기(Q) · 에너지 구현 — E 짧게 회전 베기(쿨 5초) · 길게 0.5초 두 번 베기(쿨 8초) · Q 에너지 40 가득 · 쿨 12초 · 1.2초 무적 · 에너지는 스킬 적중 10/15 + 처치 5 · HUD 오른쪽 아래 · BALANCE 10번. 입력 E · RB / Q · Y. 브랜치 `phase2-combat`(2-3까지 커밋). **EditMode 197개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 · 2-2 · 2-3 · 2-4. 다음: 플레이 확인 → 2-5 적 AI 1종.**
+**최신 (2026-11-26): Phase 2 2-5 적 AI 1종(근접 졸병 Grunt) 구현 — 순찰 · 시야 감지(120° · 10m · 뒤 3m) · 추적 3.5 m/s · 예고 0.8초 공격(저스트 회피 그대로) · 경직 · 그로기 · 복귀 · 5초 뒤 다시 남, NavMesh 없이 곧장 쫓기 · BALANCE 11번. 브랜치 `phase2-combat`. **EditMode 217개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 · 2-2 · 2-3 · 2-4 · 2-5. 다음: 플레이 확인 → 2-6 파티 4인 교체. 물을 것: NavMesh 쓰기(asmdef 참조 추가) · 콤보 중 적이 계속 경직되는 체감.**
 
 ## Phase 0. 세팅
 - [x] **0-0. 문서 3종 + 기획서** (2026-11-24 사용자 "원신 라이크 기획서 노션에", "MY_DEV_GUIDE 대입") — CLAUDE.md · GDD.md · TASKS.md, Notion 기획서
@@ -99,7 +99,14 @@
   - 테스트: 새 `SkillBurstTests`(21) · `SkillTuningAssetTests`(3). EditMode 197개 모두 통과(2026-11-25 재실행 — 처음엔 strings 4줄이 없어 `TextTableRulesTests.UsedKeys_AllExistInTable` 1개 실패 → 감독이 넣음). Play에서 Skill · Burst 액션 enabled · 바인딩 2개씩 확인
   - 캡처: `Assets/Screenshots/p2_4_skill_tap.png` · `p2_4_skill_hold.png` · `p2_4_energy_full.png` · `p2_4_burst.png`
   - 확인 방법: (TestField가 옛것이면 메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 지점 `Dummies` → E를 톡 누르면 청록 회전 베기와 136, 오른쪽 아래 E 칸 5초 쿨 → E를 0.5초 누르고 있으면 두 번 베기 96 · 160 → 에너지가 40이 되면 Q 칸 금색 → Q를 누르면 금색 캡슐, 범위 원, 320
-- [ ] 2-5. 적 AI 1종
+- [x] **2-5. 적 AI 1종 (근접 졸병)** (2026-11-26 사용자 "모아 2-5 진행해줘") — 플레이 확인 대기
+  - 구현: Core `EnemyBrain`(Idle · Patrol · Chase · Attack · Return · Stagger · Groggy · Dead, 공격 주기 = EnemyAttackCycle) / Unity `EnemyAgent`(CharacterController, 시야선 레이, IHitTarget · IPoiseTarget · IEnergyDrop, 공격 → PlayerDefense.ReceiveEnemyAttack) · `EnemyTuning`(`Data/Enemies/Grunt.asset`, BALANCE 11번) · `PoiseBars` 적 막대 · `PlayerDefense.Invulnerable` · `PlayerMotor` 적 · 허수아비에는 안 붙음 · `GameRoot.DebugEnemy*` · 디버그 창 `EnemySection` · `TestFieldSetup`(루트 Enemies — Grunt 3, 엄폐벽 EnemyCover, 지점 Enemies · EnemyCover)
+  - 정한 것 (Claude, 확인 필요): GDD에 적 설명이 없어 츄츄족 같은 근접 졸병 / NavMesh 없이 곧장 쫓기(asmdef 참조 없이 쓸 수 없고 구운 것도 없음, 트인 평지) / 시야 120° · 10m · 뒤 3m · 시야선 / 맞으면 알아채고 0.3초 경직, 예고 중에는 경직 없음 / 예고 중 몸 안 돌림 / 예고 중 맞는 자리에 있다 회피로 빠져나가도 무적이면 판정 / 시야 2초 · 15m · 집 20m면 복귀, 도착하면 회복 / 쓰러지고 5초 뒤 집에서 / 플레이어 체력 없음(맞은 수만)
+  - 확인(TestField, 일시정지 + Step, 입력 주입): 순찰 1.500 m/s, 9.96m 감지 · 추적 3.500, 1.95m에서 공격 · 예고 0.8초 · Hit, 저스트 회피 Just, 36 · 36 · 48 · 52 · 68 · 다음 1타 그로기 · 47, 처치 +5 · 5초 뒤 다시 남, 엄폐 뒤 LostSight 2.00초 · 복귀 4.000 · 회복, TooFar 15m. 2-1 ~ 2-4 값 그대로(콤보 · 강공격 45 · 58 · 낙하 128 · E 136 · Q 320). Setup 2번 멱등. 콘솔 오류 0(NoSubscription 제외)
+  - 확인 못 함: 실제 입력, 디버그 창 새 섹션 화면, 경사 · 계단 위 적 이동, 적이 벽을 돌아가기(NavMesh 없음), 콤보 중 계속 경직되는 체감
+  - 테스트: 새 `EnemyBrainTests`(18) · `EnemyTuningAssetTests`(2). EditMode 217개 모두 통과
+  - 캡처: `Assets/Screenshots/p2_5_telegraph.png` · `p2_5_just_dodge.png` · `p2_5_groggy.png` · `p2_5_groggy-1.png` · `p2_5_return.png`
+  - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 디버그 창 "적 AI" [지점 Enemies로] → 앞으로 걸어가면 초록 캡슐이 쫓아와 몸이 빨개지고 바닥 부채꼴 → 닿기 직전 옆으로 회피하면 "저스트 회피!" → 콤보로 노랗게 그로기 → 쓰러뜨리면 5초 뒤 제자리에 다시 남 → 엄폐벽 뒤에 숨으면 2초 뒤 집으로 돌아감
 - [ ] 2-6. 파티 4인 교체
 
 ## 다른 PC에서 할 일

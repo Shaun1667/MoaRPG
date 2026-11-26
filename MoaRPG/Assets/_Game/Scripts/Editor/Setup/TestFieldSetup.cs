@@ -36,6 +36,7 @@ namespace Moa.Editor.Setup
         public const string DummyTuningPath = "Assets/_Game/Data/Enemies/TrainingDummy.asset";
         public const string AttackingDummyPath = "Assets/_Game/Data/Enemies/AttackingDummy.asset"; // 2-3: 예고 공격 (EnemyAttackTuning)
         public const string SkillTuningPath = "Assets/_Game/Data/Skills/SwordHero.asset";       // 2-4: 지금 캐릭터(한손검)의 스킬 · 궁극기 (SkillTuning)
+        public const string GruntTuningPath = "Assets/_Game/Data/Enemies/Grunt.asset";          // 2-5: 근접 졸병 (EnemyTuning)
 
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
@@ -45,7 +46,7 @@ namespace Moa.Editor.Setup
         const string TrailShader = "Sprites/Default";                       // 궤적 (정점 색 · 투명)
         const string TrailShaderFallback = "Universal Render Pipeline/Unlit";
 
-        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD", "Dummies" };
+        static readonly string[] GeneratedRoots = { "GameRoot", "Main Camera", "Directional Light", "Player", "Environment", "DebugPoints", "HUD", "Dummies", "Enemies" };
 
         // ---- 표현 표 (1-2, 게임 수치 아님) ----
         static readonly Color SprintColor = new Color(1.00f, 0.86f, 0.20f);      // 질주 중: 노랑
@@ -131,6 +132,16 @@ namespace Moa.Editor.Setup
         static readonly Color EnergyFullColor = new Color(1.00f, 0.85f, 0.25f);
         static readonly Color SkillTextColor = new Color(1f, 1f, 1f);
 
+        // ---- 표현 표 (2-5 적 AI, 게임 수치 아님) ----
+        static readonly Color GruntColor = new Color(0.36f, 0.62f, 0.30f);        // 근접 졸병 몸: 초록
+        static readonly Color GruntTelegraphColor = new Color(0.95f, 0.25f, 0.20f); // 예고 중 몸: 빨강 (번쩍임 > 그로기 > 예고)
+        static readonly Color GruntClubColor = new Color(0.45f, 0.32f, 0.20f);    // 몽둥이 상자
+        static readonly Vector3 GruntClubSize = new Vector3(0.12f, 0.12f, 0.8f);  // m
+        static readonly Vector3 GruntClubOffset = new Vector3(0.45f, 0.75f, 0.25f); // 발 기준 (오른쪽 앞)
+        const float GruntEyeSize = 0.18f;                                          // 앞을 보여 주는 눈 상자 (m)
+        const float GruntGroggyTilt = 14f;
+        const float FanWidth = 0.08f, FanHitFlashTime = 0.16f, FanHeight = 0.05f;  // 예고 부채꼴 선 두께(m) · 닿은 뒤 보이는 시간(초) · 바닥 위 높이(m)
+
 
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
@@ -151,6 +162,7 @@ namespace Moa.Editor.Setup
             ("WallRight", new Vector3(8f, 2f, -6f), new Vector3(0.5f, 4f, 8f)),
             ("WallBack", new Vector3(0f, 2f, -12f), new Vector3(10f, 4f, 0.5f)),
             ("LowWall", new Vector3(4f, 0.4f, -4f), new Vector3(3f, 0.8f, 0.5f)),
+            ("EnemyCover", new Vector3(6f, 1.5f, 26f), new Vector3(4f, 3f, 0.5f)), // 2-5: 뒤에 숨어 적 시야를 끊는 벽
         };
         static readonly (string name, Vector3 center, Vector3 size) Pillar = ("TallPillar", new Vector3(16f, 10f, 0f), new Vector3(3f, 20f, 3f));
         static readonly (string name, Vector3 position)[] DebugPoints =
@@ -167,6 +179,8 @@ namespace Moa.Editor.Setup
             ("Dummies", new Vector3(-15.4f, 0.05f, -3.6f)), // 2-1: 허수아비 둘 앞 (+Z를 보면 둘이 부채꼴 안)
             ("DummiesAir", new Vector3(-15.4f, 10.05f, -3.6f)), // 2-2: 허수아비 위 10m (높은 낙하)
             ("AttackDummy", new Vector3(-22.0f, 0.05f, 4.2f)), // 2-3: 공격 허수아비 앞 1.8m (공격 범위 안, 칼이 닿는 거리)
+            ("Enemies", new Vector3(-1.0f, 0.05f, 18.0f)),     // 2-5: 적 셋 앞 (가장 가까운 Grunt1까지 12.4m — 감지 거리 밖)
+            ("EnemyCover", new Vector3(6.0f, 0.05f, 24.5f)),   // 2-5: 엄폐벽 뒤 (Grunt2 시야선이 막힘)
         };
 
         // 2-1: 허수아비 배치 (발 위치, 바라보는 방향 도, 2-3: 예고 공격을 하는지) — 새 허수아비 = 줄 하나
@@ -176,6 +190,14 @@ namespace Moa.Editor.Setup
             ("Dummy2", new Vector3(-14.8f, 0f, -2.0f), 180f, false),
             ("Dummy3", new Vector3(-12.0f, 0f, -6.0f), 180f, false),
             ("AttackDummy", new Vector3(-22.0f, 0f, 6.0f), 180f, true), // 2-3: 저스트 회피 시험용 (다른 허수아비에서 멀리)
+        };
+
+        // 2-5: 적 배치 (발 위치 = 집, 바라보는 방향 도, 순찰 지점 = 집에서 이만큼 — 0이면 제자리) — 새 적 = 줄 하나
+        static readonly (string name, Vector3 position, float yaw, Vector3 patrol)[] Enemies =
+        {
+            ("Grunt1", new Vector3(-4.0f, 0f, 30.0f), 180f, new Vector3(4.0f, 0f, 0f)),
+            ("Grunt2", new Vector3(2.0f, 0f, 32.0f), 180f, Vector3.zero),
+            ("Grunt3", new Vector3(-1.0f, 0f, 36.0f), 180f, new Vector3(0f, 0f, 3.0f)),
         };
 
         [MenuItem(MenuPath)]
@@ -215,6 +237,7 @@ namespace Moa.Editor.Setup
             var dummyTuning = LoadOrCreate<DummyTuning>(DummyTuningPath);
             var attackTuning = LoadOrCreate<EnemyAttackTuning>(AttackingDummyPath);
             var skills = LoadOrCreate<SkillTuning>(SkillTuningPath);
+            var grunt = LoadOrCreate<EnemyTuning>(GruntTuningPath); // 2-5
 
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
@@ -241,7 +264,8 @@ namespace Moa.Editor.Setup
             var skillHud = SkillHud.CreateIn(gauge.transform.parent, EnsureRing(), SkillSlotSize, SkillSlotGap, SkillHudMargin, SkillKeyFontSize, SkillNumberFontSize,
                 SkillSlotColor, SkillPressingColor, SkillCastingColor, SkillCooldownCover, EnergyColor, EnergyFullColor, SkillTextColor, DamageOutlineColor); // 2-4
             var dummies = BuildDummies(dummyTuning, attackTuning, mats);
-            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud);
+            var enemies = BuildEnemies(grunt, mats); // 2-5
+            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -280,7 +304,7 @@ namespace Moa.Editor.Setup
 
         sealed class Materials
         {
-            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings, Dummy, Sword, Hilt, SwordTrail, AttackDummy;
+            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings, Dummy, Sword, Hilt, SwordTrail, AttackDummy, Grunt, GruntClub;
 
             public Materials()
             {
@@ -300,6 +324,8 @@ namespace Moa.Editor.Setup
                 Hilt = Get("SwordHilt", HiltColor, null, Vector2.one);
                 SwordTrail = GetTrail("SwordTrail");
                 AttackDummy = Get("AttackDummy", AttackDummyColor, null, Vector2.one);
+                Grunt = Get("Grunt", GruntColor, null, Vector2.one);             // 2-5
+                GruntClub = Get("GruntClub", GruntClubColor, null, Vector2.one);
             }
 
             static Material Get(string name, Color color, Texture tex, Vector2 tiling)
@@ -653,8 +679,72 @@ namespace Moa.Editor.Setup
             SetFloat(attacker, "ringHeight", WarnRingHeight);
         }
 
+        /// <summary>
+        /// 적 (2-5): 루트에 CharacterController + EnemyAgent, 자식 Visual에 몸 캡슐 · 눈 · 몽둥이 상자 (번쩍임 대상은 몸), 예고 부채꼴 LineRenderer. 배치는 Enemies 표.
+        /// 몸 크기는 EnemyTuning(데이터), 색 · 몽둥이 · 눈은 위 표현 표.
+        /// </summary>
+        static EnemyAgent[] BuildEnemies(EnemyTuning tuning, Materials mats)
+        {
+            var root = new GameObject("Enemies").transform;
+            var result = new EnemyAgent[Enemies.Length];
+            float height = tuning.CapsuleHeight, radius = tuning.CapsuleRadius;
+            if (height <= 0f || radius <= 0f) Debug.LogWarning("TestFieldSetup: EnemyTuning capsule size is empty - fill it from BALANCE.md and run again");
+            for (int i = 0; i < Enemies.Length; i++)
+            {
+                var go = new GameObject(Enemies[i].name);
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(Enemies[i].position, Quaternion.Euler(0f, Enemies[i].yaw, 0f));
+                var cc = go.AddComponent<CharacterController>();
+                cc.height = height;
+                cc.radius = radius;
+                cc.center = new Vector3(0f, height * 0.5f, 0f);
+                var visual = new GameObject("Visual").transform;
+                visual.SetParent(go.transform, false);
+                var body = Primitive(PrimitiveType.Capsule, visual, "Body", new Vector3(0f, height * 0.5f, 0f), Quaternion.identity,
+                    new Vector3(radius * 2f, height * 0.5f, radius * 2f), mats.Grunt);
+                Primitive(PrimitiveType.Cube, visual, "Eye", new Vector3(0f, height * 0.78f, radius), Quaternion.identity,
+                    new Vector3(GruntEyeSize * 1.6f, GruntEyeSize * 0.6f, GruntEyeSize), mats.Nose);
+                Primitive(PrimitiveType.Cube, visual, "Club", GruntClubOffset, Quaternion.identity, GruntClubSize, mats.GruntClub);
+
+                var fanGo = new GameObject("WarningFan");
+                fanGo.transform.SetParent(go.transform, false);
+                var fan = fanGo.AddComponent<LineRenderer>();
+                fan.sharedMaterial = mats.SwordTrail;
+                fan.useWorldSpace = true;
+                fan.loop = true;
+                fan.widthMultiplier = FanWidth;
+                fan.startColor = WarnStartColor;
+                fan.endColor = WarnStartColor;
+                fan.shadowCastingMode = ShadowCastingMode.Off;
+                fan.positionCount = 0;
+                fan.enabled = false;
+
+                var agent = go.AddComponent<EnemyAgent>();
+                Set(agent, "tuning", tuning);
+                Set(agent, "visual", visual);
+                SetColor(agent, "flashColor", DummyFlashColor);
+                SetColor(agent, "groggyColor", DummyGroggyColor);
+                SetColor(agent, "telegraphColor", GruntTelegraphColor);
+                SetFloat(agent, "groggyTilt", GruntGroggyTilt);
+                SetVector(agent, "patrolOffset", Enemies[i].patrol);
+                Set(agent, "warningFan", fan);
+                SetColor(agent, "warnStartColor", WarnStartColor);
+                SetColor(agent, "warnEndColor", WarnEndColor);
+                SetColor(agent, "hitColor", WarnHitColor);
+                SetFloat(agent, "hitFlashTime", FanHitFlashTime);
+                SetFloat(agent, "fanHeight", FanHeight);
+                var so = new SerializedObject(agent);
+                var arr = so.FindProperty("flashRenderers");
+                arr.arraySize = 1;
+                arr.GetArrayElementAtIndex(0).objectReferenceValue = body.GetComponent<MeshRenderer>();
+                so.ApplyModifiedPropertiesWithoutUndo();
+                result[i] = agent;
+            }
+            return result;
+        }
+
         static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge,
-            DamageNumbers numbers, TrainingDummy[] dummies, PoiseBars poiseBars, SkillHud skillHud)
+            DamageNumbers numbers, TrainingDummy[] dummies, PoiseBars poiseBars, SkillHud skillHud, EnemyAgent[] enemies)
         {
             var go = new GameObject("GameRoot");
             var root = go.AddComponent<GameRoot>();
@@ -673,6 +763,9 @@ namespace Moa.Editor.Setup
             var dummyArr = so.FindProperty("trainingDummies");
             dummyArr.arraySize = dummies.Length;
             for (int i = 0; i < dummies.Length; i++) dummyArr.GetArrayElementAtIndex(i).objectReferenceValue = dummies[i];
+            var enemyArr = so.FindProperty("enemies"); // 2-5
+            enemyArr.arraySize = enemies.Length;
+            for (int i = 0; i < enemies.Length; i++) enemyArr.GetArrayElementAtIndex(i).objectReferenceValue = enemies[i];
             var arr = so.FindProperty("debugTeleportPoints");
             arr.arraySize = points.Length;
             for (int i = 0; i < points.Length; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = points[i];

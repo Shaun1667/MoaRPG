@@ -27,6 +27,8 @@ namespace Moa.Unity.Combat
         public bool Bound => _just != null && _motor != null;
         /// <summary>지금 플레이어 공격의 경직 배율 (반격 보너스 중이면 1보다 큼).</summary>
         public float PoiseMultiplier => _just != null ? _just.PoiseMultiplier : 1f;
+        /// <summary>지금 무적인지 (회피 · 궁극기) — 2-5: 예고 중 맞는 자리에 있다 회피로 빠져나간 공격도 판정을 받는다.</summary>
+        public bool Invulnerable => _motor != null && (_motor.Invulnerable || _motor.BurstInvulnerable);
         /// <summary>마지막으로 공격이 온 자리 · 그때 플레이어 발 (디버그 · 확인용).</summary>
         public Vector3 LastAttackFrom { get; private set; }
         public Vector3 LastJudgedAt { get; private set; }

@@ -376,6 +376,7 @@ namespace Moa.Unity.Player
             else if (_glide.Active) dir = Forward;
             else return;
             if (!Probe(Center, dir, _cc.radius + climbTuning.ProbeDistance, out RaycastHit hit)) return;
+            if (hit.collider.GetComponentInParent<Moa.Unity.Combat.IHitTarget>() != null) return; // 2-5: 적 · 허수아비 몸에는 붙지 않는다
             float inputAngle = Climb.InputAngle(dir.x, dir.z, hit.normal.x, hit.normal.z);
             if (!_climb.TryAttach(_stamina, hit.normal.y, inputAngle)) return;
             if (_glide.Active) _glide.Close(GlideEnd.Wall);

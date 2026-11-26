@@ -15,6 +15,7 @@
 | 8 | `Assets/_Game/Data/Enemies/TrainingDummy.asset` | `Moa.Unity.Data.DummyTuning` | `Moa.Tests.CombatTuningAssetTests` |
 | 9 | `Assets/_Game/Data/Enemies/AttackingDummy.asset` | `Moa.Unity.Data.EnemyAttackTuning` | `Moa.Tests.PoiseTuningAssetTests` |
 | 10 | `Assets/_Game/Data/Skills/SwordHero.asset` (새 캐릭터 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.SkillTuning` | `Moa.Tests.SkillTuningAssetTests` |
+| 11 | `Assets/_Game/Data/Enemies/Grunt.asset` (새 적 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.EnemyTuning` | `Moa.Tests.EnemyTuningAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -206,6 +207,22 @@
 - 규칙: 쿨은 쓰는 순간부터, E를 누르는 중 끊기면 쿨 안 씀. E는 콤보 · 강공격을 끊고, Q는 콤보 · 강공격 · 스킬을 끊음. 낙하 중엔 둘 다 Busy. 회피 · 점프 · 공중이 되면 E가 끊김, Q 중 회피 · 점프 입력은 버림. 둘 다 땅 위에서만. Q 무적 중 적 공격은 Avoided(저스트 보상은 회피 무적일 때만)
 - 입력 E · 패드 RB / Q · 패드 Y. HUD 오른쪽 아래 두 칸(E 쿨 덮개 · 남은 초, Q 원형 게이지 · 현재/40, 가득이면 금색). 상태 색 궁극기 금색 · 스킬 청록
 
+## 11. 근접 졸병 Grunt (TASKS 2-5) — 정한 것 (Claude, 2026-11-26, 확인 필요 — 그로기 5초 · ×1.3만 GDD)
+| 항목 | 값 | 근거 |
+|---|---|---|
+| maxHealth · defense · energyOnDefeat | 500 · 100 · 5 | 한손검 36 · 36 · 48 · 52 · 68(허수아비와 같은 방어), 두 콤보(480) + 1타에 쓰러짐 |
+| maxPoise · groggy · regen | 60 · 5 s ×1.3 · 2 s 뒤 25/s | 콤보 한 번(54)으로는 안 되고 다음 1타(62)에 그로기 |
+| detectRange · viewAngle · noticeRange | 10 m · 120° · 3 m | 앞 시야 또는 아주 가까이, 시야선 필요 |
+| loseRange · loseSightTime · leashRange | 15 m · 2 s · 20 m | 넘으면 복귀, 집에 오면 체력 · 경직 가득 |
+| patrol · chase · return speed · turn | 1.5 · 3.5 · 4.0 m/s · 360°/s | 추적 < 플레이어 뛰기 5.5 |
+| patrolWait · arriveDistance | 2 s · 0.3 m | |
+| attackRange · hitRange · hitAngle | 2.0 m · 2.6 m · 120° | 멈춘 자리에서 닿음, 회피 3.5m면 빠져나감 |
+| attackInterval · telegraph · recovery | 0.6 · 0.8 · 0.8 s | 사거리에 들어와 1.4초에 첫 공격, 다음 공격 2.2초마다 |
+| hitStunTime · respawnDelay | 0.3 s · 5 s | 예고 중에는 경직 없음 |
+| capsule · eye · gravity · flash · knockback · number | 1.4 / 0.4 m · 1.1 m · 25 · 0.1 s · 0.15 m / 0.06 s · 1.7 m | |
+- 표현 값(Setup 표): 몸 초록, 예고 중 빨강, 그로기 노랑 + 뒤로 14°, 앞 부채꼴 선 엷은 노랑 → 빨강 · 닿는 순간 흰색
+- 이동은 NavMesh 없이 곧장(asmdef에 Unity.AI.Navigation 참조가 없고 구운 NavMesh도 없음) — 큰 벽은 돌아가지 못하고 미끄러짐
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
@@ -227,6 +244,7 @@
 - 6 · 7번 강공격 · 낙하 값 그대로 · 강공격 45 + 58 · 낙하 102 / 128 · 길게 누르기 18스텝 · 낙하 최소 높이 < 점프 높이 < 높은 낙하 → `CombatTuningAssetTests.Sword_ChargedAndPlunge_MatchBalance6` · `Combat_ChargeAndPlunge_MatchBalance7` · `ChargedAndPlunge_AreConsistent`
 - 경직 · 그로기 · 저스트: 그로기 피해 47 · 47 · 62 · 68 · 88, 2콤보 5타에 그로기 · 반격이면 1콤보, 8스텝 Just · 9 Avoided · 10 Hit, 주기 3.4초 · 예고 시작 2.0초 · 닿음 2.8초, 9번 표 값 그대로 → `PoiseJustDodgeTests` · `PoiseTuningAssetTests`
 - 스킬 · 궁극기: 짧게 26스텝 · 판정 5스텝 · 내딛기 0.4m, 길게 25스텝 뒤 · 42스텝 · 1.5m, 쿨 5초(250스텝) · 8 · 12, 에너지는 한 번에 10/15 · 짧게 4번이면 가득, Q는 가득이어야 · 60스텝 무적 · 회피로 안 끊김 · 궁극기 중 에너지 0, 누르는 중 회피면 쿨 안 씀 → `SkillBurstTests`
+- 적 AI: 순찰 2초 뒤 1.5 m/s, 시야 120° · 10m · 뒤 3m, 사거리 2m에서 70스텝째 닿음 · 다음 110스텝, 예고 중 안 돌고 옆으로 피하면 빗나감(스침 판정), 시야 2초 · 15m · 집 20m 복귀, 복귀 4 m/s · 도착하면 회복, 경직 15스텝 · 예고 중 경직 없음, 그로기 중 정지, 쓰러지고 250스텝 뒤 다시 남 → `EnemyBrainTests` · `EnemyTuningAssetTests`
 - 10번 값: 136 · 96+160 · 320, 시간은 0.02 배수, 60+30+16 ≥ 100 → `SkillTuningAssetTests`
 
 ## 실험 기록
@@ -239,3 +257,4 @@
 | 2026-11-25 | TestField 코드 주입 플레이 (2-2) | 길게 누르기 → 0.38초(누른 스텝 + 18)에 강공격 · 240 → 220 · 45 · 58이 허수아비 둘에 · 0.84초, 스태미나 19면 NoStamina · 1타만, 3타 중 강공격 → 다음 1타, DummiesAir(10.02m) 낙하 20 m/s · 0.5초에 착지 · 9.97m 높은 낙하 128 둘(셋째 4.16m 범위 밖) · 경직 0.40초, 점프 정점 1.01m에서 낮은 낙하(1.03m) 102 둘 · 0.20m에서는 TooLow, 활공 중 낙하(활공 접힘), 착지 경직 회피 · 점프로 끊김, 등반 중 막힘, 강공격 중 회피 3.500m |
 | 2026-11-25 | TestField 코드 주입 플레이 (2-3) | 2콤보 5타 4.46초에 그로기 · 그로기 중 1타 47 · 4.84초에 풀림, 저스트 8스텝 Just · 9 Avoided · 10 Hit, 슬로모션 실제 0.8초(게임 0.22초), 반격 경직 ×2로 1콤보 그로기, 낙하 경직 35 |
 | 2026-11-25 | TestField 코드 주입 플레이 (2-4) | E 짧게 136 둘 · 에너지 +10 한 번 · 쿨 250스텝, E 길게 26스텝째 Hold · 96/160 · +15, 처치 +5, Q 320 셋 · 1.2초 무적 · 회피/점프 무시 · 공격 허수아비 Avoided, 쿨 중 Q 막힘, 궁극기 처치 에너지 0, 공중 E Airborne, 누르는 중 회피 쿨 안 씀 |
+| 2026-11-26 | TestField 코드 주입 플레이 (2-5) | 순찰 1.500 m/s, 9.96m 감지 · 추적 3.500 m/s, 1.95m에서 공격 · 0.6초 뒤 예고 · 0.8초 뒤 닿음 Hit, 0.12초 전 옆 회피 Just, 36 · 36 · 48 · 52 · 68 · 다음 1타 그로기 · 그로기 중 47, 처치 에너지 +5 · 5초 뒤 다시 남, 엄폐 뒤 2.00초 LostSight 복귀 4.000 m/s · 400 → 500, 15m TooFar 복귀 |
