@@ -80,6 +80,10 @@ namespace Moa.Unity.Data
         [SerializeField] float telegraphTime;
         [Tooltip("s of rest pose after the hit")]
         [SerializeField] float recoveryTime;
+        [Tooltip("Attack of this enemy against the player (3-1)")]
+        [SerializeField] float attack;
+        [Tooltip("Damage multiplier of its hit (3-1): damage = attack x this, then the character's defense")]
+        [SerializeField] float attackMultiplier;
 
         [Header("Hit stun / respawn")]
         [Tooltip("s the enemy stops when hit (not during a warning)")]
@@ -121,6 +125,8 @@ namespace Moa.Unity.Data
         public float AttackInterval => attackInterval;
         public float TelegraphTime => telegraphTime;
         public float RecoveryTime => recoveryTime;
+        public float Attack => attack;
+        public float AttackMultiplier => attackMultiplier;
         public float HitStunTime => hitStunTime;
         public float RespawnDelay => respawnDelay;
 

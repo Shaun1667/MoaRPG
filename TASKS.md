@@ -1,7 +1,7 @@
 # TASKS — MoaRPG
 
 ## 진행 요약 (2026-11-24 기준 — 새 세션은 여기부터 읽는다)
-**최신 (2026-11-26): Phase 2 2-6 파티 4인 교체 구현 — 영웅 · 수호자 · 떠돌이 · 현자(모두 한손검), 키 1~4 · 패드 십자, 교체 쿨 1초, 스킬 · 궁극기 쿨 · 에너지는 캐릭터마다(대기 중에도 쿨이 돎, 대기 처치 에너지 ×0.6), 파티 HUD, BALANCE 12번. 2-5 적 AI 1종(근접 졸병 Grunt)까지 커밋. 브랜치 `phase2-combat`. 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6. 다음: 플레이 확인 → Phase 2 다음 항목. 물을 것: NavMesh 쓰기(asmdef 참조 추가) · 콤보 중 적이 계속 경직되는 체감.**
+**최신 (2026-11-26): Phase 3 3-1 플레이어 체력 · 쓰러짐 구현 — 캐릭터마다 체력 · 방어(영웅 1000 · 수호자 1300 · 떠돌이 850 · 현자 900), Grunt 한 대 영웅 10%, 땅 위 경직 · 밀려남, 쓰러지면 다음 캐릭터로 자동 교체, 전원 쓰러짐 → 시작 지점 50% 부활, 회복 지점, HUD 체력 막대 · BALANCE 13번. Phase 2(2-1 ~ 2-6) · 캐릭터/무기 공격력 분리까지 커밋. 브랜치 `phase2-combat`. **EditMode 256개 모두 통과.** 플레이 확인 대기: 0-1 · 0-2 · 0-3 · 0-4 · 1-1 · 1-2 · 1-3 · 2-1 ~ 2-6 · 3-1. 다음: 3-2 교체 연계 → 3-3 무기 종류 → 3-4 적 추가 · 길찾기 → 3-5 성장 → 3-6 탐험 → 3-7 가챠(사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘"). 물을 것: 콤보 중 적이 계속 경직되는 체감 · 공격력 비율 60 : 40.**
 
 ## Phase 0. 세팅
 - [x] **0-0. 문서 3종 + 기획서** (2026-11-24 사용자 "원신 라이크 기획서 노션에", "MY_DEV_GUIDE 대입") — CLAUDE.md · GDD.md · TASKS.md, Notion 기획서
@@ -115,6 +115,23 @@
   - 테스트: 새 `PartyTests`(15) · `PartyAssetTests`(4). EditMode 236개 → 공격력 나눈 뒤 238개 모두 통과(PartyAssetTests +2, 무기 공격력만으로 계산하던 기대값은 영웅 합 공격력으로)
   - 캡처: `Assets/Screenshots/p2_6_switch_guardian.png` · `p2_6_wanderer_cooldown.png` · `p2_6_hero_bench_ready.png`
   - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 지점 Dummies → E → 2 키 → 몸이 파랑, 오른쪽 칸 2가 밝아지고 나머지 칸에 1초 쿨 → 바로 3 키는 안 됨 → 영웅 E 쿨은 대기 중에도 줄어듦 → 허수아비 처치 시 현재 +5 · 대기 +3
+
+## Phase 3. 전투 마무리 · 성장 · 탐험 (2026-11-26 사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘" — ① 플레이어 체력 · 쓰러짐 → ② 교체 연계 → ③ 무기 종류 → ④ 적 추가 · 길찾기 → ⑤ 성장 → ⑥ 탐험 → ⑦ 가챠)
+- 결정 (2026-11-26, 사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘"): ④에서 NavMesh를 쓰려면 asmdef에 Unity.AI.Navigation 참조를 넣어야 함 — 사용자가 ④를 고름 = 감독이 asmdef를 고치는 것 허락(작업자는 asmdef를 고치지 않음)
+- [x] **3-1. 플레이어 체력 · 쓰러짐** (2026-11-26 사용자 "모아 1 2 3 4 5 6 7 순서대로 진행해줘") — 플레이 확인 대기
+  - 구현: Core `PartyVitals`(VitalsRules · PlayerHit · VitalsTick · WipePhase — 캐릭터마다 체력 · 방어, 필드 캐릭터만 맞음, DamageMath, 땅 위 경직 + 밀려남, 0이면 쓰러짐 → 다음 살아 있는 칸으로 강제 교체(쿨 무시), 전원 쓰러짐 → 어두워짐 · 부활 50% · 밝아짐, 회복 지점 Heal) · `Party`(SwitchBlock.Downed · IsDowned · SetDowned · ForceSwitch) · `AttackEnd.Hit` · `Health.Heal/Revive` / Unity `PlayerHealthTuning`(`Data/Player/PlayerHealthTuning.asset`) · `PlayerVitals` · `HealingPoint` · `HealthHud` · `CharacterData.maxHealth/defense` · `EnemyTuning.attack/attackMultiplier` · `PlayerDefense.ReceiveEnemyAttack(from, attack, multiplier)` · PlayerCombat(SyncActive · 경직 · 전멸 중 입력 버림) · PlayerMotor(경직 밀려남 · 회피로 끊김) · 몸 색(피격 검붉은 · 전멸 회색) · 플레이어 피해 숫자 빨강 · PartyHud 칸 체력 막대 · 쓰러지면 회색 · GameRoot 부활(지점 Spawn) · 적 제자리 · 진입점 `GameRoot.DebugPlayerHealth*` · 디버그 창 `PlayerHealthSection` · TestFieldSetup(HUD · 회복 지점 `HealPoint` · 디버그 지점 HealPoint)
+  - 정한 것 (Claude, 확인 필요): 넘어짐 없음(강한 공격이 생기는 3-4에서 적 공격 표에) / 경직은 땅 위에서만, 회피로 끊김, 경직 중 이동 · 점프 · 공격 · 교체 입력 버림 / 자동 교체는 새 쿨 없음 · 들어오는 캐릭터는 경직 없음 / 전원 쓰러짐: 1.0초 어두워짐 → 시작 지점 · 전원 50% · 적 제자리 → 0.6초 → 0.8초 밝아짐, 필드 캐릭터는 마지막에 쓰러진 캐릭터, 연출 중 무피해 · 입력 막힘 / 회복 지점 반지름 2.5m · 초당 최대 체력 50% · 쓰러진 캐릭터 부활 / 공격 허수아비는 피해 없음(저스트 연습용) / HUD 체력은 막대만(숫자는 텍스트 키가 필요) / 숫자는 계산된 피해(쓰러뜨린 한 방은 남은 체력보다 클 수 있음) / 수치 BALANCE 13번
+  - 확인(TestField, 일시정지 + Step, 입력 주입): Grunt 한 대 영웅 1000 → 900 · 빨간 '100' · 경직 0.30초 · 밀려남, 저스트 회피 무피해, 영웅 쓰러짐 → 수호자 자동 교체 · 1번 칸 회색 · 1번 교체 Downed · 수호자 83, 전원 쓰러짐 → 1.0초 뒤 Spawn · 500/650/425/450 · Grunt 셋 집 · 1.4초 뒤 다시 움직임, 회복 지점 → 쓰러진 4번 부활 · 약 2초에 전원 가득, 무적이면 0 · 회색 숫자, 2-1 콤보 36 그대로. Setup 2번 멱등. 콘솔 오류 0(NoSubscription 제외)
+  - 확인 못 함: 실제 키 · 패드 입력, 디버그 창 새 섹션 화면, 경사 · 계단 위 밀려남, 등반 · 활공 중 피격(테스트로만), 실제 프레임레이트 체감, linear 색 공간이라 어두워지는 중간이 덜 어두워 보임
+  - 테스트: 새 `PlayerHealthTests`(14) · `PlayerHealthAssetTests`(4). EditMode 256개 모두 통과
+  - 캡처: `Assets/Screenshots/p3_1_grunt_hit.png` · `p3_1_just_dodge_no_damage.png` · `p3_1_downed_auto_switch.png` · `p3_1_all_down_fade.png` · `p3_1_all_down_dark.png` · `p3_1_respawn_half.png` · `p3_1_heal_point.png`
+  - 확인 방법: (메뉴 MoaRPG > Setup > Test Field) TestField 플레이 → 디버그 창 "적 AI" [지점 Enemies로] → Grunt에게 맞으면 빨간 숫자 · 몸 검붉게 · 아래 가운데 막대가 줄어듦 → 닿기 직전 회피하면 체력 그대로 → 디버그 창 "플레이어 체력 · 쓰러짐" [쓰러뜨리기] → 다음 캐릭터로 바뀌고 칸이 회색, 그 번호 키로는 안 바뀜 → [전원 쓰러짐] → 화면이 어두워졌다 시작 지점에서 절반 체력으로 → 지점 HealPoint의 청록 원 위에 서면 전원 회복 · 쓰러진 캐릭터 부활
+- [ ] 3-2. 교체 연계
+- [ ] 3-3. 무기 종류 추가
+- [ ] 3-4. 적 추가 · 길찾기
+- [ ] 3-5. 성장
+- [ ] 3-6. 탐험
+- [ ] 3-7. 가챠
 
 ## 다른 PC에서 할 일
 - Claude Hand 패키지(manifest.json)는 PC마다 `unity-install`로 넣는다.

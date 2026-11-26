@@ -17,3 +17,5 @@ MonoBehaviour:
   weapon: {fileID: 11400000, guid: 735eb6454e776364b9b10501d0ed4641, type: 2}
   skills: {fileID: 11400000, guid: 96bd33f8da974cc44b4c4d9e7350c90d, type: 2}
   baseAttack: 60
+  maxHealth: 1300
+  defense: 200

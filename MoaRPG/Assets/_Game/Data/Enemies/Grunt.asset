@@ -46,5 +46,7 @@ MonoBehaviour:
   attackInterval: 0.6
   telegraphTime: 0.8
   recoveryTime: 0.8
+  attack: 100
+  attackMultiplier: 1.25
   hitStunTime: 0.3
   respawnDelay: 5

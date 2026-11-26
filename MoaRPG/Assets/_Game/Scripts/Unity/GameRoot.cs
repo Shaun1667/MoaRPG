@@ -49,6 +49,15 @@ namespace Moa.Unity
         [Header("Enemies (2-5, empty in scenes without enemies)")]
         [Tooltip("Melee enemies (EnemyAgent) that chase and attack the player")]
         [SerializeField] EnemyAgent[] enemies;
+        [Header("Player health (3-1, empty in scenes without a player)")]
+        [Tooltip("Health of each party member (on the player)")]
+        [SerializeField] PlayerVitals playerVitals;
+        [Tooltip("Field character health bar and the dark screen when everyone is down")]
+        [SerializeField] HealthHud healthHud;
+        [Tooltip("Where the party comes back after everyone is down (test field start)")]
+        [SerializeField] Transform respawnPoint;
+        [Tooltip("Healing points: standing there heals the party and revives downed members")]
+        [SerializeField] HealingPoint[] healingPoints;
 
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
@@ -88,6 +97,7 @@ namespace Moa.Unity
             if (playerCombat == null) return;
             playerCombat.Bind(_input);
             playerCombat.HitLanded += OnHitLanded;
+            BindVitals(); // 3-1: PlayerCombat.Bind 뒤 (파티가 있어야 캐릭터마다 체력)
             Camera view = orbitCamera != null ? orbitCamera.GetComponent<Camera>() : Camera.main;
             if (damageNumbers != null)
                 damageNumbers.Bind(playerCombat.Tuning, view, UiFont.Get(config));
@@ -117,6 +127,38 @@ namespace Moa.Unity
             if (enemies != null) foreach (var e in enemies) if (e != null) e.Bind(playerDefense); // 2-5
             if (poiseBars != null) poiseBars.Bind(view, trainingDummies, enemies);
         }
+
+        /// <summary>3-1: 플레이어 체력 · 체력 HUD · 회복 지점 · 전원 쓰러짐 뒤 부활.</summary>
+        void BindVitals()
+        {
+            if (playerVitals == null) return;
+            playerVitals.Bind(playerMotor);
+            playerVitals.Hurt += OnPlayerHurt;
+            playerVitals.WipeStarted += OnWipeStarted;
+            playerVitals.Respawned += OnRespawned;
+            if (healthHud != null) healthHud.Bind(playerVitals);
+            if (healingPoints != null) foreach (var h in healingPoints) if (h != null) h.Bind(playerVitals);
+        }
+
+        void OnPlayerHurt(Moa.Core.Combat.PlayerHit hit, Vector3 at)
+        {
+            if (damageNumbers != null && hit.Requested > 0) damageNumbers.ShowPlayerDamage(at, hit.Requested, hit.Applied == 0);
+        }
+
+        void OnWipeStarted()
+        {
+            if (playerDefense != null) playerDefense.Cancel(); // 슬로모션 중이었으면 끄고 어두워진다
+        }
+
+        /// <summary>어두워진 뒤 (3-1): 부활 지점으로 옮기고 적을 모두 제자리로 (체력 가득).</summary>
+        void OnRespawned()
+        {
+            if (respawnPoint != null) DebugTeleportPlayer(respawnPoint.position);
+            DebugRespawnEnemies();
+            _respawnedCount++;
+        }
+
+        int _respawnedCount;
 
         void OnJudged(Moa.Core.Combat.DodgeJudgement judgement, Vector3 feet)
         {
@@ -577,7 +619,48 @@ namespace Moa.Unity
             return false;
         }
 
-/// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
+        // ---- 플레이어 체력 · 쓰러짐 (3-1) ----
+
+        public bool DebugHasPlayerHealth => playerVitals != null && playerVitals.Bound;
+        /// <summary>체력 규칙 (Core, 없으면 null).</summary>
+        public Moa.Core.Combat.PartyVitals DebugPlayerHealth => DebugHasPlayerHealth ? playerVitals.Vitals : null;
+        public int DebugPlayerHealthCount => DebugHasPlayerHealth ? playerVitals.Count : 0;
+        /// <summary>필드 캐릭터 칸, 1부터 (0 = 없음).</summary>
+        public int DebugPlayerHealthActiveSlot => DebugHasPlayerHealth ? playerVitals.Vitals.ActiveIndex + 1 : 0;
+        /// <summary>칸(1 ~ 4)의 체력 · 최대 · 방어 · 쓰러짐.</summary>
+        public int DebugPlayerHealthCurrent(int slot) => DebugHasPlayerHealth && slot >= 1 && slot <= playerVitals.Count ? playerVitals.Vitals.Member(slot - 1).Current : 0;
+        public int DebugPlayerHealthMax(int slot) => DebugHasPlayerHealth && slot >= 1 && slot <= playerVitals.Count ? playerVitals.Vitals.Member(slot - 1).Max : 0;
+        public float DebugPlayerHealthDefense(int slot) => DebugHasPlayerHealth && slot >= 1 && slot <= playerVitals.Count ? playerVitals.Vitals.Defense(slot - 1) : 0f;
+        public bool DebugPlayerHealthDowned(int slot) => DebugHasPlayerHealth && slot >= 1 && slot <= playerVitals.Count && playerVitals.Vitals.IsDowned(slot - 1);
+        public CharacterData DebugPlayerHealthCharacter(int slot) => playerVitals != null ? playerVitals.GetCharacter(slot - 1) : null;
+        public bool DebugPlayerHealthStunned => playerVitals != null && playerVitals.Stunned;
+        public float DebugPlayerHealthStunLeft => DebugHasPlayerHealth ? playerVitals.Vitals.StunLeft : 0f;
+        /// <summary>전멸 단계 (None · FadeOut · Dark · FadeIn).</summary>
+        public string DebugPlayerHealthWipe => DebugHasPlayerHealth ? playerVitals.Vitals.Wipe.ToString() : "-";
+        public float DebugPlayerHealthDarkness => playerVitals != null ? playerVitals.Darkness : 0f;
+        public bool DebugPlayerHealthInvulnerable => playerVitals != null && playerVitals.Invulnerable;
+        public Moa.Core.Combat.PlayerHit DebugPlayerHealthLastHit => DebugHasPlayerHealth ? playerVitals.Vitals.LastHit : Moa.Core.Combat.PlayerHit.None(0);
+        public int DebugPlayerHealthRespawnCount => _respawnedCount;
+        public HealthHud DebugHealthHud => healthHud;
+        public HealingPoint[] DebugHealingPoints => healingPoints;
+        public Transform DebugRespawnPoint => respawnPoint;
+
+        /// <summary>[상태 변경] 필드 캐릭터에게 amount 피해 (방어 없이, 땅 위면 경직, 무적이면 0).</summary>
+        public void DebugPlayerHealthDamage(int amount) { if (playerVitals != null) playerVitals.DebugDamage(amount); }
+
+        /// <summary>[상태 변경] 필드 캐릭터를 쓰러뜨린다 (살아 있는 다음 캐릭터로 자동 교체, 없으면 전멸).</summary>
+        public void DebugPlayerHealthDownActive() { if (playerVitals != null) playerVitals.DebugDownActive(); }
+
+        /// <summary>[상태 변경] 전원 쓰러뜨린다 → 어두워졌다 부활 지점에서 되살아난다.</summary>
+        public void DebugPlayerHealthDownAll() { if (playerVitals != null) playerVitals.DebugDownAll(); }
+
+        /// <summary>[상태 변경] 전원 가득 · 되살리기.</summary>
+        public void DebugPlayerHealthRestoreAll() { if (playerVitals != null) playerVitals.DebugRestoreAll(); }
+
+        /// <summary>[상태 변경] 플레이어 무적 (체력 · 경직 없음, 피해 숫자는 회색).</summary>
+        public void DebugPlayerHealthSetInvulnerable(bool on) { if (playerVitals != null) playerVitals.Invulnerable = on; }
+
+        /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()
         {
             var sb = new StringBuilder();

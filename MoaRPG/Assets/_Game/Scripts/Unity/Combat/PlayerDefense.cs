@@ -19,6 +19,7 @@ namespace Moa.Unity.Combat
         [SerializeField] CombatTuning tuning;
 
         PlayerMotor _motor;
+        PlayerVitals _vitals; // 3-1: Hit이면 피해 (없으면 맞은 수만)
         JustDodge _just;
         bool _scaling; // 이 컴포넌트가 Time.timeScale을 바꿔 둔 상태
 
@@ -39,14 +40,25 @@ namespace Moa.Unity.Combat
         public void Bind(PlayerMotor motor)
         {
             _motor = motor;
+            _vitals = GetComponent<PlayerVitals>();
             if (tuning == null) { Debug.LogError("PlayerDefense: CombatTuning is not assigned"); enabled = false; return; }
             _just = new JustDodge(tuning.ToJustDodgeRules());
         }
 
-        /// <summary>적 공격이 이 스텝에 플레이어에게 닿았다 (범위 검사는 적 쪽). 판정을 돌려준다.</summary>
-        public DodgeJudgement ReceiveEnemyAttack(Vector3 from)
+        /// <summary>적 공격이 이 스텝에 플레이어에게 닿았다 (범위 검사는 적 쪽). 판정을 돌려준다. 피해 없음 (2-3 공격 허수아비 — 저스트 연습용).</summary>
+        public DodgeJudgement ReceiveEnemyAttack(Vector3 from) => ReceiveEnemyAttack(from, 0f, 0f);
+
+        /// <summary>마지막으로 받은 피해 (3-1, 디버그 · 확인용).</summary>
+        public PlayerHit LastHit { get; private set; } = PlayerHit.None(0);
+
+        /// <summary>
+        /// 적 공격이 닿았다 (3-1): 판정이 Hit이면 필드 캐릭터가 attack × multiplier 피해(방어 반영, PlayerVitals). 저스트 · 피함이면 피해 없음.
+        /// 전멸 연출 중에는 판정하지 않고 Avoided.
+        /// </summary>
+        public DodgeJudgement ReceiveEnemyAttack(Vector3 from, float attack, float multiplier)
         {
             if (!Bound) return DodgeJudgement.Hit;
+            if (_vitals != null && _vitals.Wiping) return DodgeJudgement.Avoided;
             bool invulnerable = _motor.Invulnerable;
             float elapsed = _motor.Dodge != null ? _motor.Dodge.Elapsed : 0f;
             // 2-4: 궁극기 무적이면 피하기만 (저스트 보상은 회피 무적일 때만)
@@ -56,6 +68,7 @@ namespace Moa.Unity.Combat
             LastAttackFrom = from;
             LastJudgedAt = transform.position;
             if (j == DodgeJudgement.Just) ApplyTimeScale();
+            if (j == DodgeJudgement.Hit && _vitals != null && attack > 0f && multiplier > 0f) LastHit = _vitals.TakeEnemyHit(from, attack, multiplier);
             Judged?.Invoke(j, transform.position);
             return j;
         }

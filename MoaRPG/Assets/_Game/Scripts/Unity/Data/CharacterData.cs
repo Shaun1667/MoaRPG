@@ -21,12 +21,18 @@ namespace Moa.Unity.Data
         [SerializeField] SkillTuning skills;
         [Tooltip("Character base attack, added to the weapon base attack")]
         [SerializeField] float baseAttack;
+        [Tooltip("Max health (3-1). Only the field character takes hits")]
+        [SerializeField] int maxHealth;
+        [Tooltip("Defense against enemy hits (3-1): damage x (1 - defense / (defense + defense constant))")]
+        [SerializeField] float defense;
 
         public string NameKey => nameKey;
         public Color Color => color;
         public WeaponTuning Weapon => weapon;
         public SkillTuning Skills => skills;
         public float BaseAttack => baseAttack;
+        public int MaxHealth => maxHealth;
+        public float Defense => defense;
         /// <summary>캐릭터 + 무기 공격력.</summary>
         public float TotalAttack => baseAttack + (weapon != null ? weapon.BaseAttack : 0f);
     }

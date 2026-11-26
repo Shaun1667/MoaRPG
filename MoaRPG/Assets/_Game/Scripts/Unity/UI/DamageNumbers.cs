@@ -23,6 +23,8 @@ namespace Moa.Unity.UI
         [SerializeField] Color justDodgeColor;
         [Tooltip("Groggy word when a target breaks (2-3)")]
         [SerializeField] Color groggyColor;
+        [Tooltip("Damage the player took (3-1)")]
+        [SerializeField] Color playerDamageColor;
 
         sealed class Entry
         {
@@ -53,13 +55,22 @@ namespace Moa.Unity.UI
             _canvas = GetComponentInParent<Canvas>();
         }
 
-        public void Show(Vector3 world, int amount, bool blocked)
+        public void Show(Vector3 world, int amount, bool blocked) => ShowNumber(world, amount, blocked ? blockedColor : normalColor);
+
+        /// <summary>플레이어가 받은 피해 (3-1) — 같은 키 ui.combat.damage, 색만 playerDamageColor (무적이면 blockedColor).</summary>
+        public void ShowPlayerDamage(Vector3 world, int amount, bool blocked) => ShowNumber(world, amount, blocked ? blockedColor : playerDamageColor);
+
+        /// <summary>마지막 숫자의 색 (디버그 · 확인용).</summary>
+        public Color LastColor { get; private set; }
+
+        void ShowNumber(Vector3 world, int amount, Color color)
         {
             if (_tuning == null) return;
+            LastColor = color;
             Entry e = Take();
             string s = Text.Get("ui.combat.damage", amount);
             e.Label.text = s;
-            e.Label.color = blocked ? blockedColor : normalColor;
+            e.Label.color = color;
             e.Label.fontSize = _tuning.DamageFontSize;
             e.World = world;
             e.Age = 0f;

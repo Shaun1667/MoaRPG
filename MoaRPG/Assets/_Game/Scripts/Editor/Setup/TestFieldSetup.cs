@@ -39,6 +39,7 @@ namespace Moa.Editor.Setup
         public const string GruntTuningPath = "Assets/_Game/Data/Enemies/Grunt.asset";          // 2-5: 근접 졸병 (EnemyTuning)
         public const string PartyPath = "Assets/_Game/Data/Characters/Party.asset";             // 2-6: 교체 수치 + 시작 파티 (PartyTuning, 캐릭터는 같은 폴더)
         public const string HeroCharacterPath = "Assets/_Game/Data/Characters/SwordHero.asset"; // 2-6: 파티가 없을 때 캐릭터 기본 공격력 (CharacterData)
+        public const string PlayerHealthTuningPath = "Assets/_Game/Data/Player/PlayerHealthTuning.asset"; // 3-1: 피격 · 전멸 · 회복 지점 (PlayerHealthTuning)
 
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
         const string GrayboxFolder = "Assets/_Game/Art/Graybox";
@@ -154,6 +155,25 @@ namespace Moa.Editor.Setup
         static readonly Color PartyActiveColor = new Color(0.95f, 0.85f, 0.55f, 0.55f); // 현재 캐릭터 칸 바탕
         static readonly Color PartyCooldownCover = new Color(0f, 0f, 0f, 0.5f);
 
+        // ---- 표현 표 (3-1 플레이어 체력, 게임 수치 아님) ----
+        static readonly Color PlayerDamageColor = new Color(1.00f, 0.32f, 0.28f);   // 플레이어가 받은 피해 숫자: 빨강 (적에게 준 피해는 노랑)
+        static readonly Color PlayerHitColor = new Color(0.55f, 0.08f, 0.08f);      // 피격 경직 몸: 검붉은색
+        static readonly Color PlayerDownedColor = new Color(0.35f, 0.35f, 0.38f);   // 전멸 중 몸: 회색
+        static readonly Vector2 HealthBarSize = new Vector2(420f, 14f);            // 아래 가운데 체력 막대 (px, 1920×1080 기준)
+        const float HealthBarBottom = 36f, HealthBarBorder = 3f;                   // 화면 아래에서 · 바탕 테두리
+        static readonly Color HealthBackColor = new Color(0f, 0f, 0f, 0.55f);
+        static readonly Color HealthFillColor = new Color(0.45f, 0.88f, 0.40f);    // 초록
+        static readonly Color HealthLowColor = new Color(0.95f, 0.30f, 0.25f);     // 낮으면 빨강
+        const float HealthLowRatio = 0.3f;                                         // 이 비율 이하면 빨강 (표현 값)
+        static readonly Color FadeColor = new Color(0f, 0f, 0f, 1f);               // 전원 쓰러짐 때 화면
+        const float PartyHealthHeight = 6f, PartyHealthInset = 4f;                 // 파티 칸 작은 체력 막대 높이 · 가장자리에서
+        static readonly Color PartyDownedColor = new Color(0.25f, 0.25f, 0.25f, 0.70f); // 쓰러진 칸 바탕
+        static readonly Color PartyDownedTextColor = new Color(0.55f, 0.55f, 0.55f);    // 쓰러진 칸 글 · 색 띠
+        static readonly Color HealPointColor = new Color(0.35f, 0.85f, 0.75f);     // 회복 지점 바닥 원판
+        static readonly Color HealPointActiveColor = new Color(0.60f, 1.00f, 0.90f); // 회복 중
+        const float HealDiscThickness = 0.04f;                                     // 원판 두께 (m)
+        static readonly Vector3 HealStatueSize = new Vector3(0.6f, 2.4f, 0.6f);    // 가운데 기둥 (m, 충돌 없음)
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -192,6 +212,7 @@ namespace Moa.Editor.Setup
             ("AttackDummy", new Vector3(-22.0f, 0.05f, 4.2f)), // 2-3: 공격 허수아비 앞 1.8m (공격 범위 안, 칼이 닿는 거리)
             ("Enemies", new Vector3(-1.0f, 0.05f, 18.0f)),     // 2-5: 적 셋 앞 (가장 가까운 Grunt1까지 12.4m — 감지 거리 밖)
             ("EnemyCover", new Vector3(6.0f, 0.05f, 24.5f)),   // 2-5: 엄폐벽 뒤 (Grunt2 시야선이 막힘)
+            ("HealPoint", new Vector3(5.8f, 0.05f, 2.0f)),     // 3-1: 회복 지점 원 안 (기둥 옆)
         };
 
         // 2-1: 허수아비 배치 (발 위치, 바라보는 방향 도, 2-3: 예고 공격을 하는지) — 새 허수아비 = 줄 하나
@@ -210,6 +231,13 @@ namespace Moa.Editor.Setup
             ("Grunt2", new Vector3(2.0f, 0f, 32.0f), 180f, Vector3.zero),
             ("Grunt3", new Vector3(-1.0f, 0f, 36.0f), 180f, new Vector3(0f, 0f, 3.0f)),
         };
+
+        // 3-1: 회복 지점 배치 (바닥 가운데) — 새 회복 지점 = 줄 하나. 반지름은 PlayerHealthTuning
+        static readonly (string name, Vector3 position)[] HealPoints =
+        {
+            ("HealPoint", new Vector3(5.0f, 0f, 2.0f)),
+        };
+        const string RespawnPointName = "Spawn"; // 3-1: 전원 쓰러진 뒤 되살아나는 자리 = 디버그 지점 Spawn (시작 지점)
 
         [MenuItem(MenuPath)]
         public static void Run()
@@ -252,6 +280,7 @@ namespace Moa.Editor.Setup
             var grunt = LoadOrCreate<EnemyTuning>(GruntTuningPath); // 2-5
             var party = LoadOrCreate<PartyTuning>(PartyPath); // 2-6
             var hero = LoadOrCreate<CharacterData>(HeroCharacterPath); // 2-6: 파티 없이 쓸 때의 캐릭터 공격력
+            var health = LoadOrCreate<PlayerHealthTuning>(PlayerHealthTuningPath); // 3-1
 
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
@@ -266,9 +295,10 @@ namespace Moa.Editor.Setup
             RenderSettings.ambientMode = AmbientMode.Skybox;
 
             BuildLight();
-            BuildEnvironment(mats);
+            var env = BuildEnvironment(mats);
             var points = BuildDebugPoints();
             var player = BuildPlayer(move, stamina, climb, glide, weapon, combat, skills, party, hero, inputAsset, mats);
+            AddPlayerHealth(player, health); // 3-1
             var camera = BuildCamera(cam, player.transform);
             var gauge = BuildHud();
             var poiseBars = PoiseBars.CreateIn(gauge.transform.parent, PoiseBackColor, PoiseFillColor, PoiseGroggyColor, PoiseBarSize, PoiseBarHeight); // 숫자보다 먼저 = 아래에 그린다
@@ -279,9 +309,15 @@ namespace Moa.Editor.Setup
                 SkillSlotColor, SkillPressingColor, SkillCastingColor, SkillCooldownCover, EnergyColor, EnergyFullColor, SkillTextColor, DamageOutlineColor); // 2-4
             var partyHud = PartyHud.CreateIn(gauge.transform.parent, EnsureRing(), PartyRowSize, PartyRowGap, PartyHudMargin, PartySwatchWidth, PartyDotSize,
                 PartyNumberFontSize, PartyNameFontSize, PartySlotColor, PartyActiveColor, PartyCooldownCover, EnergyFullColor, SkillTextColor, DamageOutlineColor); // 2-6
+            PartyHud.AddHealthBars(partyHud, PartySwatchWidth, PartyHealthHeight, PartyHealthInset, HealthBackColor, HealthFillColor, PartyDownedColor, PartyDownedTextColor); // 3-1
+            SetColor(numbers, "playerDamageColor", PlayerDamageColor); // 3-1
+            var healthHud = HealthHud.CreateIn(gauge.transform.parent, HealthBarSize, HealthBarBottom, HealthBarBorder, HealthBackColor, HealthFillColor, HealthLowColor,
+                HealthLowRatio, FadeColor); // 3-1: HUD 마지막 자식 — 검은 판이 맨 위
             var dummies = BuildDummies(dummyTuning, attackTuning, mats);
             var enemies = BuildEnemies(grunt, mats); // 2-5
-            BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies, partyHud);
+            var root = BuildGameRoot(config, player, camera, points, gauge, numbers, dummies, poiseBars, skillHud, enemies, partyHud);
+            var heals = BuildHealingPoints(env, health, mats); // 3-1
+            ConnectHealth(root, player, healthHud, points, heals);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);
@@ -320,7 +356,7 @@ namespace Moa.Editor.Setup
 
         sealed class Materials
         {
-            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings, Dummy, Sword, Hilt, SwordTrail, AttackDummy, Grunt, GruntClub;
+            public readonly Material Ground, Ramp, SteepRamp, Stairs, Wall, Pillar, Player, Nose, Wings, Dummy, Sword, Hilt, SwordTrail, AttackDummy, Grunt, GruntClub, HealPoint;
 
             public Materials()
             {
@@ -342,6 +378,7 @@ namespace Moa.Editor.Setup
                 AttackDummy = Get("AttackDummy", AttackDummyColor, null, Vector2.one);
                 Grunt = Get("Grunt", GruntColor, null, Vector2.one);             // 2-5
                 GruntClub = Get("GruntClub", GruntClubColor, null, Vector2.one);
+                HealPoint = Get("HealPoint", HealPointColor, null, Vector2.one); // 3-1
             }
 
             static Material Get(string name, Color color, Texture tex, Vector2 tiling)
@@ -410,7 +447,7 @@ namespace Moa.Editor.Setup
             go.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         }
 
-        static void BuildEnvironment(Materials mats)
+        static Transform BuildEnvironment(Materials mats)
         {
             var env = new GameObject("Environment").transform;
             Box(env, "Ground", new Vector3(0f, -0.5f, 0f), Quaternion.identity, new Vector3(GroundSize, 1f, GroundSize), mats.Ground);
@@ -444,6 +481,7 @@ namespace Moa.Editor.Setup
 
             foreach (var w in Walls) Box(env, w.name, w.center, Quaternion.identity, w.size, mats.Wall);
             Box(env, Pillar.name, Pillar.center, Quaternion.identity, Pillar.size, mats.Pillar);
+            return env;
         }
 
         static Transform[] BuildDebugPoints()
@@ -761,7 +799,7 @@ namespace Moa.Editor.Setup
             return result;
         }
 
-        static void BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge,
+        static GameRoot BuildGameRoot(GameConfig config, PlayerMotor motor, OrbitCamera camera, Transform[] points, StaminaGauge gauge,
             DamageNumbers numbers, TrainingDummy[] dummies, PoiseBars poiseBars, SkillHud skillHud, EnemyAgent[] enemies, PartyHud partyHud)
         {
             var go = new GameObject("GameRoot");
@@ -788,6 +826,56 @@ namespace Moa.Editor.Setup
             var arr = so.FindProperty("debugTeleportPoints");
             arr.arraySize = points.Length;
             for (int i = 0; i < points.Length; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = points[i];
+            so.ApplyModifiedPropertiesWithoutUndo();
+            return root;
+        }
+
+        /// <summary>3-1: 플레이어 체력(PlayerVitals) + 피격 · 전멸 몸 색.</summary>
+        static void AddPlayerHealth(PlayerMotor motor, PlayerHealthTuning tuning)
+        {
+            var vitals = motor.gameObject.AddComponent<PlayerVitals>();
+            Set(vitals, "tuning", tuning);
+            var feedback = motor.GetComponent<PlayerGrayboxFeedback>();
+            SetColor(feedback, "hitColor", PlayerHitColor);
+            SetColor(feedback, "downedColor", PlayerDownedColor);
+        }
+
+        /// <summary>3-1: 회복 지점 (Environment 아래) — 바닥 원판(반지름 = PlayerHealthTuning) + 가운데 기둥, 둘 다 충돌 없음. 배치는 HealPoints 표.</summary>
+        static HealingPoint[] BuildHealingPoints(Transform env, PlayerHealthTuning tuning, Materials mats)
+        {
+            float r = tuning.HealPointRadius;
+            if (r <= 0f) Debug.LogWarning("TestFieldSetup: PlayerHealthTuning heal point radius is empty - fill it from BALANCE.md and run again");
+            var result = new HealingPoint[HealPoints.Length];
+            for (int i = 0; i < HealPoints.Length; i++)
+            {
+                var go = new GameObject(HealPoints[i].name);
+                go.transform.SetParent(env, false);
+                go.transform.position = HealPoints[i].position;
+                var disc = Primitive(PrimitiveType.Cylinder, go.transform, "Disc", new Vector3(0f, HealDiscThickness * 0.5f, 0f), Quaternion.identity,
+                    new Vector3(r * 2f, HealDiscThickness * 0.5f, r * 2f), mats.HealPoint);
+                Primitive(PrimitiveType.Cube, go.transform, "Statue", new Vector3(0f, HealStatueSize.y * 0.5f, 0f), Quaternion.identity, HealStatueSize, mats.HealPoint);
+                var hp = go.AddComponent<HealingPoint>();
+                Set(hp, "disc", disc.GetComponent<MeshRenderer>());
+                SetColor(hp, "idleColor", HealPointColor);
+                SetColor(hp, "healingColor", HealPointActiveColor);
+                result[i] = hp;
+            }
+            return result;
+        }
+
+        /// <summary>3-1: GameRoot에 체력 · 체력 HUD · 부활 지점(디버그 지점 Spawn) · 회복 지점을 잇는다.</summary>
+        static void ConnectHealth(GameRoot root, PlayerMotor motor, HealthHud healthHud, Transform[] points, HealingPoint[] heals)
+        {
+            var so = new SerializedObject(root);
+            so.FindProperty("playerVitals").objectReferenceValue = motor.GetComponent<PlayerVitals>();
+            so.FindProperty("healthHud").objectReferenceValue = healthHud;
+            Transform respawn = null;
+            foreach (var p in points) if (p != null && p.name == RespawnPointName) respawn = p;
+            if (respawn == null) Debug.LogError("TestFieldSetup: no debug point named " + RespawnPointName + " for the respawn point");
+            so.FindProperty("respawnPoint").objectReferenceValue = respawn;
+            var arr = so.FindProperty("healingPoints");
+            arr.arraySize = heals.Length;
+            for (int i = 0; i < heals.Length; i++) arr.GetArrayElementAtIndex(i).objectReferenceValue = heals[i];
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

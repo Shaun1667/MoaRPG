@@ -113,6 +113,8 @@ namespace Moa.Core.Combat
         Burst,
         /// <summary>캐릭터를 바꿨다 (2-6).</summary>
         Switch,
+        /// <summary>적에게 맞아 경직됐다 · 파티가 전멸했다 (3-1).</summary>
+        Hit,
     }
 
     public enum ComboPhase

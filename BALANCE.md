@@ -17,6 +17,7 @@
 | 10 | `Assets/_Game/Data/Skills/SwordHero.asset` (새 캐릭터 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.SkillTuning` | `Moa.Tests.SkillTuningAssetTests` |
 | 11 | `Assets/_Game/Data/Enemies/Grunt.asset` (새 적 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.EnemyTuning` | `Moa.Tests.EnemyTuningAssetTests` |
 | 12 | `Assets/_Game/Data/Characters/Party.asset` + 캐릭터 에셋 (새 캐릭터 = 이 폴더에 에셋 하나) | `Moa.Unity.Data.PartyTuning` · `CharacterData` | `Moa.Tests.PartyAssetTests` |
+| 13 | `Assets/_Game/Data/Player/PlayerHealthTuning.asset` + 캐릭터 에셋 `maxHealth` · `defense` + 적 에셋 `attack` · `attackMultiplier` | `Moa.Unity.Data.PlayerHealthTuning` · `CharacterData` · `EnemyTuning` | `Moa.Tests.PlayerHealthAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -240,6 +241,25 @@
 - 공격력 = 캐릭터 기본 + 무기 기본(원신 방식, 따로 둔다). 비율 60 : 40 — Sword는 시작 무기라 캐릭터보다 낮게(원신 1~2성 무기 ≈ 캐릭터의 0.7배), 나중 4 · 5성 무기가 더 높아질 여지. 파티가 없으면 PlayerCombat의 character 칸(영웅)의 기본 공격력을 더한다 (결정 2026-11-26, 사용자 "모아 캐릭터 공격력도 따로 두자" · 비율은 정한 것, Claude, 확인 필요)
 - 검산: `PartyTests` · `PartyAssetTests`
 
+## 13. 플레이어 체력 · 쓰러짐 (TASKS 3-1) — 정한 것 (Claude, 2026-11-26, 확인 필요)
+| 칸 | 캐릭터 | 최대 체력 | 방어 (감소율) | Grunt 한 대 | 한 대에 깎이는 % | 쓰러지기까지 |
+|---|---|---|---|---|---|---|
+| 1 | 영웅 `SwordHero` | 1000 | 100 (20%) | 100 | 10.0% | 10대 |
+| 2 | 수호자 `SwordGuardian` | 1300 | 200 (33.3%) | 83 | 6.4% | 16대 |
+| 3 | 떠돌이 `SwordWanderer` | 850 | 80 (16.7%) | 104 | 12.2% | 9대 |
+| 4 | 현자 `SwordSage` | 900 | 100 (20%) | 100 | 11.1% | 9대 |
+- Grunt `Grunt.asset`: attack 100 · attackMultiplier 1.25 → 125 × (1 − 방어 ÷ (방어 + 400)). 영웅 기준 한 대 10%, Grunt 하나(2.2초마다)면 가만히 22초. 수호자가 체력 · 방어 모두 가장 높고, 떠돌이는 공격력이 가장 높은 대신 가장 약하다. 파티 전원은 Grunt 한 마리에 약 44대(약 97초)
+- 공격 허수아비 `AttackingDummy.asset`은 피해 없음(저스트 연습용)
+
+| 항목 (`PlayerHealthTuning.asset`) | 값 | 근거 |
+|---|---|---|
+| hitStunTime · knockbackDistance | 0.30 s (15스텝) · 0.5 m | Grunt 경직과 같은 길이, 땅 위에서만, 회피로 끊김 |
+| wipeFadeOutTime · wipeDarkTime · wipeFadeInTime | 1.0 · 0.6 · 0.8 s | 어두워짐이 끝나는 스텝에 시작 지점(Spawn)으로 옮기고 부활 · 적 제자리 |
+| reviveHealthRatio | 0.5 | 전원 쓰러진 뒤 최대 체력의 절반 |
+| healPointRadius · healPerSecond | 2.5 m · 0.5 (최대 체력 비율/초) | 바닥에서 가득까지 2초, 쓰러진 캐릭터도 부활 |
+- 맞는 것은 필드 캐릭터뿐. 0이 되면 다음 칸부터 돌아 살아 있는 캐릭터로 자동 교체(쿨 무시, 새 쿨 없음), 쓰러진 칸으로는 교체 불가
+- 표현 값(Setup 표): 플레이어 피해 숫자 빨강 (1, .32, .28), 피격 몸 검붉은 (.55, .08, .08), 전멸 몸 회색, 아래 가운데 막대 420×14px(30% 이하면 빨강), 파티 칸 막대 6px · 쓰러지면 회색, 회복 지점 청록 원판(회복 중 밝게)
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
@@ -263,6 +283,7 @@
 - 스킬 · 궁극기: 짧게 26스텝 · 판정 5스텝 · 내딛기 0.4m, 길게 25스텝 뒤 · 42스텝 · 1.5m, 쿨 5초(250스텝) · 8 · 12, 에너지는 한 번에 10/15 · 짧게 4번이면 가득, Q는 가득이어야 · 60스텝 무적 · 회피로 안 끊김 · 궁극기 중 에너지 0, 누르는 중 회피면 쿨 안 씀 → `SkillBurstTests`
 - 적 AI: 순찰 2초 뒤 1.5 m/s, 시야 120° · 10m · 뒤 3m, 사거리 2m에서 70스텝째 닿음 · 다음 110스텝, 예고 중 안 돌고 옆으로 피하면 빗나감(스침 판정), 시야 2초 · 15m · 집 20m 복귀, 복귀 4 m/s · 도착하면 회복, 경직 15스텝 · 예고 중 경직 없음, 그로기 중 정지, 쓰러지고 250스텝 뒤 다시 남 → `EnemyBrainTests` · `EnemyTuningAssetTests`
 - 파티: 교체 쿨 50스텝 · 쿨 중 막힘(Cooldown) · 궁극기 · 낙하로 떨어지는 중 · 활공 중 막힘, 교체하면 콤보 · 강공격 · E 누르는 중 · 착지 경직이 끊김, 대기 캐릭터 스킬 · 궁극기 쿨이 돎, 처치 에너지 현재 5 · 대기 3 · 캐릭터 60 · 60 · 70 · 60 + 무기 40, 파티 없이도 100 → `PartyTests` · `PartyAssetTests`(CharacterAndWeaponAttack_AreSeparate_TotalsAsBefore · PlayerCombat_WithoutParty_AddsCharacterAttack_LikeWithParty)
+- 플레이어 체력: Grunt 100/83/104/100 · 10/6.4/12.2/11.1% · 10/16/9/9대, 경직 15스텝 · 공중이면 없음, 대기 캐릭터 체력 그대로, 쓰러지면 다음 살아 있는 칸(한 바퀴) · 쿨 무시 · 쓰러진 칸 교체 Downed, 전멸 50스텝에 50% 부활 · 120스텝에 끝 · 연출 중 무피해, 회복 지점 한 스텝 10/13 · 2초 가득 · 부활 → `PlayerHealthTests` · `PlayerHealthAssetTests`
 - 10번 값: 136 · 96+160 · 320, 시간은 0.02 배수, 60+30+16 ≥ 100 → `SkillTuningAssetTests`
 
 ## 실험 기록
@@ -277,3 +298,4 @@
 | 2026-11-25 | TestField 코드 주입 플레이 (2-4) | E 짧게 136 둘 · 에너지 +10 한 번 · 쿨 250스텝, E 길게 26스텝째 Hold · 96/160 · +15, 처치 +5, Q 320 셋 · 1.2초 무적 · 회피/점프 무시 · 공격 허수아비 Avoided, 쿨 중 Q 막힘, 궁극기 처치 에너지 0, 공중 E Airborne, 누르는 중 회피 쿨 안 씀 |
 | 2026-11-26 | TestField 코드 주입 플레이 (2-5) | 순찰 1.500 m/s, 9.96m 감지 · 추적 3.500 m/s, 1.95m에서 공격 · 0.6초 뒤 예고 · 0.8초 뒤 닿음 Hit, 0.12초 전 옆 회피 Just, 36 · 36 · 48 · 52 · 68 · 다음 1타 그로기 · 그로기 중 47, 처치 에너지 +5 · 5초 뒤 다시 남, 엄폐 뒤 2.00초 LostSight 복귀 4.000 m/s · 400 → 500, 15m TooFar 복귀 |
 | 2026-11-26 | TestField 코드 주입 플레이 (2-6) | 영웅 E 136 → 2번 교체(콤보 끊김 · 쿨 0.98) · 쿨 중 3번 막힘, 수호자 E 112 · 영웅 에너지 그대로 · 대기 E 쿨 4.98 → 4.02(48스텝), 떠돌이 콤보 40 · 40 · 53 · 57 · 75, 처치 에너지 현재 5 · 대기 3, 뛰는 중 교체 5.5 m/s 그대로, 현자 Q 240, 궁극기 · 활공 · 낙하로 떨어지는 중 막힘, 등반 · 회피 중 교체 |
+| 2026-11-26 | TestField 코드 주입 플레이 (3-1) | Grunt 한 대 영웅 1000 → 900 · 경직 0.30초 · 0.5m 밀려남, 저스트 회피 무피해, 영웅 쓰러짐 → 수호자 자동 교체 · 수호자 83, 전원 쓰러짐 → 1.0초 뒤 Spawn에서 500/650/425/450 · 적 제자리 · 2.4초에 끝, 회복 지점 2초에 가득 · 쓰러진 캐릭터 부활, 무적 0 |

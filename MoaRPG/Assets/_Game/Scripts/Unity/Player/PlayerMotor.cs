@@ -61,6 +61,7 @@ namespace Moa.Unity.Player
 
         PlayerCombat _combat;
         bool _hitPending;
+        PlayerVitals _vitals; // 3-1: 피격 경직 · 전멸 연출 (없으면 체력 없음)
 
         Vector3 _prevPos, _currPos;
         Quaternion _prevRot, _currRot;
@@ -98,6 +99,11 @@ namespace Moa.Unity.Player
         public bool BurstInvulnerable => _combat != null && _combat.BurstInvulnerable;
 
         public PlayerCombat Combat => _combat;
+        /// <summary>적에게 맞아 경직 중 (3-1) — 이동 · 공격 · 점프 입력을 버리고 밀려난다, 회피로 끊긴다.</summary>
+        public bool HitStunned => _vitals != null && _vitals.Stunned;
+        /// <summary>전원 쓰러져 어두워졌다 되살아나는 중 (3-1) — 입력을 모두 버린다.</summary>
+        public bool Wiped => _vitals != null && _vitals.Wiping;
+        public PlayerVitals Vitals => _vitals;
         /// <summary>붙어 있는 벽의 법선 (등반 중일 때만 의미 있음).</summary>
         public Vector3 WallNormal => _wallNormal;
         /// <summary>발 아래 땅까지 높이 (m, 지난 고정 스텝, 땅이 없으면 매우 큼).</summary>
@@ -129,6 +135,7 @@ namespace Moa.Unity.Player
             _climb = new Climb(climbTuning.ToRules());
             _glide = new Glide(glideTuning.ToRules());
             _combat = GetComponent<PlayerCombat>();
+            _vitals = GetComponent<PlayerVitals>();
             _cc.height = tuning.CapsuleHeight;
             _cc.radius = tuning.CapsuleRadius;
             _cc.center = new Vector3(0f, tuning.CapsuleHeight * 0.5f, 0f);
@@ -189,6 +196,7 @@ namespace Moa.Unity.Player
         {
             if (_input == null || tuning == null || _stamina == null) return;
             float dt = Time.fixedDeltaTime;
+            if (_vitals != null) _vitals.Step(dt); // 3-1: 경직 · 전멸 연출 (부활하면 이 안에서 부활 지점으로 옮겨진다)
             Vector3 before = transform.position;
 
             Vector2 move = _input.Move;
@@ -196,7 +204,7 @@ namespace Moa.Unity.Player
             Planar wish = MoveMath.CameraRelative(move.x, move.y, camYaw);
 
             _heightAboveGround = MeasureHeight();
-            if (!_climb.Active && !_dodge.Active && !Attacking && !Plunging) TryAttachWall(wish); // 공격 · 낙하 중에는 벽에 안 붙는다
+            if (!_climb.Active && !_dodge.Active && !Attacking && !Plunging && !HitStunned && !Wiped) TryAttachWall(wish); // 공격 · 낙하 중에는 벽에 안 붙는다
 
             // 등반 중에는 회복하지 않는다 (움직이지 않고 매달려 있어도, 1-3)
             bool climbStep = _climb.Active;
@@ -221,21 +229,26 @@ namespace Moa.Unity.Player
         void StepFree(Planar wish, float dt)
         {
             bool grounded = _grounded;
+            // 3-1: 피격 경직 · 전멸 연출 중에는 이동 입력을 버린다 (경직은 회피로 끊을 수 있다)
+            bool wiping = Wiped;
+            Planar dodgeWish = wish; // 경직 중 회피는 입력 방향으로
+            if (HitStunned || wiping) wish = Planar.Zero;
             float wishLen = wish.Length;
 
             // 회피 (1-2): 입력 방향, 없으면 캐릭터 앞. 시작 조건(쿨 · 공중 · 스태미나)은 Core Dodge
-            if (_input.ConsumeDodge() && !Bursting && _dodge.TryStart(_stamina, grounded)) // 궁극기 중 회피는 버린다 (2-4)
+            if (_input.ConsumeDodge() && !Bursting && !wiping && _dodge.TryStart(_stamina, grounded)) // 궁극기 중 회피는 버린다 (2-4)
             {
                 if (_combat != null) _combat.Interrupt(AttackEnd.Dodge); // 회피가 공격을 끊는다 (2-1, 원신 방식)
+                if (HitStunned) _vitals.EndStun(); // 회피가 피격 경직도 끊는다 (3-1)
                 float r = _yaw * Mathf.Deg2Rad;
-                _dodgeDir = wishLen > 0f ? wish.Normalized : new Planar(Mathf.Sin(r), Mathf.Cos(r));
+                _dodgeDir = dodgeWish.Length > 0f ? dodgeWish.Normalized : new Planar(Mathf.Sin(r), Mathf.Cos(r));
                 _yaw = MoveMath.YawOf(_dodgeDir);
             }
             bool dodging = _dodge.Active;
             float dashTime = _dodge.Advance(dt);
 
             // 점프: 땅 위면 점프, 공중이면 활공 펴기 · 접기 (1-3). 낙하 중에는 버린다 (2-2)
-            bool jumpPressed = _input.ConsumeJump() && !dodging && !PlungeFalling && !Bursting; // 궁극기 중에도 버린다 (2-4)
+            bool jumpPressed = _input.ConsumeJump() && !dodging && !PlungeFalling && !Bursting && !HitStunned && !wiping; // 3-1: 경직 · 전멸 중에도 // 궁극기 중에도 버린다 (2-4)
             if (jumpPressed && grounded && (Attacking || Plunging)) _combat.Interrupt(AttackEnd.Jump); // 점프도 공격 · 착지 경직을 끊는다 (2-1 · 2-2)
             if (jumpPressed && !grounded)
             {
@@ -275,6 +288,12 @@ namespace Moa.Unity.Player
             if (dodging)
             {
                 _planar = _dodgeDir * (_dodge.Rules.Speed * (dashTime / dt));
+            }
+            else if (HitStunned)
+            {
+                // 피격 경직 (3-1): 공격한 쪽 반대로 같은 빠르기로 밀려난다 (거리 = knockbackDistance), 몸은 안 돈다
+                Vector3 k = _vitals.KnockbackVelocity;
+                _planar = new Planar(k.x, k.z);
             }
             else if (plunging)
             {

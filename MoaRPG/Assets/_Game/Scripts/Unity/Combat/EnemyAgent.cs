@@ -148,7 +148,7 @@ namespace Moa.Unity.Combat
             // 맞는 자리면 판정, 예고 중 그 자리에 있다 회피로 빠져나갔으면 무적일 때만 판정(저스트 · 피함)
             if (!t.AttackHits && !(t.AttackGrazed && _target.Invulnerable)) return;
             JudgedCount++;
-            LastJudgement = _target.ReceiveEnemyAttack(transform.position);
+            LastJudgement = _target.ReceiveEnemyAttack(transform.position, tuning.Attack, tuning.AttackMultiplier); // 3-1: Hit이면 필드 캐릭터 피해
         }
 
         /// <summary>이번 스텝에 본 것: 플레이어 발 · 높이 차 · 눈에서 플레이어 가슴까지 시야선.</summary>

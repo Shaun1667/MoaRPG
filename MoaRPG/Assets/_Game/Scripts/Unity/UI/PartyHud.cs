@@ -29,8 +29,16 @@ namespace Moa.Unity.UI
         [SerializeField] UiText[] cooldownTexts = new UiText[0];
         [SerializeField] Color slotColor;
         [SerializeField] Color activeColor;
+        [Header("Health (3-1)")]
+        [SerializeField] Image[] healthFills = new Image[0];
+        [Tooltip("Slot background of a downed character")]
+        [SerializeField] Color downedColor;
+        [Tooltip("Number, name and color strip of a downed character")]
+        [SerializeField] Color downedTextColor;
 
         PlayerCombat _combat;
+        PlayerVitals _vitals;
+        Color _textColor = Color.white;
         readonly string[] _cooldownShown = new string[Slots];
         readonly int[] _state = { -1, -1, -1, -1 };
         int _shownCount = -1;
@@ -41,10 +49,16 @@ namespace Moa.Unity.UI
         public string NameShown(int i) => i >= 0 && i < names.Length && names[i] != null ? names[i].text : null;
         public float CooldownShown(int i) => i >= 0 && i < cooldowns.Length && cooldowns[i] != null ? cooldowns[i].fillAmount : 0f;
         public bool BurstReadyShown(int i) => i >= 0 && i < burstReady.Length && burstReady[i] != null && burstReady[i].enabled;
+        /// <summary>3-1: 칸의 체력 막대 비율 · 쓰러짐(회색) 표시.</summary>
+        public float HealthShown(int i) => i >= 0 && i < _healthShown.Length ? _healthShown[i] : 0f;
+        public bool DownedShown(int i) => i >= 0 && i < Slots && (_state[i] & 4) != 0;
+        readonly float[] _healthShown = new float[Slots];
 
         public void Bind(PlayerCombat combat, Font font)
         {
             _combat = combat;
+            _vitals = combat != null ? combat.GetComponent<PlayerVitals>() : null; // 3-1
+            if (names.Length > 0 && names[0] != null) _textColor = names[0].color;
             foreach (var arr in new[] { numbers, names, cooldownTexts })
                 foreach (var t in arr) if (t != null && font != null) t.font = font;
             RefreshLabels();
@@ -62,6 +76,7 @@ namespace Moa.Unity.UI
                 if (i < names.Length && names[i] != null) names[i].text = c != null && !string.IsNullOrEmpty(c.NameKey) ? Text.Get(c.NameKey) : "";
                 if (i < swatches.Length && swatches[i] != null && c != null) swatches[i].color = c.Color;
                 _cooldownShown[i] = null;
+                _state[i] = -1; // 색 띠 · 글 색을 다시 (3-1 쓰러짐 회색)
             }
         }
 
@@ -87,11 +102,21 @@ namespace Moa.Unity.UI
                 bool isActive = i == active;
                 PlayerAttack a = party.Member(i);
                 bool ready = a.Energy.Full && a.Burst.Ready && a.Burst.Rules.SlashCount > 0;
-                int state = (isActive ? 1 : 0) | (ready ? 2 : 0);
+                var pv = _vitals != null ? _vitals.Vitals : null; // 3-1: 체력 막대 · 쓰러지면 회색
+                bool downed = pv != null && i < pv.Count && pv.IsDowned(i);
+                float hp = pv != null && i < pv.Count ? pv.Member(i).Ratio : 0f;
+                _healthShown[i] = hp;
+                if (i < healthFills.Length) HealthHud.SetFill(healthFills[i], hp);
+                int state = (isActive ? 1 : 0) | (ready ? 2 : 0) | (downed ? 4 : 0);
                 if (state != _state[i])
                 {
                     _state[i] = state;
-                    if (i < backs.Length && backs[i] != null) backs[i].color = isActive ? activeColor : slotColor;
+                    if (i < backs.Length && backs[i] != null) backs[i].color = downed ? downedColor : isActive ? activeColor : slotColor;
+                    Color text = downed ? downedTextColor : _textColor;
+                    if (i < numbers.Length && numbers[i] != null) numbers[i].color = text;
+                    if (i < names.Length && names[i] != null) names[i].color = text;
+                    CharacterData cd = _combat.GetCharacter(i);
+                    if (i < swatches.Length && swatches[i] != null && cd != null) swatches[i].color = downed ? downedTextColor : cd.Color;
                     if (i < burstReady.Length && burstReady[i] != null) burstReady[i].enabled = ready;
                 }
                 float cover = isActive ? 0f : ratio;
@@ -172,6 +197,26 @@ namespace Moa.Unity.UI
             hud.slotColor = slot;
             hud.activeColor = active;
             return hud;
+        }
+
+        /// <summary>
+        /// 3-1: 칸마다 아래쪽에 작은 체력 막대를 더한다 (Setup 메뉴가 CreateIn 뒤에 부른다). height = 막대 높이, inset = 칸 가장자리에서 떼는 폭 (px).
+        /// 쓰러진 칸은 바탕 downed · 글 · 색 띠 downedText.
+        /// </summary>
+        public static void AddHealthBars(PartyHud hud, float swatchWidth, float height, float inset, Color back, Color fill, Color downed, Color downedText)
+        {
+            hud.healthFills = new Image[Slots];
+            for (int i = 0; i < Slots && i < hud.rows.Length; i++)
+            {
+                var r = (RectTransform)hud.rows[i].transform;
+                float width = r.sizeDelta.x - swatchWidth - inset * 2f;
+                Box(r, "HealthBack", new Vector2(swatchWidth + inset, inset), new Vector2(width, height), back, null);
+                var f = Box(r, "HealthFill", new Vector2(swatchWidth + inset, inset), new Vector2(width, height), fill, null);
+                f.gameObject.AddComponent<LayoutElement>().preferredWidth = width; // 가득 찬 너비 (HealthHud.SetFill)
+                hud.healthFills[i] = f;
+            }
+            hud.downedColor = downed;
+            hud.downedTextColor = downedText;
         }
 
         static Image Box(RectTransform parent, string name, Vector2 pos, Vector2 size, Color color, Sprite sprite)

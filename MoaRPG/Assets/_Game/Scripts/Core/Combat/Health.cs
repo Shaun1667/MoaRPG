@@ -38,5 +38,22 @@ namespace Moa.Core.Combat
 
         /// <summary>[상태 변경] 가득 채운다 (죽어 있어도 되살린다).</summary>
         public void Restore() => Current = Max;
+
+        /// <summary>살아 있으면 amount만큼 채운다 (최대까지). 실제로 찬 양 (3-1).</summary>
+        public int Heal(int amount)
+        {
+            if (IsDead || amount <= 0) return 0;
+            int room = Max - Current;
+            int applied = amount < room ? amount : room;
+            Current += applied;
+            return applied;
+        }
+
+        /// <summary>쓰러져 있으면 value(1 ~ 최대)로 되살린다 (3-1). 살아 있으면 그대로.</summary>
+        public void Revive(int value)
+        {
+            if (!IsDead) return;
+            Current = value < 1 ? 1 : value > Max ? Max : value;
+        }
     }
 }

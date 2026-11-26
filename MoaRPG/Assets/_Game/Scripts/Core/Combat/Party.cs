@@ -29,6 +29,8 @@ namespace Moa.Core.Combat
         /// <summary>낙하 공격으로 떨어지는 중.</summary>
         Plunge,
         Gliding,
+        /// <summary>그 칸 캐릭터가 쓰러져 있다 (3-1).</summary>
+        Downed,
     }
 
     /// <summary>
@@ -44,6 +46,7 @@ namespace Moa.Core.Combat
     {
         const float Epsilon = 1e-5f;
         readonly PlayerAttack[] _members;
+        bool[] _downed = new bool[0]; // 3-1: 쓰러진 칸 (PartyVitals가 정한다)
 
         /// <summary>members: 칸 순서대로 (null 칸 없이, 1명 이상). 처음 현재 캐릭터는 0번.</summary>
         public Party(PartyRules rules, PlayerAttack[] members)
@@ -53,6 +56,7 @@ namespace Moa.Core.Combat
             for (int i = 0; i < _members.Length; i++)
                 if (_members[i] == null) throw new System.ArgumentException("party member " + i + " is null");
             if (_members.Length == 0) throw new System.ArgumentException("party needs at least one member");
+            _downed = new bool[_members.Length];
         }
 
         public PartyRules Rules { get; }
@@ -74,6 +78,7 @@ namespace Moa.Core.Combat
         {
             if (index < 0 || index >= _members.Length) return SwitchBlock.NoMember;
             if (index == ActiveIndex) return SwitchBlock.SameMember;
+            if (_downed[index]) return SwitchBlock.Downed;
             if (Active.Burst.Active) return SwitchBlock.Burst;
             if (Active.Plunge.Falling) return SwitchBlock.Plunge;
             if (gliding) return SwitchBlock.Gliding;
@@ -121,6 +126,32 @@ namespace Moa.Core.Combat
             for (int i = 0; i < _members.Length; i++)
                 if (i != ActiveIndex) bench += _members[i].GainEnergy(share);
             return active;
+        }
+
+        /// <summary>그 칸이 쓰러져 있는지 (3-1).</summary>
+        public bool IsDowned(int index) => index >= 0 && index < _downed.Length && _downed[index];
+
+        /// <summary>쓰러짐 표시 (3-1, PartyVitals가 부른다). 쓰러진 칸으로는 교체할 수 없다(SwitchBlock.Downed).</summary>
+        public void SetDowned(int index, bool downed)
+        {
+            if (index >= 0 && index < _downed.Length) _downed[index] = downed;
+        }
+
+        /// <summary>
+        /// 강제 교체 (3-1): 필드 캐릭터가 쓰러졌을 때 다음 캐릭터로. 교체 쿨 · 궁극기 · 낙하 · 활공 막힘을 보지 않고,
+        /// 새 쿨도 시작하지 않는다(남은 쿨은 그대로 돈다). 지금 캐릭터의 공격은 끊는다. 바뀌었으면 true.
+        /// </summary>
+        public bool ForceSwitch(int index)
+        {
+            if (index < 0 || index >= _members.Length || index == ActiveIndex) return false;
+            LastInterrupted = Active.Mode;
+            Active.Interrupt(AttackEnd.Switch);
+            LastFrom = ActiveIndex;
+            ActiveIndex = index;
+            Active.Cancel();
+            SwitchCount++;
+            LastBlock = SwitchBlock.None;
+            return true;
         }
 
         /// <summary>[상태 변경] 교체 쿨을 없앤다.</summary>

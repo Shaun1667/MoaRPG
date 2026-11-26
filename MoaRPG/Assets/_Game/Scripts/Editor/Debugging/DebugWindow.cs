@@ -24,6 +24,7 @@ namespace Moa.Editor.Debugging
             new SkillSection(),
             new EnemySection(),
             new PartySection(),
+            new PlayerHealthSection(),
         };
 
         bool[] _open;

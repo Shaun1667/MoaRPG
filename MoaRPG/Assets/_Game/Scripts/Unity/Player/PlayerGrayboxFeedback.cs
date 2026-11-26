@@ -30,6 +30,10 @@ namespace Moa.Unity.Player
         [SerializeField] Color skillColor;
         [Tooltip("Burst (Q), invulnerable (2-4)")]
         [SerializeField] Color burstColor;
+        [Tooltip("Hit stun after an enemy hit (3-1)")]
+        [SerializeField] Color hitColor;
+        [Tooltip("Everyone down, while the screen is dark (3-1)")]
+        [SerializeField] Color downedColor;
 
         [Tooltip("Glider visual, shown only while gliding (1-3)")]
         [SerializeField] GameObject wings;
@@ -59,7 +63,8 @@ namespace Moa.Unity.Player
             if (_motor == null) return;
             if (wings != null && wings.activeSelf != _motor.Gliding) wings.SetActive(_motor.Gliding);
             if (body == null) return;
-            int state = _motor.Invulnerable ? 4 : _motor.Bursting ? 11 : _motor.Dodging ? 3 : _motor.SkillActive ? 10 : _motor.Plunging ? 9 : _motor.ChargedAttacking ? 8 : _motor.Attacking ? 7 : _motor.Climbing ? 5 : _motor.Gliding ? 6
+            // 3-1: 전멸 13 > 회피 무적 > 궁극기 > 피격 경직 12 > 회피 > …
+            int state = _motor.Wiped ? 13 : _motor.Invulnerable ? 4 : _motor.Bursting ? 11 : _motor.HitStunned ? 12 : _motor.Dodging ? 3 : _motor.SkillActive ? 10 : _motor.Plunging ? 9 : _motor.ChargedAttacking ? 8 : _motor.Attacking ? 7 : _motor.Climbing ? 5 : _motor.Gliding ? 6
                 : _motor.Exhausted ? 2 : _motor.Sprinting ? 1 : 0;
             var character = _motor.Combat != null ? _motor.Combat.ActiveCharacter : null;
             if (character != _shownCharacter) { _shownCharacter = character; _shown = -1; } // 2-6: 교체하면 색을 다시
@@ -73,7 +78,7 @@ namespace Moa.Unity.Player
                 body.SetPropertyBlock(_block);
                 return;
             }
-            Color c = state == 4 ? invulnerableColor : state == 11 ? burstColor : state == 10 ? skillColor : state == 3 ? dodgeColor : state == 9 ? plungeColor : state == 8 ? chargedColor : state == 7 ? attackColor : state == 5 ? climbColor : state == 6 ? glideColor
+            Color c = state == 13 ? downedColor : state == 12 ? hitColor : state == 4 ? invulnerableColor : state == 11 ? burstColor : state == 10 ? skillColor : state == 3 ? dodgeColor : state == 9 ? plungeColor : state == 8 ? chargedColor : state == 7 ? attackColor : state == 5 ? climbColor : state == 6 ? glideColor
                 : state == 2 ? exhaustedColor : sprintColor;
             body.GetPropertyBlock(_block);
             _block.SetColor(BaseColorId, c);

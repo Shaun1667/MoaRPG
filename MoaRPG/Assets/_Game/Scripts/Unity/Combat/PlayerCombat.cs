@@ -39,6 +39,8 @@ namespace Moa.Unity.Combat
         IPlayerInput _input;
         PlayerAttack _attack;
         PlayerDefense _defense; // 2-3: 저스트 회피 반격 보너스 (없으면 ×1)
+        PlayerVitals _vitals;   // 3-1: 피격 경직 · 전멸 연출 중에는 입력을 버린다
+        int _appliedIndex;      // 3-1: ApplyActive를 마지막으로 한 칸 (쓰러져 강제 교체됐는지 SyncActive가 본다)
         EntityId _id;
         float _attackScale = 1f; // 디버그 공격력 배수 (1 = 그대로)
 
@@ -128,6 +130,7 @@ namespace Moa.Unity.Combat
             _input = input;
             if (tuning == null) { Debug.LogError("PlayerCombat: CombatTuning is not assigned"); enabled = false; return; }
             _defense = GetComponent<PlayerDefense>();
+            _vitals = GetComponent<PlayerVitals>();
 
             if (party != null && party.MemberCount > 0)
             {
@@ -178,6 +181,23 @@ namespace Moa.Unity.Combat
             _weapon = c.Weapon != null ? c.Weapon : weapon;
             _skills = c.Skills;
             _baseAttack = c.BaseAttack;
+            _appliedIndex = _party.ActiveIndex;
+        }
+
+        /// <summary>파티가 없을 때의 캐릭터 (character 칸, 3-1 체력 · 방어용).</summary>
+        public CharacterData SoloCharacter => character;
+
+        /// <summary>
+        /// 파티의 현재 칸이 바깥에서 바뀌었으면(3-1: 필드 캐릭터가 쓰러져 강제 교체) 무기 · 스킬 · 공격력을 맞추고 Switched를 알린다.
+        /// 바뀌었으면 true.
+        /// </summary>
+        public bool SyncActive()
+        {
+            if (_party == null || _party.ActiveIndex == _appliedIndex) return false;
+            int from = _appliedIndex;
+            ApplyActive();
+            Switched?.Invoke(from, _party.ActiveIndex);
+            return true;
         }
 
         public void SetId(EntityId id) => _id = id;
@@ -187,12 +207,14 @@ namespace Moa.Unity.Combat
         public AttackTick Step(AttackContext ctx, Stamina stamina, float dt)
         {
             if (!Bound) return default;
+            // 3-1: 피격 경직 · 전멸 연출 중에는 교체 · 공격 · 스킬 · 궁극기 입력을 버린다 (쿨은 그대로 돈다)
+            bool blocked = _vitals != null && _vitals.InputBlocked;
             int slot = _input.ConsumeSwitch();
-            if (slot > 0 && _party != null) TrySwitch(slot - 1, ctx.Gliding);
-            bool pressed = _input.ConsumeAttack();
-            bool skill = _input.ConsumeSkill();
-            bool burst = _input.ConsumeBurst();
-            AttackTick tick = _attack.Step(new AttackInput(pressed, _input.AttackHeld, skill, _input.SkillHeld, burst), ctx, stamina, dt);
+            if (slot > 0 && _party != null && !blocked) TrySwitch(slot - 1, ctx.Gliding);
+            bool pressed = _input.ConsumeAttack() && !blocked;
+            bool skill = _input.ConsumeSkill() && !blocked;
+            bool burst = _input.ConsumeBurst() && !blocked;
+            AttackTick tick = _attack.Step(new AttackInput(pressed, _input.AttackHeld && !blocked, skill, _input.SkillHeld && !blocked, burst), ctx, stamina, dt);
             if (tick.BurstStarted && _skills != null) BurstCast?.Invoke(transform.position, _skills.BurstHitRange);
             _party?.Advance(dt);
             return tick;
