@@ -237,6 +237,26 @@ namespace Moa.Core.Growth
             if (expItems > 0) Wallet.Add(Currency.AdventureExp, expItems);
         }
 
+        /// <summary>처치 보상 (3-7: + 소원석). 소원석이 0이면 3-5와 같다.</summary>
+        public void AddReward(int gold, int expItems, int wishes)
+        {
+            LastRewardWishes = wishes > 0 ? wishes : 0;
+            AddReward(gold, expItems);
+            if (wishes > 0) Wallet.Add(Currency.Wish, wishes);
+        }
+
+        public int LastRewardWishes { get; private set; }
+
+        /// <summary>무기 재련을 정한다 (3-7: 가챠 중복이 올린 수를 그 무기를 든 칸에 — 효과는 아직 없음). 1 미만이면 1. 바뀌면 Changed.</summary>
+        public void SetRefinement(int index, int refinement)
+        {
+            if (!Has(index)) return;
+            int v = refinement < 1 ? 1 : refinement;
+            if (_members[index].Refinement == v) return;
+            _members[index].Refinement = v;
+            Changed?.Invoke(index);
+        }
+
         // ---- 디버그 ----
 
         /// <summary>[상태 변경] 캐릭터 레벨을 정한다 (경험치 0, 돌파는 그 레벨을 가질 수 있는 가장 낮은 단계 — 상한 레벨이면 아직 돌파 전).</summary>

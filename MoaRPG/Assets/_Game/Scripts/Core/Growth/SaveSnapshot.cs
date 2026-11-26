@@ -14,6 +14,40 @@ namespace Moa.Core.Growth
         public MemberSave[] characters = new MemberSave[0];
         /// <summary>3-6 (형식 2부터): 월드 진행 — 순간이동 지점 · 상자 · 퍼즐. 형식 1 파일은 <see cref="SaveFormat.Upgrade"/>가 빈 것으로 채운다.</summary>
         public WorldSave world = new WorldSave();
+        /// <summary>3-7 (형식 3부터): 가챠 — 난수 상태 · 배너 종류별 천장 · 보유 캐릭터 · 무기 (Core GachaAccount). 형식 2 이하 파일은 <see cref="SaveFormat.Upgrade"/>가 빈 것으로 채운다.</summary>
+        public GachaSave gacha = new GachaSave();
+    }
+
+    /// <summary>가챠 기록 (3-7): 난수 상태(빈 값 = 판 시드의 가챠 스트림 그대로) · 배너 종류마다 천장 · 보유한 것.</summary>
+    [Serializable]
+    public sealed class GachaSave
+    {
+        /// <summary>SeededRandom.State (10진 글 — 64비트를 그대로 남기려고).</summary>
+        public string rng = "";
+        public PitySave[] pity = new PitySave[0];
+        public OwnedSave[] owned = new OwnedSave[0];
+    }
+
+    /// <summary>배너 종류 하나의 천장 (BannerKind 이름).</summary>
+    [Serializable]
+    public sealed class PitySave
+    {
+        public string kind;
+        public int sinceFive;
+        public int sinceFour;
+        public bool guaranteed;
+        public int pulls;
+        public int fives;
+        public int fours;
+    }
+
+    /// <summary>보유한 캐릭터 · 무기 하나 (GachaItemKind 이름). copies = 장 수 — 캐릭터 각성 = copies − 1, 무기 재련 = copies.</summary>
+    [Serializable]
+    public sealed class OwnedSave
+    {
+        public string id;
+        public string kind;
+        public int copies;
     }
 
     /// <summary>월드 진행 (3-6): 활성화한 순간이동 지점 · 연 상자 · 푼 퍼즐의 id (Core WorldProgress). 압력판 하나하나는 저장하지 않는다.</summary>
@@ -54,7 +88,7 @@ namespace Moa.Core.Growth
     public static class SaveFormat
     {
         /// <summary>지금 형식 번호. 1 = 3-5 (재화 · 캐릭터), 2 = 3-6 (+ world).</summary>
-        public const int Version = 2;
+        public const int Version = 3;
 
         /// <summary>
         /// 옛 형식을 지금 형식으로 옮긴다 (읽은 직후, Validate 전에). 옮겼으면 원래 형식 번호, 옮길 것이 없으면(지금 형식 · 모르는 번호 · null) 0.
@@ -69,6 +103,11 @@ namespace Moa.Core.Growth
                 if (s.world == null) s.world = new WorldSave();
                 s.version = 2;
             }
+            if (s.version == 2)
+            {
+                if (s.gacha == null) s.gacha = new GachaSave();
+                s.version = 3;
+            }
             return from;
         }
 
@@ -80,6 +119,7 @@ namespace Moa.Core.Growth
             if (s.version > Version) { reason = "version " + s.version + " is newer than " + Version; return false; }
             if (s.wallet == null || s.characters == null) { reason = "missing arrays"; return false; }
             if (s.version >= 2 && (s.world == null || s.world.waypoints == null || s.world.chests == null || s.world.puzzles == null)) { reason = "missing world"; return false; }
+            if (s.version >= 3 && (s.gacha == null || s.gacha.pity == null || s.gacha.owned == null)) { reason = "missing gacha"; return false; }
             foreach (var m in s.characters)
                 if (m == null || string.IsNullOrEmpty(m.id)) { reason = "character without id"; return false; }
             reason = null;

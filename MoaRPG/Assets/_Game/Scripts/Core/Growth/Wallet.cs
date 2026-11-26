@@ -10,6 +10,8 @@ namespace Moa.Core.Growth
     {
         Gold = 0,
         AdventureExp = 1,
+        /// <summary>3-7: 소원석 — 가챠 1회 비용 (BannerData.cost). 게임 안에서만 얻는다(상자 · 처치 · 디버그), 실제 결제 없음.</summary>
+        Wish = 2,
     }
 
     /// <summary>재화 지갑 (3-5) — 개수만 든다. 바뀔 때마다 <see cref="Changed"/>.</summary>

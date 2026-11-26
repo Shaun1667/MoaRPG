@@ -68,6 +68,9 @@ namespace Moa.Unity.Player
         /// </summary>
         bool ConsumeMap();
 
+        /// <summary>눌린 가챠 화면 열기/닫기를 한 번 꺼낸다 (3-7, 화면이 Update에서). 메뉴가 열려 있으면 ESC도. 입력 에셋에 Gacha가 없으면 주입만.</summary>
+        bool ConsumeGacha();
+
 
         // ---- 디버그 주입 ----
         bool DebugOverriding { get; }
@@ -93,6 +96,8 @@ namespace Moa.Unity.Player
         void DebugPressCharacterMenu();
         /// <summary>지도 화면 키를 누른다 (3-6).</summary>
         void DebugPressMap();
+        /// <summary>가챠 화면 키를 누른다 (3-7).</summary>
+        void DebugPressGacha();
 
         void DebugClear();
     }

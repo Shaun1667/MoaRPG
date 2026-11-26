@@ -73,6 +73,8 @@ namespace Moa.Unity.Data
         [SerializeField] int goldOnDefeat;
         [Tooltip("Exp material (Adventure EXP) the player gains when this enemy is defeated (3-5)")]
         [SerializeField] int expItemsOnDefeat;
+        [Tooltip("Wish stones (gacha) the player gains when this enemy is defeated (3-7)")]
+        [SerializeField] int wishesOnDefeat;
         [Tooltip("m, capsule height (feet to top)")]
         [SerializeField] float capsuleHeight;
         [Tooltip("m, capsule radius")]
@@ -147,6 +149,7 @@ namespace Moa.Unity.Data
         public float EnergyOnDefeat => energyOnDefeat;
         public int GoldOnDefeat => goldOnDefeat;
         public int ExpItemsOnDefeat => expItemsOnDefeat;
+        public int WishesOnDefeat => wishesOnDefeat;
         public float CapsuleHeight => capsuleHeight;
         public float CapsuleRadius => capsuleRadius;
         public float EyeHeight => eyeHeight;

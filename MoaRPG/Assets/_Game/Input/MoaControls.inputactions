@@ -195,6 +195,16 @@
                     "interactions": "",
                     "initialStateCheck": false,
                     "priority": 0
+                },
+                {
+                    "name": "Gacha",
+                    "type": "Button",
+                    "id": "c47e9a12-6b3d-4f58-a1e9-0d2b7c5f8e31",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false,
+                    "priority": 0
                 }
             ],
             "bindings": [
@@ -657,6 +667,17 @@
                     "processors": "",
                     "groups": "",
                     "action": "Map",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "e83b1d6f-2a94-4c07-b5e8-9f1c3a7d2b46",
+                    "path": "<Keyboard>/g",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Gacha",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

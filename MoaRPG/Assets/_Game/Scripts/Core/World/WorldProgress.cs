@@ -16,11 +16,16 @@ namespace Moa.Core.World
     {
         public readonly int Gold;
         public readonly int ExpItems;
+        /// <summary>3-7: 소원석 (Currency.Wish).</summary>
+        public readonly int Wishes;
 
-        public ChestReward(int gold, int expItems)
+        public ChestReward(int gold, int expItems) : this(gold, expItems, 0) { }
+
+        public ChestReward(int gold, int expItems, int wishes)
         {
             Gold = gold;
             ExpItems = expItems;
+            Wishes = wishes;
         }
     }
 
@@ -219,6 +224,7 @@ namespace Moa.Core.World
             {
                 if (r.Gold > 0) _wallet.Add(Currency.Gold, r.Gold);
                 if (r.ExpItems > 0) _wallet.Add(Currency.AdventureExp, r.ExpItems);
+                if (r.Wishes > 0) _wallet.Add(Currency.Wish, r.Wishes); // 3-7
             }
             ChestOpened?.Invoke(id, r);
             Changed?.Invoke();

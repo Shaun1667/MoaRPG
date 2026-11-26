@@ -299,11 +299,11 @@ namespace Moa.Tests
         [Test]
         public void SaveFormat_Upgrade_1To2_AddsEmptyWorld()
         {
-            Assert.That(SaveFormat.Version, Is.EqualTo(2));
+            Assert.That(SaveFormat.Version, Is.GreaterThanOrEqualTo(2)); // 3-7: 형식 3 — 1은 지금 형식까지 한 번에 옮겨진다
             var old = new SaveSnapshot { version = 1, world = null, wallet = new[] { new CurrencySave { id = "Gold", amount = 77 } } };
             Assert.That(SaveFormat.Validate(old, out _), Is.True, "format 1 does not need world");
             Assert.That(SaveFormat.Upgrade(old), Is.EqualTo(1));
-            Assert.That(old.version, Is.EqualTo(2));
+            Assert.That(old.version, Is.EqualTo(SaveFormat.Version));
             Assert.That(old.world, Is.Not.Null);
             Assert.That(old.world.waypoints.Length + old.world.chests.Length + old.world.puzzles.Length, Is.EqualTo(0));
             Assert.That(old.wallet[0].amount, Is.EqualTo(77), "growth untouched");

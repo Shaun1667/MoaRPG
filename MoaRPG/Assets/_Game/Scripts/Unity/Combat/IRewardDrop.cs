@@ -9,5 +9,7 @@ namespace Moa.Unity.Combat
     {
         int GoldOnDefeat { get; }
         int ExpItemsOnDefeat { get; }
+        /// <summary>3-7: 소원석 (EnemyTuning wishesOnDefeat).</summary>
+        int WishesOnDefeat { get; }
     }
 }

@@ -18,6 +18,7 @@ MonoBehaviour:
   energyOnDefeat: 10
   goldOnDefeat: 500
   expItemsOnDefeat: 5
+  wishesOnDefeat: 1
   capsuleHeight: 2.6
   capsuleRadius: 0.75
   eyeHeight: 2

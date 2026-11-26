@@ -137,7 +137,7 @@ namespace Moa.Tests
                 next.world = w.ToSave();
                 Assert.That(store.Save(next), Is.True, store.LastError);
                 string text = File.ReadAllText(path);
-                Assert.That(text, Does.Contain("\"version\": 2"));
+                Assert.That(text, Does.Contain("\"version\": " + SaveFormat.Version)); // 3-7: 지금 형식(3)
                 Assert.That(text, Does.Contain("\"world\""));
                 Assert.That(new SaveStore(path).Load(out _), Is.EqualTo(SaveLoadStatus.Loaded));
             }

@@ -23,6 +23,7 @@
 | 16 | `Data/Enemies/Archer.asset` · `Brute.asset` (+ Grunt.asset 공격 줄) | `Moa.Unity.Data.EnemyTuning` | `Moa.Tests.EnemyVarietyAssetTests` |
 | 17 | `Data/Growth/Growth.asset` + 적 에셋 `goldOnDefeat` · `expItemsOnDefeat` + 캐릭터 에셋 `saveId` | `Moa.Unity.Data.GrowthTuning` · `EnemyTuning` · `CharacterData` | `Moa.Tests.GrowthAssetTests` |
 | 18 | `Data/Player/SwimTuning.asset` · `Data/World/Exploration.asset` | `Moa.Unity.Data.SwimTuning` · `Moa.Unity.Data.ExplorationTuning` | `Moa.Tests.ExplorationAssetTests` |
+| 19 | `Data/Banners/Gacha.asset` · `LimitedStarkeeper.asset` · `Standard.asset` · `Items/*.asset` (+ Exploration.asset 상자 wishes · 적 에셋 wishesOnDefeat) | `Moa.Unity.Data.GachaTuning` · `BannerData` · `GachaItemData` | `Moa.Tests.GachaAssetTests` |
 | — | `Assets/_Game/Data/GameConfig.asset` | `Moa.Unity.Data.GameConfig` | (시드 · 언어 · 글꼴, 0-4) |
 
 ## 1. 이동 (TASKS 1-1) — 정한 것 (Claude, 2026-11-24, 확인 필요)
@@ -373,6 +374,28 @@
 - 시험 지형: 지점 3(wp_start · wp_pond · wp_cliff) · 상자 4(일반 2 · 높은 바위 고급 · 압력판 퍼즐 고급) · 퍼즐 1(압력판 3). 1차 범위의 지점 4 · 상자 30 · 퍼즐 3종은 첫 지역 지형 때
 - 검산: `ExplorationTests` · `ExplorationAssetTests`
 
+## 19. 가챠 — 소원석 · 배너 · 천장 (TASKS 3-7) — 정한 것 (Claude, 2026-11-26, 확인 필요 — GDD는 ★5 0.6% · ★4 5.1% · ★4 10회 보장 · ★5 74회부터 상승 · 90회 확정 · 50/50 · 각성 최대 6만)
+| 항목 | 값 | 근거 |
+|---|---|---|
+| 비용 | 1회 소원석 1 · 10회 10 | 할인 없음. 실제 결제 없음 |
+| ★5 | 기본 0.6% · 74회째부터 1회마다 +6%p(74회째 6.6% · 89회째 96.6%) · 90회째 확정 | GDD + 원신 상승 폭 |
+| ★4 | 기본 5.1% · 9회째 56.1%(+51%p) · 10회째 확정, ★5와 겹치면 다음 회로 | GDD 10회 보장 + 원신 9회째 |
+| 종합 확률 | ★5 1.605% · ★4 13.057% · ★3 85.338% | 상태 사슬 계산(BannerRules.ConsolidatedRates), 화면 표시 |
+| 픽업 | 한정 배너 ★5의 50%, 지면 다음 ★5 확정 → 오래 뽑으면 ★5의 2/3 | GDD 50/50 |
+| 하나당 종합 | 별지기 1.070% · 영웅 / 현자 각 0.268% · ★4 각 4.352% · ★3 각 28.446% (한정) | 확률 공개(개별 확률) |
+| 천장 공유 | 배너 종류(Standard · LimitedCharacter)별 따로, 같은 종류끼리 이어짐, 저장 | 원신 |
+| 각성 · 재련 최대 | 6 · 5 (효과 없음, 수만) | GDD 각성 6 |
+| 넘치면 | ★5 소원석 5 · ★4 소원석 1 · ★3 무기 골드 100 | |
+| 얻는 곳 | 일반 상자 2 · 고급 상자 5 · Brute 처치 1 · Grunt / Archer 0 | 시험 지형 상자 4개 = 14 + Brute 1 = 10회 한 번 남짓 |
+
+| 배너 | 종류 | 픽업 | ★5 | ★4 | ★3 |
+|---|---|---|---|---|---|
+| 한정 소원 · 별지기의 밤 `LimitedStarkeeper` | LimitedCharacter | 별지기(데이터만) | 영웅 · 현자 | 수호자 · 떠돌이 · 창술사(데이터만) | 한손검 · 대검 · 활 |
+| 상시 소원 · 떠도는 별 `Standard` | Standard | 없음 | 영웅 · 현자 | 수호자 · 떠돌이 · 창술사 | 한손검 · 대검 · 활 |
+- 새 계정 보유: 영웅 · 수호자 · 떠돌이 · 현자(각성 0) · 한손검 · 대검 · 활(재련 1). 무기 재련은 그 무기를 든 칸의 refinement에도(한손검 = 영웅 · 현자)
+- 표현 값(Setup 표): ★3 파랑 (.40,.65,.95) · ★4 보라 (.70,.45,.95) · ★5 금 (1,.78,.25), 창 1500×900, 카드 272×232 5열 × 2줄
+- 검산: `GachaTests` · `GachaAssetTests`
+
 ## 검산 케이스
 - 점프 처음 속도 √(2 × 25 × 1.2) = 7.75 m/s → `MoveMathTests.JumpVelocity_ReachesHeight`
 - 경사 35°(법선 y 0.819) 걸을 수 있음 · 50°(0.643) 못 걸음, 한계 45° → `MoveMathTests.IsWalkable_35Yes_50No_AtLimit45`
@@ -402,6 +425,7 @@
 - 적 추가: 궁수 100스텝째 첫 발 · 다음 130 · 5m 안 2.5 m/s 물러남, 정예 내려찍기 100스텝 · 돌진 30스텝 7.2 m · 한 번만 맞힘 · 안 멈춤, 넘어짐 60스텝 · 회피 불가 · 밀려남 15스텝, 길찾기 없으면 2-5와 같음, 72 · 160 · 120 → `EnemyVarietyTests` · `EnemyVarietyAssetTests`
 - 성장: 새 계정 Lv10 배율 1 · 레벨업 1400 → 2개 · 남은 600 · 20에서 NeedAscension · 돌파 5000 → 1.60 · 40 → 15000 · 60 MaxLevel 3.70, 스킬 합 61,000 · 1.80, 무기 1개 = Lv3(340 남음) · 40 = 2.95, 모자라면 그대로, 저장 왕복 · 범위 고치기 · 깨진 파일 백업, 36 → 49 · 136 → 199 · 1600 → `GrowthTests` · `GrowthAssetTests`
 - 탐험: 수영 1.2m 시작 · 1.0 미만 끝 · 6/s(40초) · 20/s(12초) · 지침이면 바로 익사 · 떠 있는 깊이 1.3 · 익사 250(1000) · 213(850) · 1 남김, 지점 한 번만 활성화 · 꺼진 지점 NotActivated · 전멸 중 Busy, 상자 300/2 · 1000/5 한 번만, 퍼즐 판 켜진 채 · 셋이면 풀림 · 잠긴 상자 열림, 저장 형식 1 → 2(world 빈 것, 성장 그대로) · 왕복 · 다른 지역 id 보존 → `ExplorationTests` · `ExplorationAssetTests`
+- 가챠: ★5 0.6% · 74회 6.6% · 89회 96.6% · 90회 확정, ★4 5.1% · 9회 56.1% · 10회 확정 · ★5와 겹치면 다음 회, 종합 1.605% · 13.057%, 시드 고정 10만 회 ★5 1.45 ~ 1.75% · ★4 12.3 ~ 13.7% · 픽업 2/3, 진 뒤 ★5는 언제나 픽업, 천장 종류별 따로, 비용 모자라면 그대로, 각성 6 · 재련 5 · 넘치면 5 / 1 / 골드 100, 저장 왕복 뒤 같은 결과, 형식 2 → 3 → `GachaTests` · `GachaAssetTests`
 - 10번 값: 136 · 96+160 · 320, 시간은 0.02 배수, 60+30+16 ≥ 100 → `SkillTuningAssetTests`
 
 ## 실험 기록
@@ -422,3 +446,4 @@
 | 2026-11-26 | TestField 코드 주입 플레이 (3-4) | Grunt 엄폐벽 돌아 70스텝째 100, 궁수 12m · 100스텝 첫 발 · 72 · 옆 회피 빗나감 · 0.88m Just, 3m면 물러남, 정예 내려찍기 160 · 넘어짐 60스텝 → 돌진 120, 그로기 동안 공격 0, 전원 쓰러짐 뒤 적 6 집 |
 | 2026-11-26 | TestField 코드 주입 플레이 (3-5) | 새 계정 체력 1000/1300/850/900 · 1타 36, Brute 처치 골드 500 · 경험 5, 레벨업 10 → 20 · 돌파 · 21, E · Q · 무기 올리기 → 영웅 체력 1650 · 공격 143 · 1타 51 · E 209 · Grunt 한 대 88, Play 다시 켜면 그대로 |
 | 2026-11-26 | TestField 코드 주입 플레이 (3-6) | 수영 깊이 1.32 시작 · 3.0 m/s · 6/s, 질주 5.5 m/s · 20/s, 벽 붙어 올라섬, 경사 0.99에서 걸어 나옴, 활공 · 낙하로 물에 들어감, 스태미나 3에서 익사 → 물가 · 1000 → 750, 지점 2.9m 활성화, 지도 순간이동(회복 없음), 상자 300/2 · 1000/5 · 1000/5, 퍼즐 1/3 · 2/3 · 풀림, Play 다시 켜도 그대로 |
+| 2026-11-26 | 시드 고정 10만 회 시뮬레이션 (3-7) | 한정 ★5 1.597% · ★4 13.119% · 픽업 66.3%, 상시 ★5 1.592% · ★4 13.064% (기대 1.605% · 13.057%), Core 한정 50/50 570승 520패 |

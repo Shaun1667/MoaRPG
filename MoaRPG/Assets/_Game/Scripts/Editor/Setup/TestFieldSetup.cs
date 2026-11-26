@@ -48,6 +48,7 @@ namespace Moa.Editor.Setup
         public const string GrowthTuningPath = "Assets/_Game/Data/Growth/Growth.asset";        // 3-5: 레벨 · 돌파 · 스킬 · 무기 성장 곡선 (GrowthTuning)
         public const string SwimTuningPath = "Assets/_Game/Data/Player/SwimTuning.asset";       // 3-6: 수영 · 익사 (SwimTuning)
         public const string ExplorationPath = "Assets/_Game/Data/World/Exploration.asset";      // 3-6: 지점 · 상자 · 압력판 거리, 상자 보상 (ExplorationTuning)
+        public const string GachaPath = "Assets/_Game/Data/Banners/Gacha.asset";              // 3-7: 배너 표 · 각성 · 재련 · 시작 보유 (GachaTuning, 배너 · 항목은 같은 폴더)
         public const string NavMeshDataPath = "Assets/_Game/Scenes/TestField/NavMesh-Environment.asset"; // 3-4: Environment에서 구운 NavMesh (다시 굽으면 이 에셋을 고침)
 
         const string GameConfigPath = "Assets/_Game/Data/GameConfig.asset";
@@ -259,6 +260,24 @@ namespace Moa.Editor.Setup
         static readonly Vector2 ToastSize = new Vector2(900f, 48f);
         const int ToastFontSize = 30;
 
+        // ---- 표현 표 (3-7 가챠 화면, 게임 수치 아님) ----
+        const int GachaSortingOrder = 100;                                           // 성장 · 지도 화면과 같은 층 (한 번에 하나만)
+        static readonly Vector2 GachaWindowSize = new Vector2(1500f, 900f);          // px (1920×1080 기준)
+        const float GachaPad = 36f, GachaCardGap = 16f, GachaBandHeight = 12f;
+        static readonly Vector2 GachaRow = new Vector2(44f, 8f);                     // 줄 높이 · 줄 사이
+        static readonly Vector2 GachaTabSize = new Vector2(420f, 56f);
+        static readonly Vector2 GachaButtonSize = new Vector2(300f, 60f);
+        static readonly Vector2 GachaCardSize = new Vector2(272f, 232f);             // 5열 × 2줄 = 10회 결과
+        const int GachaCardColumns = 5;
+        const int GachaTitleFontSize = 40, GachaBodyFontSize = 24, GachaInfoFontSize = 20;
+        static readonly Color GachaCardColor = new Color(1f, 1f, 1f, 0.07f);
+        static readonly Color[] GachaRarityColors =                                  // ★3 파랑 · ★4 보라 · ★5 금색
+        {
+            new Color(0.40f, 0.65f, 0.95f, 1f),
+            new Color(0.70f, 0.45f, 0.95f, 1f),
+            new Color(1.00f, 0.78f, 0.25f, 1f),
+        };
+
         // ---- 배치 표 (시험 지형, 단위 m · 도) ----
         static readonly Vector3 Spawn = new Vector3(0f, 0.05f, 0f);
         const float GroundSize = 120f;
@@ -396,6 +415,7 @@ namespace Moa.Editor.Setup
             EnsureFolder("Assets/_Game/Data/Characters");
             EnsureFolder("Assets/_Game/Data/Growth"); // 3-5
             EnsureFolder("Assets/_Game/Data/World"); // 3-6
+            EnsureFolder("Assets/_Game/Data/Banners"); // 3-7
 
             EnsureFolder(GrayboxFolder);
             EnsureFolder("Assets/_Game/Scenes");
@@ -425,6 +445,7 @@ namespace Moa.Editor.Setup
             var growth = LoadOrCreate<GrowthTuning>(GrowthTuningPath); // 3-5
             var swimTuning = LoadOrCreate<SwimTuning>(SwimTuningPath); // 3-6
             var exploration = LoadOrCreate<ExplorationTuning>(ExplorationPath);
+            var gachaTuning = LoadOrCreate<GachaTuning>(GachaPath); // 3-7
 
             var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
             if (config == null) Debug.LogError("TestFieldSetup: GameConfig missing at " + GameConfigPath);
@@ -487,6 +508,11 @@ namespace Moa.Editor.Setup
             SetArray(root, "plates", world.plates);
             Set(root, "mapScreen", mapScreen);
             Set(root, "worldToast", toast);
+            var gachaScreen = GachaScreen.CreateIn(gauge.transform.parent, GachaSortingOrder, Mathf.Max(1, gachaTuning.BannerCount), Mathf.Max(1, gachaTuning.MultiPull), GachaCardColumns,
+                GachaWindowSize, GachaPad, GachaRow, GachaTabSize, GachaButtonSize, GachaCardSize, GachaCardGap, GachaBandHeight, GachaTitleFontSize, GachaBodyFontSize, GachaInfoFontSize,
+                GrowthDimColor, GrowthWindowColor, GachaCardColor, GrowthButtonColor, GrowthButtonDisabledColor, SkillTextColor, DamageOutlineColor, GachaRarityColors); // 3-7: 자기 Canvas
+            Set(root, "gacha", gachaTuning);
+            Set(root, "gachaScreen", gachaScreen);
 
             EditorSceneManager.MarkSceneDirty(scene);
             bool saved = EditorSceneManager.SaveScene(scene, ScenePath);

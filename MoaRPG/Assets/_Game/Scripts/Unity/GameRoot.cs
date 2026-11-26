@@ -82,6 +82,11 @@ namespace Moa.Unity
         [SerializeField] MapScreen mapScreen;
         [Tooltip("One-line exploration message at the top of the HUD")]
         [SerializeField] WorldToast worldToast;
+        [Header("Gacha (3-7, empty in scenes without a player)")]
+        [Tooltip("Banners, awakening / refinement limits, starting items (Data/Banners/Gacha.asset)")]
+        [SerializeField] GachaTuning gacha;
+        [Tooltip("Wish screen (toggle with Gacha)")]
+        [SerializeField] GachaScreen gachaScreen;
 
         [Tooltip("Debug window teleport targets")]
         [SerializeField] Transform[] debugTeleportPoints;
@@ -193,9 +198,11 @@ namespace Moa.Unity
             _growthIds = ids;
             _save = new SaveStore(SaveStore.DefaultPath);
             BindWorld(); // 3-6: 저장을 읽기 전에 지점 · 상자 · 퍼즐을 등록
+            BindGacha(); // 3-7: 저장을 읽기 전에 (지갑 = 성장의 것)
             LoadGrowth();
             _growth.Changed += OnGrowthChanged;
             if (_world != null) _world.Changed += OnWorldChanged;
+            if (_gacha != null) _gacha.Changed += OnGachaChanged;
             playerCombat.Defeated += OnDefeated;
             if (growthScreen != null) growthScreen.Bind(_growth, playerCombat, playerVitals, _input, UiFont.Get(config));
         }
@@ -211,11 +218,13 @@ namespace Moa.Unity
             {
                 int fixes = _growth.Load(snap);
                 if (_world != null) fixes += _world.Load(snap.world); // 3-6
+                if (_gacha != null) fixes += _gacha.Load(snap.gacha, GachaHardFive, GachaHardFour); // 3-7
                 if (fixes > 0) Debug.LogWarning("GameRoot: save " + _save.FilePath + " had " + fixes + " out-of-range values - fixed");
                 if (_save.LastUpgradedFrom > 0) Debug.Log("GameRoot: save " + _save.FilePath + " upgraded from format " + _save.LastUpgradedFrom + " to " + SaveFormat.Version);
             }
             else if (_loadStatus == SaveLoadStatus.Broken)
                 Debug.LogWarning("GameRoot: save " + _save.FilePath + " was broken (" + _save.LastError + ") - moved to " + _save.LastBackupPath + ", starting from zero");
+            SyncRefinement(); // 3-7: 무기 재련 칸 (가챠 보관함 → 그 무기를 든 칸)
             ApplyGrowth();
         }
 
@@ -257,12 +266,13 @@ namespace Moa.Unity
             _saveDirty = false;
             SaveSnapshot snap = _growth.ToSnapshot();
             if (_world != null) snap.world = _world.ToSave(); // 3-6
+            if (_gacha != null) snap.gacha = _gacha.ToSave(); // 3-7
             if (!_save.Save(snap)) Debug.LogWarning("GameRoot: save failed - " + _save.LastError);
         }
 
         void OnDefeated(IHitTarget target)
         {
-            if (_growth != null && target is IRewardDrop r) _growth.AddReward(r.GoldOnDefeat, r.ExpItemsOnDefeat);
+            if (_growth != null && target is IRewardDrop r) _growth.AddReward(r.GoldOnDefeat, r.ExpItemsOnDefeat, r.WishesOnDefeat); // 3-7: + 소원석
         }
 
         // ---- 3-6 탐험 (수영 · 순간이동 지점 · 상자 · 퍼즐) ----
@@ -332,7 +342,9 @@ namespace Moa.Unity
             Toast(Text.Get("ui.world.waypoint", w != null && !string.IsNullOrEmpty(w.NameKey) ? Text.Get(w.NameKey) : id));
         }
 
-        void OnChestOpened(string id, ChestReward reward) => Toast(Text.Get("ui.world.chest", reward.Gold, reward.ExpItems));
+        void OnChestOpened(string id, ChestReward reward) => Toast(reward.Wishes > 0
+            ? Text.Get("ui.world.chest_wish", reward.Gold, reward.ExpItems, reward.Wishes) // 3-7
+            : Text.Get("ui.world.chest", reward.Gold, reward.ExpItems));
 
         void OnPlatePressed(string puzzleId, PlateResult result, int lit, int count) =>
             Toast(result == PlateResult.Solved ? Text.Get("ui.world.solved") : Text.Get("ui.world.plate", lit, count));
@@ -345,6 +357,73 @@ namespace Moa.Unity
         }
 
         void Toast(string text) { if (worldToast != null) worldToast.Show(text); }
+
+        // ---- 3-7 가챠 ----
+
+        Moa.Core.Gacha.GachaAccount _gacha;
+        Moa.Core.Gacha.BannerRules[] _gachaBanners = new Moa.Core.Gacha.BannerRules[0];
+
+        /// <summary>배너들의 가장 큰 ★5 · ★4 확정 회차 (저장 읽기에서 천장 회차를 자르는 값).</summary>
+        int GachaHardFive { get { int h = 1; foreach (var b in _gachaBanners) if (b.Five.Hard > h) h = b.Five.Hard; return h; } }
+        int GachaHardFour { get { int h = 1; foreach (var b in _gachaBanners) if (b.Four.Hard > h) h = b.Four.Hard; return h; } }
+
+        /// <summary>3-7: 가챠 계정(지갑 = 성장의 것, 난수 = RandomStream.Gacha) · 배너 규칙 · 화면. 실제 결제 없음.</summary>
+        void BindGacha()
+        {
+            _gacha = null;
+            if (gacha == null || _growth == null || _random == null) return;
+            var list = new System.Collections.Generic.List<Moa.Core.Gacha.BannerRules>();
+            try
+            {
+                for (int i = 0; i < gacha.BannerCount; i++)
+                {
+                    BannerData b = gacha.GetBanner(i);
+                    if (b == null) throw new System.ArgumentException("banner row " + i + " is empty");
+                    list.Add(b.ToRules());
+                }
+                if (list.Count == 0) throw new System.ArgumentException("no banners in " + gacha.name);
+                _gacha = new Moa.Core.Gacha.GachaAccount(gacha.ToRules(), _growth.Wallet, _random.Get(RandomStream.Gacha));
+            }
+            catch (System.ArgumentException e) { Debug.LogError("GameRoot: gacha not started - " + e.Message); _gacha = null; return; }
+            _gachaBanners = list.ToArray();
+            if (gachaScreen != null) gachaScreen.Bind(_gacha, gacha, _gachaBanners, _input, UiFont.Get(config));
+        }
+
+        void OnGachaChanged()
+        {
+            if (SyncRefinement()) return; // 재련이 바뀌면 성장 Changed가 저장을 건다
+            _saveDirty = true;
+        }
+
+        /// <summary>무기 재련 칸 (3-5 자리) = 가챠 보관함의 그 무기 재련 — 무기 보관함이 없어 같은 무기를 든 칸은 모두 같은 값. 바뀜 게 있었으면 true.</summary>
+        bool SyncRefinement()
+        {
+            if (_gacha == null || _growth == null || gacha == null) return false;
+            bool changed = false;
+            for (int i = 0; i < _growth.Count; i++)
+            {
+                CharacterData c = GrowthCharacter(i);
+                string id = c != null && c.Weapon != null ? GachaWeaponId(c.Weapon) : null;
+                if (id == null || !_gacha.Owns(id)) continue;
+                int r = _gacha.Refinement(id);
+                if (_growth.Member(i).Refinement == r) continue;
+                _growth.SetRefinement(i, r);
+                changed = true;
+            }
+            return changed;
+        }
+
+        string GachaWeaponId(WeaponTuning w)
+        {
+            foreach (var s in gacha.StartingItems) if (s != null && s.Weapon == w) return s.Id;
+            for (int i = 0; i < gacha.BannerCount; i++)
+            {
+                BannerData b = gacha.GetBanner(i);
+                if (b == null) continue;
+                foreach (var it in b.Pool) if (it != null && it.Weapon == w) return it.Id;
+            }
+            return null;
+        }
 
 
         void OnPlayerHurt(Moa.Core.Combat.PlayerHit hit, Vector3 at)
@@ -1039,6 +1118,45 @@ namespace Moa.Unity
 
         /// <summary>[상태 변경] 지점 · 상자 · 퍼즐을 모두 처음으로 (재화는 그대로 — 성장 초기화는 GrowthSection).</summary>
         public void DebugWorldReset() => _world?.ResetAll();
+
+        // ---- 가챠 (3-7) ----
+
+        /// <summary>가챠 계정 (Core, 없으면 null) · 배너 규칙 · 데이터 · 화면.</summary>
+        public Moa.Core.Gacha.GachaAccount DebugGacha => _gacha;
+        public Moa.Core.Gacha.BannerRules[] DebugGachaBanners => _gachaBanners;
+        public GachaTuning DebugGachaTuning => gacha;
+        public GachaScreen DebugGachaScreen => gachaScreen;
+        public bool DebugGachaOpen => gachaScreen != null && gachaScreen.Open;
+
+        /// <summary>[상태 변경] 소원석 +amount (음수면 빼기, 0 아래로는 안 감).</summary>
+        public void DebugGachaAddWishes(int amount) => DebugGrowthAddCurrency(Currency.Wish, amount);
+
+        /// <summary>[상태 변경] 배너 종류의 천장 카운트 · 픽업 보장을 정한다 (확정 회차 안으로 자름).</summary>
+        public void DebugGachaSetPity(Moa.Core.Gacha.BannerKind kind, int sinceFive, int sinceFour, bool guaranteed)
+        {
+            if (_gacha != null) _gacha.SetPity(kind, sinceFive, sinceFour, guaranteed, GachaHardFive, GachaHardFour);
+        }
+
+        /// <summary>[상태 변경] 천장 · 보장 · 보관함을 처음으로 (처음부터 가진 것만 — 소원석 · 난수 상태는 그대로).</summary>
+        public void DebugGachaReset() => _gacha?.ResetAll();
+
+        /// <summary>[상태 변경] 배너(0부터)에서 count번 뽑는다 (화면 버튼과 같은 규칙 · 비용). 결과 (안 되면 null, 까닭은 DebugGacha.LastBlock).</summary>
+        public System.Collections.Generic.IReadOnlyList<Moa.Core.Gacha.GachaPull> DebugGachaPull(int banner, int count)
+        {
+            if (_gacha == null || banner < 0 || banner >= _gachaBanners.Length) return null;
+            if (gachaScreen != null && (count == 1 || count == _gacha.Rules.MultiPull))
+            {
+                gachaScreen.SelectBanner(banner);
+                return gachaScreen.Pull(count != 1) ? gachaScreen.Shown : null;
+            }
+            return _gacha.TryPull(_gachaBanners[banner], count);
+        }
+
+        /// <summary>[상태 변경] 가챠 화면 키 주입 (열기/닫기, 다음 프레임).</summary>
+        public void DebugInputGacha() => _input?.DebugPressGacha();
+
+        /// <summary>[상태 변경] 가챠 화면을 바로 열거나 닫는다.</summary>
+        public void DebugSetGachaOpen(bool open) { if (gachaScreen != null) gachaScreen.SetOpen(open); }
 
         /// <summary>지금 상태 요약 (개발자용, 텍스트 표 대상 아님).</summary>
         public string DebugState()

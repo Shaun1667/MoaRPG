@@ -109,6 +109,7 @@ namespace Moa.Unity.Combat
         /// <summary>3-5: 처치 보상 (적 표).</summary>
         public int GoldOnDefeat => tuning != null ? tuning.GoldOnDefeat : 0;
         public int ExpItemsOnDefeat => tuning != null ? tuning.ExpItemsOnDefeat : 0;
+        public int WishesOnDefeat => tuning != null ? tuning.WishesOnDefeat : 0; // 3-7
         public EnemyState State => _brain != null ? _brain.State : EnemyState.Idle;
         public Vector3 Home => _home;
         public bool Bound => _target != null;

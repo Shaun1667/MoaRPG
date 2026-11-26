@@ -17,6 +17,8 @@ namespace Moa.Unity.Data
             public ChestTier tier;
             public int gold;
             public int expItems;
+            /// <summary>3-7: 소원석 (가챠).</summary>
+            public int wishes;
         }
 
         [Tooltip("A waypoint activates when the player comes this close (m, flat distance)")]
@@ -50,7 +52,7 @@ namespace Moa.Unity.Data
                 {
                     if (row == null) continue;
                     int i = (int)row.tier;
-                    if (i >= 0 && i < n) rewards[i] = new ChestReward(row.gold, row.expItems);
+                    if (i >= 0 && i < n) rewards[i] = new ChestReward(row.gold, row.expItems, row.wishes);
                 }
             return new ExplorationRules(rewards, teleportHealsParty);
         }

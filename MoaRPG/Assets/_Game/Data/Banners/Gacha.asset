@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 023f2084df94a2c4e8549939ab3dd205, type: 3}
+  m_Name: Gacha
+  m_EditorClassIdentifier: Moa.Unity::Moa.Unity.Data.GachaTuning
+  banners:
+  - {fileID: 11400000, guid: 7147fd987ece11c49b41a69b82668563, type: 2}
+  - {fileID: 11400000, guid: 3600d8080a9aa3e438efbaa24f397345, type: 2}
+  maxAwakening: 6
+  maxRefinement: 5
+  multiPull: 10
+  overflow:
+  - stars: 5
+    currency: 2
+    amount: 5
+  - stars: 4
+    currency: 2
+    amount: 1
+  - stars: 3
+    currency: 0
+    amount: 100
+  startingItems:
+  - {fileID: 11400000, guid: a02f7779e6171ee4c866349a8c4b9742, type: 2}
+  - {fileID: 11400000, guid: e432e39185fe5b94a858574ae2df18f2, type: 2}
+  - {fileID: 11400000, guid: 55bca51d4c7d41648865786efbd32565, type: 2}
+  - {fileID: 11400000, guid: f9551ab03831d9e46a8778cf8da212c4, type: 2}
+  - {fileID: 11400000, guid: 610859079f6d6f240a3df4649a247853, type: 2}
+  - {fileID: 11400000, guid: 1dc84b234a0557642baa79b0da883264, type: 2}
+  - {fileID: 11400000, guid: 19146d99072517d4ebedbbaa26bc7740, type: 2}

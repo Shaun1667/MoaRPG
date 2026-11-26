@@ -29,6 +29,7 @@ namespace Moa.Editor.Debugging
             new WeaponSection(),
             new GrowthSection(),
             new ExplorationSection(), // 3-6
+            new GachaSection(), // 3-7
         };
 
         bool[] _open;

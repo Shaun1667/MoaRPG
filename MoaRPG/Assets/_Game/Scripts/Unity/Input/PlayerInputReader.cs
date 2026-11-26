@@ -28,6 +28,8 @@ namespace Moa.Unity.Input
         bool _menuOpen;
         InputAction _worldMap; // 3-6: 에셋에 없으면 null (주입만 받는다)
         bool _mapLatched;
+        InputAction _gacha; // 3-7: 에셋에 없으면 null (주입만 받는다)
+        bool _gachaLatched;
         float _debugSkillHoldEnd = float.NegativeInfinity; // 주입한 스킬 길게 누르기가 끝나는 고정 스텝 시각 (2-4)
 
         bool _walkMode;
@@ -93,6 +95,7 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
             _burst = _map.FindAction(PlayerControls.Burst, false);
             _characterMenu = _map.FindAction(PlayerControls.CharacterMenu, false); // 3-5: 없으면 조용히 건너뛴다
             _worldMap = _map.FindAction(PlayerControls.Map, false); // 3-6: 없으면 조용히 건너뛴다
+            _gacha = _map.FindAction(PlayerControls.Gacha, false); // 3-7: 없으면 조용히 건너뛴다
             _party = new InputAction[PlayerControls.PartySlots.Length]; // 2-6: 없으면 조용히 건너뛴다
             for (int i = 0; i < _party.Length; i++) _party[i] = _map.FindAction(PlayerControls.PartySlots[i], false);
 
@@ -124,6 +127,7 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
                 bool esc = _releaseCursor.WasPressedThisFrame(); // ESC는 두 화면 키 모두 — 열린 화면만 닫히고, 닫히면 MenuOpen이 나머지를 버린다 (3-6)
                 if ((_characterMenu != null && _characterMenu.WasPressedThisFrame()) || esc) _menuLatched = true;
                 if ((_worldMap != null && _worldMap.WasPressedThisFrame()) || esc) _mapLatched = true;
+                if ((_gacha != null && _gacha.WasPressedThisFrame()) || esc) _gachaLatched = true; // 3-7
                 if (CursorCaptured) SetCursorCaptured(false);
                 _lookMouse = Vector2.zero;
                 _lookStickValue = Vector2.zero;
@@ -134,6 +138,7 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
             }
             if (_characterMenu != null && _characterMenu.WasPressedThisFrame() && !_override) _menuLatched = true;
             if (_worldMap != null && _worldMap.WasPressedThisFrame() && !_override) _mapLatched = true; // 3-6
+            if (_gacha != null && _gacha.WasPressedThisFrame() && !_override) _gachaLatched = true; // 3-7
 
             // 커서
             // 커서 · 공격 (2-1): 커서가 풀려 있을 때의 클릭은 잠금만, 잠겨 있을 때의 클릭은 공격
@@ -269,6 +274,15 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
 
         public void DebugPressMap() { _mapLatched = true; }
 
+        public bool ConsumeGacha()
+        {
+            bool g = _gachaLatched;
+            _gachaLatched = false;
+            return g;
+        }
+
+        public void DebugPressGacha() { _gachaLatched = true; }
+
         public bool MenuOpen
         {
             get => _menuOpen;
@@ -280,7 +294,7 @@ public bool SprintHeld => !_menuOpen && (_override ? _ovSprint : (_sprint != nul
                 _jumpLatched = _dodgeLatched = _attackLatched = _skillLatched = _burstLatched = false;
                 _switchLatched = 0;
                 _debugHoldEnd = _debugSkillHoldEnd = float.NegativeInfinity;
-                _menuLatched = _mapLatched = false; // 3-6: 한 화면이 열리거나 닫히면 같은 프레임의 다른 화면 키는 버린다
+                _menuLatched = _mapLatched = _gachaLatched = false; // 3-6: 한 화면이 열리거나 닫히면 같은 프레임의 다른 화면 키는 버린다
                 SetCursorCaptured(!value);
             }
         }
